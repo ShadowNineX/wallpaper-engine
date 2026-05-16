@@ -206,6 +206,11 @@ window.wallpaperRegisterAudioListener((raw) => {
 });
 ```
 
+> **Important — always use `window.wallpaperRegisterAudioListener`, not `globalThis.`.**
+> Wallpaper Engine scans your compiled JS for this exact call to detect that the wallpaper uses audio and automatically sets `"supportsaudioprocessing": true` in its internal `project.json`. Without that flag, WE will **not** send audio data in live desktop mode (the editor preview always sends audio regardless, which can mask the problem).
+>
+> If audio works in the WE editor but not as a live wallpaper, open the wallpaper in the WE editor and click **Edit → Save** to force WE to write the updated `project.json`. After saving, re-apply the wallpaper as your desktop background.
+
 ### LED / RGB
 
 ```ts
@@ -235,7 +240,7 @@ window.onload = () => loop.start();
 
 ## Window Augmentation
 
-Importing from `wallpaper-engine` automatically augments the global `Window` interface — no manual `declare` blocks needed.
+If you're not using Vite or don't need the plugin, the main `wallpaper-engine` entry is all you need. A single side-effect import augments the global `Window` interface so every WE API is fully typed — no manual `declare` blocks, no runtime cost.
 
 ```ts
 import 'wallpaper-engine';
@@ -252,6 +257,24 @@ window.cue.setLedsColorsAsync(deviceIndex, leds);
 window.wallpaperRegisterMediaPropertiesListener((e) => { /* e.title, e.artist, ... */ });
 window.wallpaperRegisterMediaPlaybackListener((e) => { /* e.state */ });
 window.wallpaperRegisterMediaThumbnailListener((e) => { /* e.thumbnail (base64 PNG) */ });
+```
+
+The import is erased at compile time — nothing is added to your bundle.
+
+Two alternatives that also work without an `import` in your source:
+
+**`tsconfig.json`** — applies the augmentation project-wide, no import needed anywhere:
+```json
+{
+  "compilerOptions": {
+    "types": ["wallpaper-engine"]
+  }
+}
+```
+
+**Triple-slash reference** — per-file, useful if you only want types in specific files:
+```ts
+/// <reference types="wallpaper-engine" />
 ```
 
 ---

@@ -10,7 +10,7 @@ export default defineConfig({
     vue(),
     wallpaperEnginePlugin({
       title: "Example Wallpaper",
-      supportsAudioProcessing: false,
+      supportsAudioProcessing: true,
       properties,
     }),
   ],

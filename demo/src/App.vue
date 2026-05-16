@@ -3,6 +3,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from "vue";
 import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
 import { wallpaperColorToHex } from "wallpaper-engine/helpers";
 import { properties } from "./wallpaper";
+import { Play, Pause, Square } from "lucide-vue-next";
 
 type UserProps = WallpaperUserPropertiesOf<typeof properties>;
 
@@ -25,7 +26,12 @@ const playbackState = ref<0 | 1 | 2>(2);
 const timelinePos = ref(0);
 const timelineDur = ref(0);
 
-// ── Audio ─────────────────────────────────────────────────────────────────────
+// ── Clock ───────────────────────────────────────────────────────────────────
+function getNow() {
+  return new Date();
+}
+const now = ref(getNow());
+let clockTimer: ReturnType<typeof setInterval> | undefined;
 const canvas = ref<HTMLCanvasElement | null>(null);
 let animFrame = 0;
 const rawAudio = new Float32Array(128);
@@ -49,7 +55,7 @@ const progressPct = computed(() =>
 );
 
 const hasMedia = computed(
-  () => mediaEnabled.value && (mediaTitle.value || mediaArtist.value),
+  () => mediaTitle.value !== "" || mediaArtist.value !== "",
 );
 
 function formatTime(s: number): string {
@@ -63,8 +69,16 @@ function formatTime(s: number): string {
 function resizeCanvas(): void {
   const c = canvas.value;
   if (!c) return;
-  c.width = c.offsetWidth * devicePixelRatio;
-  c.height = c.offsetHeight * devicePixelRatio;
+  // getBoundingClientRect is more reliable than offsetWidth/Height in WE's CEF context
+  const rect = c.getBoundingClientRect();
+  const w = rect.width || c.offsetWidth || globalThis.innerWidth;
+  const h =
+    rect.height ||
+    c.offsetHeight ||
+    Math.min(Math.max(Math.round(globalThis.innerHeight * 0.22), 160), 420);
+  if (w === 0 || h === 0) return; // layout not ready yet — retry triggered by rAF
+  c.width = w * devicePixelRatio;
+  c.height = h * devicePixelRatio;
 }
 
 function drawBars(): void {
@@ -86,8 +100,11 @@ function drawBars(): void {
     // Left half reversed, right half forward — gives symmetric waveform
     const li = 63 - i;
     const ri = 64 + i;
-    const sample = ((smoothed[li] ?? 0) + (smoothed[ri] ?? 0)) / 2;
-    const barH = Math.max(2, sample * h * 0.92);
+    // Square-root curve boosts quiet audio without clipping loud peaks
+    const raw = ((smoothed[li] ?? 0) + (smoothed[ri] ?? 0)) / 2;
+    const sample = Math.sqrt(raw);
+    const minH = Math.max(2, h * 0.005); // at least 0.5% of canvas height
+    const barH = Math.max(minH, sample * h);
     const x = i * barW + gap / 2;
     const bw = barW - gap;
 
@@ -98,13 +115,17 @@ function drawBars(): void {
     grad.addColorStop(1, col + "22");
     ctx.fillStyle = grad;
     ctx.beginPath();
-    ctx.roundRect(x, h - barH, bw, barH, [3, 3, 0, 0]);
+    if (ctx.roundRect) {
+      ctx.roundRect(x, h - barH, bw, barH, [3, 3, 0, 0]);
+    } else {
+      ctx.rect(x, h - barH, bw, barH);
+    }
     ctx.fill();
   }
 }
 
 function animate(): void {
-  const decay = 0.18;
+  const decay = 0.4;
   for (let i = 0; i < 128; i++) {
     smoothed[i] =
       (smoothed[i] ?? 0) + ((rawAudio[i] ?? 0) - (smoothed[i] ?? 0)) * decay;
@@ -113,63 +134,74 @@ function animate(): void {
   animFrame = requestAnimationFrame(animate);
 }
 
+// Register listeners immediately at script evaluation time.
+// WE docs: don't put these in window.onload or similar — register at end of body.
+// Must use window.wallpaperRegisterAudioListener (not globalThis) so WE's code
+// scanner detects it and sets supportsaudioprocessing:true in project.json.
+globalThis.wallpaperRegisterAudioListener((data) => {
+  for (let i = 0; i < 128; i++) rawAudio[i] = Math.min(data[i] ?? 0, 1);
+});
+
+globalThis.wallpaperPropertyListener = {
+  applyUserProperties(raw) {
+    const props = raw as Partial<UserProps>;
+    if (props.bgColor) bgColor.value = wallpaperColorToHex(props.bgColor.value);
+    if (props.accentColor)
+      accentColor.value = wallpaperColorToHex(props.accentColor.value);
+    if (props.label != null) label.value = props.label.value;
+    if (props.showLabel != null) showLabel.value = props.showLabel.value;
+  },
+};
+
+globalThis.wallpaperRegisterMediaStatusListener((e) => {
+  mediaEnabled.value = e.enabled;
+  if (!e.enabled) {
+    mediaTitle.value = "";
+    mediaArtist.value = "";
+    mediaAlbum.value = "";
+    mediaThumbnail.value = "";
+    primaryColor.value = "";
+    secondaryColor.value = "";
+  }
+});
+
+globalThis.wallpaperRegisterMediaPropertiesListener((e) => {
+  mediaTitle.value = e.title ?? "";
+  mediaArtist.value = e.artist ?? "";
+  mediaAlbum.value = e.albumTitle ?? "";
+});
+
+globalThis.wallpaperRegisterMediaThumbnailListener((e) => {
+  mediaThumbnail.value = e.thumbnail ?? "";
+  primaryColor.value = e.primaryColor ?? "";
+  secondaryColor.value = e.secondaryColor ?? "";
+});
+
+globalThis.wallpaperRegisterMediaPlaybackListener((e) => {
+  playbackState.value = e.state as 0 | 1 | 2;
+});
+
+globalThis.wallpaperRegisterMediaTimelineListener((e) => {
+  timelinePos.value = e.position ?? 0;
+  timelineDur.value = e.duration ?? 0;
+});
+
 // ── Lifecycle ─────────────────────────────────────────────────────────────────
 onMounted(() => {
-  resizeCanvas();
+  clockTimer = globalThis.setInterval(() => {
+    now.value = getNow();
+  }, 1000);
   window.addEventListener("resize", resizeCanvas);
-  animate();
-
-  globalThis.wallpaperPropertyListener = {
-    applyUserProperties(raw) {
-      const props = raw as Partial<UserProps>;
-      if (props.bgColor)
-        bgColor.value = wallpaperColorToHex(props.bgColor.value);
-      if (props.accentColor)
-        accentColor.value = wallpaperColorToHex(props.accentColor.value);
-      if (props.label != null) label.value = props.label.value;
-      if (props.showLabel != null) showLabel.value = props.showLabel.value;
-    },
-  };
-
-  globalThis.wallpaperRegisterAudioListener((data) => {
-    for (let i = 0; i < 128; i++) rawAudio[i] = Math.min(data[i] ?? 0, 1);
-  });
-
-  globalThis.wallpaperRegisterMediaStatusListener((e) => {
-    mediaEnabled.value = e.enabled;
-    if (!e.enabled) {
-      mediaTitle.value = "";
-      mediaArtist.value = "";
-      mediaAlbum.value = "";
-      mediaThumbnail.value = "";
-      primaryColor.value = "";
-      secondaryColor.value = "";
-    }
-  });
-
-  globalThis.wallpaperRegisterMediaPropertiesListener((e) => {
-    mediaTitle.value = e.title ?? "";
-    mediaArtist.value = e.artist ?? "";
-    mediaAlbum.value = e.albumTitle ?? "";
-  });
-
-  globalThis.wallpaperRegisterMediaThumbnailListener((e) => {
-    mediaThumbnail.value = e.thumbnail ?? "";
-    primaryColor.value = e.primaryColor ?? "";
-    secondaryColor.value = e.secondaryColor ?? "";
-  });
-
-  globalThis.wallpaperRegisterMediaPlaybackListener((e) => {
-    playbackState.value = e.state as 0 | 1 | 2;
-  });
-
-  globalThis.wallpaperRegisterMediaTimelineListener((e) => {
-    timelinePos.value = e.position ?? 0;
-    timelineDur.value = e.duration ?? 0;
+  // Defer by one frame so the browser finishes layout before we read dimensions.
+  // In WE's live wallpaper renderer, offsetWidth/Height can be 0 at mount time.
+  requestAnimationFrame(() => {
+    resizeCanvas();
+    animate();
   });
 });
 
 onBeforeUnmount(() => {
+  clearInterval(clockTimer);
   window.removeEventListener("resize", resizeCanvas);
   cancelAnimationFrame(animFrame);
 });
@@ -177,27 +209,35 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="wallpaper" :style="bgStyle">
-    <!-- Blurred thumbnail backdrop -->
-    <Transition name="fade">
-      <div
-        v-if="mediaThumbnail"
-        class="thumb-bg"
-        :style="{ backgroundImage: `url(${mediaThumbnail})` }"
-      />
-    </Transition>
-
     <!-- Ambient orb -->
     <div class="orb" :style="{ background: primaryColor || accentColor }" />
 
     <!-- Label (no media) -->
     <Transition name="fade">
-      <p
-        v-if="showLabel && !hasMedia"
-        class="label"
-        :style="{ color: accentColor, textShadow: `0 0 30px ${accentColor}88` }"
-      >
-        {{ label }}
-      </p>
+      <div v-if="showLabel" class="label-group" :style="{ color: accentColor }">
+        <p class="label" :style="{ textShadow: `0 0 30px ${accentColor}88` }">
+          {{ label }}
+        </p>
+        <p class="clock-time">
+          {{
+            now.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })
+          }}
+        </p>
+        <p class="clock-date">
+          {{
+            now.toLocaleDateString([], {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })
+          }}
+        </p>
+      </div>
     </Transition>
 
     <!-- ── Media overlay ── -->
@@ -218,9 +258,9 @@ onBeforeUnmount(() => {
           </div>
           <!-- Playback state badge -->
           <div class="playback-badge">
-            <span v-if="playbackState === 0">▶</span>
-            <span v-else-if="playbackState === 1">⏸</span>
-            <span v-else>⏹</span>
+            <Play v-if="playbackState === 0" />
+            <Pause v-else-if="playbackState === 1" />
+            <Square v-else />
           </div>
         </div>
 
@@ -266,71 +306,76 @@ onBeforeUnmount(() => {
   color: #fff;
 }
 
-/* full-screen album art background */
-.thumb-bg {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  background-size: cover;
-  background-position: center;
-  opacity: 1;
-  transition: background-image 1s ease;
-}
-
-/* dark scrim so text stays readable */
-.thumb-bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-}
-
 /* ambient orb */
 .orb {
   position: absolute;
-  width: 520px;
-  height: 520px;
+  width: clamp(280px, 40vmin, 720px);
+  height: clamp(280px, 40vmin, 720px);
   border-radius: 50%;
-  filter: blur(140px);
+  filter: blur(clamp(80px, 11vmin, 180px));
   opacity: 0.35;
   animation: pulse 8s ease-in-out infinite;
   transition: background 1s ease;
 }
 
+.label-group {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 0.8vw, 18px);
+  transition: color 1s ease;
+}
+
 .label {
   position: relative;
-  font-size: 3rem;
+  font-size: clamp(1.5rem, 4vw, 7rem);
   font-weight: 700;
   letter-spacing: 0.25em;
   text-transform: uppercase;
-  z-index: 1;
   transition:
     color 1s ease,
     text-shadow 1s ease;
 }
 
+.clock-time {
+  font-size: clamp(1rem, 2.5vw, 5rem);
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  opacity: 0.9;
+}
+
+.clock-date {
+  font-size: clamp(0.7rem, 1.2vw, 2.2rem);
+  font-weight: 400;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
 /* ── Media overlay ── */
 .media-overlay {
   position: absolute;
-  bottom: 160px;
-  left: 60px;
-  right: 60px;
+  bottom: clamp(100px, 14vh, 240px);
+  left: clamp(30px, 5vw, 120px);
+  right: clamp(30px, 5vw, 120px);
   z-index: 2;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: clamp(8px, 1.2vmin, 22px);
 }
 
 .media-row {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: clamp(14px, 2vw, 64px);
 }
 
 .thumb {
-  width: 80px;
-  height: 80px;
-  border-radius: 8px;
+  width: clamp(120px, 10vw, 360px);
+  height: clamp(120px, 10vw, 360px);
+  border-radius: clamp(6px, 0.8vw, 28px);
   object-fit: cover;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
   flex-shrink: 0;
@@ -341,11 +386,11 @@ onBeforeUnmount(() => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: clamp(2px, 0.4vw, 10px);
 }
 
 .track-title {
-  font-size: 1.6rem;
+  font-size: clamp(1.2rem, 2.5vw, 5rem);
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -354,7 +399,7 @@ onBeforeUnmount(() => {
 }
 
 .track-artist {
-  font-size: 1rem;
+  font-size: clamp(0.8rem, 1.6vw, 3.5rem);
   font-weight: 500;
   opacity: 0.75;
   white-space: nowrap;
@@ -363,7 +408,7 @@ onBeforeUnmount(() => {
 }
 
 .track-album {
-  font-size: 0.78rem;
+  font-size: clamp(0.65rem, 1.2vw, 2.5rem);
   opacity: 0.5;
   white-space: nowrap;
   overflow: hidden;
@@ -371,20 +416,25 @@ onBeforeUnmount(() => {
 }
 
 .playback-badge {
-  font-size: 1.4rem;
   opacity: 0.8;
   flex-shrink: 0;
+}
+
+.playback-badge svg {
+  width: clamp(1.2rem, 2vw, 4rem);
+  height: clamp(1.2rem, 2vw, 4rem);
+  display: block;
 }
 
 /* timeline */
 .timeline {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: clamp(8px, 1.5vw, 28px);
 }
 
 .time {
-  font-size: 0.72rem;
+  font-size: clamp(0.85rem, 1.5vw, 3rem);
   opacity: 0.6;
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
@@ -392,7 +442,7 @@ onBeforeUnmount(() => {
 
 .progress-track {
   flex: 1;
-  height: 3px;
+  height: clamp(2px, 0.35vw, 8px);
   background: rgba(255, 255, 255, 0.2);
   border-radius: 2px;
   overflow: hidden;
@@ -410,13 +460,9 @@ onBeforeUnmount(() => {
   bottom: 0;
   left: 0;
   right: 0;
-  height: 130px;
+  height: clamp(160px, 22vh, 420px);
   z-index: 1;
-  mask-image: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.7) 0%,
-    rgba(0, 0, 0, 0) 100%
-  );
+  mask-image: linear-gradient(to top, black 0%, black 80%, transparent 100%);
 }
 
 .visualizer {
