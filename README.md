@@ -1,6 +1,17 @@
+<div align="center">
+
 # wallpaper-engine
 
 TypeScript type definitions, a Vite plugin, and runtime helpers for building [Wallpaper Engine](https://www.wallpaperengine.io/) web wallpapers.
+
+[![npm](https://img.shields.io/npm/v/wallpaper-engine)](https://www.npmjs.com/package/wallpaper-engine)
+[![Build Status](https://github.com/ShadowNineX/wallpaper-engine/actions/workflows/test_and_deploy.yml/badge.svg)](https://github.com/ShadowNineX/wallpaper-engine/actions)
+[![codecov](https://codecov.io/gh/ShadowNineX/wallpaper-engine/branch/main/graph/badge.svg)](https://codecov.io/gh/ShadowNineX/wallpaper-engine)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+[:package: Installation](#installation) · [:electric_plug: Vite Plugin](#vite-plugin) · [:muscle: Strong Typing](#strong-property-typing) · [:wrench: Helpers](#helpers) · [:window: Window Augmentation](#window-augmentation) · [:books: Type Reference](#full-type-reference)
+
+</div>
 
 - **Full type coverage** for the entire Wallpaper Engine Web API — property listeners, media integration, audio, iCUE/LED plugins, and `window` augmentation
 - **Vite plugin** that auto-generates `project.json` at build time with full IntelliSense on your property definitions
@@ -9,7 +20,7 @@ TypeScript type definitions, a Vite plugin, and runtime helpers for building [Wa
 
 ---
 
-## Installation
+## <a id="installation"></a>:package: Installation
 
 ```bash
 bun add wallpaper-engine
@@ -27,7 +38,7 @@ bun add -d vite
 
 ---
 
-## Package Exports
+## <a id="package-exports"></a>:inbox_tray: Package Exports
 
 | Import path | Contents |
 |---|---|
@@ -37,7 +48,7 @@ bun add -d vite
 
 ---
 
-## Vite Plugin
+## <a id="vite-plugin"></a>:electric_plug: Vite Plugin
 
 The plugin emits a `project.json` asset alongside your build so Wallpaper Engine can load the wallpaper without any manual file maintenance.
 
@@ -112,7 +123,7 @@ wallpaperEnginePlugin({
 
 ---
 
-## Strong Property Typing
+## <a id="strong-property-typing"></a>:muscle: Strong Property Typing
 
 Define your properties in a dedicated file, then import it in both `vite.config.ts` and your wallpaper source. `WallpaperUserPropertiesOf<T>` maps each definition to its exact runtime value type automatically.
 
@@ -157,7 +168,7 @@ window.wallpaperPropertyListener = {
 
 ---
 
-## Helpers
+## <a id="helpers"></a>:wrench: Helpers
 
 All helpers are side-effect-free and individually tree-shakeable.
 
@@ -206,7 +217,8 @@ window.wallpaperRegisterAudioListener((raw) => {
 });
 ```
 
-> **Important — always use `window.wallpaperRegisterAudioListener`, not `globalThis.`.**
+> [!IMPORTANT]
+> **Always use `window.wallpaperRegisterAudioListener`, not `globalThis.`.**
 > Wallpaper Engine scans your compiled JS for this exact call to detect that the wallpaper uses audio and automatically sets `"supportsaudioprocessing": true` in its internal `project.json`. Without that flag, WE will **not** send audio data in live desktop mode (the editor preview always sends audio regardless, which can mask the problem).
 >
 > If audio works in the WE editor but not as a live wallpaper, open the wallpaper in the WE editor and click **Edit → Save** to force WE to write the updated `project.json`. After saving, re-apply the wallpaper as your desktop background.
@@ -238,7 +250,7 @@ window.onload = () => loop.start();
 
 ---
 
-## Window Augmentation
+## <a id="window-augmentation"></a>:window: Window Augmentation
 
 If you're not using Vite or don't need the plugin, the main `wallpaper-engine` entry is all you need. A single side-effect import augments the global `Window` interface so every WE API is fully typed — no manual `declare` blocks, no runtime cost.
 
@@ -279,7 +291,7 @@ Two alternatives that also work without an `import` in your source:
 
 ---
 
-## Full Type Reference
+## <a id="full-type-reference"></a>:books: Full Type Reference
 
 All types are exported from `wallpaper-engine` (main entry).
 
@@ -305,7 +317,7 @@ All types are exported from `wallpaper-engine` (main entry).
 
 ---
 
-## Building
+## <a id="building"></a>:building_construction: Building
 
 ```bash
 bun run build      # production build (ESM + CJS + .d.ts)
