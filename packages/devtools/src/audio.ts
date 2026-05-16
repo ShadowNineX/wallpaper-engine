@@ -1,11 +1,13 @@
-import { reactive } from "vue";
-import { listenerFns } from "./state";
+import { reactive, shallowRef } from "vue";
+import { listenerFns } from "./store";
 
 export type AudioMode = "off" | "silence" | "random" | "sine";
 
 let timer: ReturnType<typeof setInterval> | null = null;
 let phase = 0;
 export const audioState = reactive({ mode: "off" as AudioMode });
+/** Last 128-sample frame sent to listeners, updated every tick. */
+export const lastFrame = shallowRef<number[]>([]);
 
 function tick(): void {
   if (listenerFns.audio.length === 0) return;
@@ -24,6 +26,7 @@ function tick(): void {
       arr[i] = Math.max(0, Math.sin(phase + t * Math.PI * 2)) * (1 - t * 0.6);
     }
   }
+  lastFrame.value = arr;
   for (const fn of listenerFns.audio) {
     try {
       fn(arr);

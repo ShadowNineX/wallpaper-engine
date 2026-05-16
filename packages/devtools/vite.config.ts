@@ -2,6 +2,7 @@ import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
+import vueDevTools from "vite-plugin-vue-devtools";
 
 /**
  * Rollup plugin: take any emitted `.css` asset, remove it from the bundle,
@@ -37,6 +38,33 @@ function inlineCss(): Plugin {
 }
 
 /**
+ * After every build (including `--watch` rebuilds) copy the emitted
+ * `client.js` straight into the wallpaper-engine plugin dist so the Vite
+ * dev server in the demo picks up the new code without a full rebuild of the
+ * `wallpaper-engine` package. Errors are silenced — on a first-ever build the
+ * destination directory may not exist yet; tsup's `onSuccess` handles that.
+ */
+function copyToPluginDist(): Plugin {
+  return {
+    name: "we-copy-to-plugin-dist",
+    apply: "build",
+    async closeBundle() {
+      const { cp, mkdir } = await import("node:fs/promises");
+      const src = fileURLToPath(new URL("./dist/client.js", import.meta.url));
+      const destDir = fileURLToPath(
+        new URL("../wallpaper-engine/dist/plugin/devtools", import.meta.url),
+      );
+      try {
+        await mkdir(destDir, { recursive: true });
+        await cp(src, destDir + "/client.js");
+      } catch {
+        // Destination may not exist on a clean workspace; silently skip.
+      }
+    },
+  };
+}
+
+/**
  * Builds the Vue 3 devtools UI into a single self-contained ES module at
  * `dist/client.js`. The `wallpaper-engine` package copies this artifact into
  * its own dist at build time; the Vite plugin reads it at dev-server load
@@ -44,19 +72,28 @@ function inlineCss(): Plugin {
  *
  * Vue is bundled (not externalized) so consumers don't need Vue installed.
  */
-export default defineConfig({
-  plugins: [vue(), tailwindcss(), inlineCss()],
+export default defineConfig(({ command }) => ({
+  plugins: [
+    vue(),
+    tailwindcss(),
+    inlineCss(),
+    copyToPluginDist(),
+    command === "serve" && vueDevTools(),
+  ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  define: {
-    "process.env.NODE_ENV": JSON.stringify("production"),
-    __VUE_OPTIONS_API__: "false",
-    __VUE_PROD_DEVTOOLS__: "false",
-    __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
-  },
+  define:
+    command === "build"
+      ? {
+          "process.env.NODE_ENV": JSON.stringify("production"),
+          __VUE_OPTIONS_API__: "false",
+          __VUE_PROD_DEVTOOLS__: "false",
+          __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
+        }
+      : {},
   build: {
     outDir: fileURLToPath(new URL("./dist", import.meta.url)),
     emptyOutDir: true,
@@ -69,4 +106,4 @@ export default defineConfig({
       fileName: () => "client.js",
     },
   },
-});
+}));

@@ -10,7 +10,9 @@
     "build": "bun run --filter=@wallpaper-engine/devtools build && bun run --filter=wallpaper-engine build",
     "build:devtools": "bun run --filter=@wallpaper-engine/devtools build",
     "build:lib": "bun run --filter=wallpaper-engine build:lib",
-    "dev": "bun run --filter=wallpaper-engine dev",
+    "dev": "bun run --filter=@wallpaper-engine/devtools dev",
+    "dev:devtools": "bun run --filter=@wallpaper-engine/devtools dev:ui",
+    "dev:demo": "bun run --filter=demo dev",
     "typecheck": "bun run --filter=wallpaper-engine typecheck",
     "test": "bun run --filter=wallpaper-engine test",
     "test:run": "bun run --filter=wallpaper-engine test:run"

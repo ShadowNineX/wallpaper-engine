@@ -1,8 +1,18 @@
 <script setup lang="ts">
-import { general, listenerFns, toast } from "../state";
+import { toast } from "vue-sonner";
+import { listenerFns, useDevtoolsStore } from "../store";
+
+const store = useDevtoolsStore();
+const general = store.general;
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  NumberField,
+  NumberFieldContent,
+  NumberFieldDecrement,
+  NumberFieldIncrement,
+  NumberFieldInput,
+} from "@/components/ui/number-field";
 
 function applyFps(): void {
   const l = listenerFns.property;
@@ -22,17 +32,24 @@ function applyFps(): void {
     >
       General
     </h3>
-    <div class="grid grid-cols-[110px_1fr] items-center gap-2">
+    <NumberField
+      id="general-fps"
+      :model-value="general.fps"
+      :min="0"
+      :max="240"
+      @update:model-value="
+        (v) => {
+          if (v !== undefined) general.fps = v;
+        }
+      "
+    >
       <Label for="general-fps" class="text-[11px] text-we-muted">FPS</Label>
-      <Input
-        id="general-fps"
-        v-model.number="general.fps"
-        type="number"
-        min="0"
-        max="240"
-        class="h-7 text-xs"
-      />
-    </div>
-    <Button size="sm" @click="applyFps">Apply general</Button>
+      <NumberFieldContent>
+        <NumberFieldDecrement />
+        <NumberFieldInput />
+        <NumberFieldIncrement />
+      </NumberFieldContent>
+    </NumberField>
+    <Button size="sm" class="w-full" @click="applyFps">Apply general</Button>
   </div>
 </template>

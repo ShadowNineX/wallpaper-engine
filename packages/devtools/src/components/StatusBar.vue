@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { listenerCounts } from "../state";
+import { useDevtoolsStore } from "../store";
+import { storeToRefs } from "pinia";
+
+const { listenerCounts } = storeToRefs(useDevtoolsStore());
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 

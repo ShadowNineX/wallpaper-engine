@@ -265,6 +265,29 @@ export function wallpaperEnginePlugin(
       isServe = config.command === "serve";
     },
 
+    configureServer(server) {
+      if (!devtoolsEnabled) return;
+      void Promise.all([import("node:fs"), import("node:url")]).then(
+        ([fs, { fileURLToPath }]) => {
+          const clientPath = fileURLToPath(
+            new URL("./devtools/client.js", import.meta.url),
+          );
+          // Use stat-polling watchFile instead of chokidar: avoids Windows
+          // path-normalisation mismatches (forward vs back slashes) and works
+          // correctly across Bun workspace symlinks.
+          fs.watchFile(clientPath, { interval: 500 }, () => {
+            cachedClientCode = undefined;
+            const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
+            if (mod) server.moduleGraph.invalidateModule(mod);
+            server.ws.send({ type: "full-reload" });
+          });
+          server.httpServer?.once("close", () => {
+            fs.unwatchFile(clientPath);
+          });
+        },
+      );
+    },
+
     resolveId(id) {
       if (id === VIRTUAL_ID) return RESOLVED_ID;
       return null;

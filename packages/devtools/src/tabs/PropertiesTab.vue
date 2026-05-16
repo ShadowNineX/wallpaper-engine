@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { propDefs } from "../config";
-import { deliverAllProperties } from "../state";
+import { useDevtoolsStore } from "../store";
+
+const store = useDevtoolsStore();
+const { deliverAllProperties } = store;
 import PropertyRow from "../components/PropertyRow.vue";
 import { Button } from "@/components/ui/button";
 
@@ -24,7 +27,9 @@ const entries = computed(() =>
       :def="def"
     />
     <div class="mt-2">
-      <Button size="sm" @click="deliverAllProperties">Re-deliver all</Button>
+      <Button size="sm" class="w-full" @click="deliverAllProperties"
+        >Re-deliver all</Button
+      >
     </div>
   </div>
 </template>

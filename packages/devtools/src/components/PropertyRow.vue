@@ -12,9 +12,14 @@ import type {
 import type { WallpaperPropertyDefinition } from "../../../wallpaper-engine/src/types/project";
 import { tr } from "../config";
 import { hexToWeColor, weColorToHex } from "../color";
-import { currentValues, deliverProperty } from "../state";
+import { useDevtoolsStore } from "../store";
+
+const store = useDevtoolsStore();
+const currentValues = store.currentValues;
+const { deliverProperty } = store;
 import type { AcceptableValue } from "reka-ui";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -49,10 +54,10 @@ function onSlider(val: number[] | undefined): void {
   deliverProperty(props.propKey);
 }
 
-function onBool(checked: boolean): void {
+function onBool(value: unknown): void {
   const v = currentValues[props.propKey] as WallpaperBoolValue | undefined;
   if (!v) return;
-  v.value = checked;
+  v.value = value === true;
   deliverProperty(props.propKey);
 }
 
@@ -80,6 +85,13 @@ function onFile(e: Event): void {
   deliverProperty(props.propKey);
 }
 
+function onBoolLabel(): void {
+  const v = currentValues[props.propKey] as WallpaperBoolValue | undefined;
+  if (!v) return;
+  v.value = !v.value;
+  deliverProperty(props.propKey);
+}
+
 function onDir(e: Event): void {
   const v = currentValues[props.propKey] as WallpaperDirectoryValue | undefined;
   if (!v) return;
@@ -90,14 +102,17 @@ function onDir(e: Event): void {
 
 <template>
   <div class="mb-2 grid grid-cols-[110px_1fr] items-center gap-2">
-    <span
+    <Label
+      :for="def.type !== 'bool' ? propKey : undefined"
       :title="propKey"
-      class="truncate text-[11px] text-we-muted cursor-default"
-      >{{ label }}</span
+      class="truncate text-[11px] text-we-muted cursor-pointer select-none"
+      @click="def.type === 'bool' ? onBoolLabel() : undefined"
+      >{{ label }}</Label
     >
 
     <input
       v-if="def.type === 'color'"
+      :id="propKey"
       type="color"
       :value="
         weColorToHex(
@@ -131,12 +146,12 @@ function onDir(e: Event): void {
 
     <Checkbox
       v-else-if="def.type === 'bool'"
-      :checked="
+      :model-value="
         (currentValues[propKey] as WallpaperBoolValue | undefined)?.value ??
         false
       "
       class="justify-self-start"
-      @update:checked="onBool"
+      @update:model-value="onBool"
     />
 
     <Select
@@ -146,7 +161,7 @@ function onDir(e: Event): void {
       "
       @update:model-value="onCombo"
     >
-      <SelectTrigger class="h-7 w-full text-xs">
+      <SelectTrigger :id="propKey" class="h-7 w-full text-xs">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -158,8 +173,9 @@ function onDir(e: Event): void {
 
     <Input
       v-else-if="def.type === 'textinput'"
+      :id="propKey"
       type="text"
-      :value="
+      :model-value="
         (currentValues[propKey] as WallpaperTextValue | undefined)?.value ?? ''
       "
       class="h-7 text-xs"
@@ -168,9 +184,10 @@ function onDir(e: Event): void {
 
     <Input
       v-else-if="def.type === 'file'"
+      :id="propKey"
       type="text"
       placeholder="path/to/file"
-      :value="
+      :model-value="
         (currentValues[propKey] as WallpaperFileValue | undefined)?.value ?? ''
       "
       class="h-7 text-xs"
@@ -179,9 +196,10 @@ function onDir(e: Event): void {
 
     <Input
       v-else-if="def.type === 'directory'"
+      :id="propKey"
       type="text"
       placeholder="path/to/dir"
-      :value="
+      :model-value="
         (currentValues[propKey] as WallpaperDirectoryValue | undefined)
           ?.value ?? ''
       "

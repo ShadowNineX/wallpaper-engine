@@ -6,12 +6,7 @@ import type {
   WallpaperPluginListener,
   WallpaperPropertyListener,
 } from "../../wallpaper-engine/src/types/listeners";
-import {
-  deliverAllProperties,
-  directoryFiles,
-  listenerCounts,
-  listenerFns,
-} from "./state";
+import { listenerFns, useDevtoolsStore } from "./store";
 
 /**
  * Stub every `window.wallpaper*` host global. Listener assignments are
@@ -24,9 +19,10 @@ export function installGlobals(): void {
     configurable: true,
     get: () => listenerFns.property,
     set: (v: WallpaperPropertyListener | undefined) => {
+      const store = useDevtoolsStore();
       listenerFns.property = v;
-      listenerCounts.property = v !== undefined;
-      Promise.resolve().then(deliverAllProperties);
+      store.listenerCounts.property = v !== undefined;
+      Promise.resolve().then(() => store.deliverAllProperties());
     },
   });
 
@@ -34,38 +30,51 @@ export function installGlobals(): void {
     configurable: true,
     get: () => listenerFns.plugin,
     set: (v: WallpaperPluginListener | undefined) => {
+      const store = useDevtoolsStore();
       listenerFns.plugin = v;
-      listenerCounts.plugin = v !== undefined;
+      store.listenerCounts.plugin = v !== undefined;
     },
   });
 
   globalThis.window.wallpaperRegisterAudioListener = (cb) => {
+    const store = useDevtoolsStore();
     listenerFns.audio.push(cb);
-    listenerCounts.audio = listenerFns.audio.length;
+    store.listenerCounts.audio = listenerFns.audio.length;
   };
   globalThis.window.wallpaperRegisterMediaStatusListener = (cb) => {
+    const store = useDevtoolsStore();
     listenerFns.mediaStatus.push(cb);
-    listenerCounts.mediaStatus = listenerFns.mediaStatus.length;
+    store.listenerCounts.mediaStatus = listenerFns.mediaStatus.length;
+    Promise.resolve().then(() => store.deliverAllMedia());
   };
   globalThis.window.wallpaperRegisterMediaPropertiesListener = (cb) => {
+    const store = useDevtoolsStore();
     listenerFns.mediaProps.push(cb);
-    listenerCounts.mediaProps = listenerFns.mediaProps.length;
+    store.listenerCounts.mediaProps = listenerFns.mediaProps.length;
+    Promise.resolve().then(() => store.deliverAllMedia());
   };
   globalThis.window.wallpaperRegisterMediaThumbnailListener = (cb) => {
+    const store = useDevtoolsStore();
     listenerFns.mediaThumb.push(cb);
-    listenerCounts.mediaThumb = listenerFns.mediaThumb.length;
+    store.listenerCounts.mediaThumb = listenerFns.mediaThumb.length;
+    Promise.resolve().then(() => store.deliverAllMedia());
   };
   globalThis.window.wallpaperRegisterMediaPlaybackListener = (cb) => {
+    const store = useDevtoolsStore();
     listenerFns.mediaPlayback.push(cb);
-    listenerCounts.mediaPlayback = listenerFns.mediaPlayback.length;
+    store.listenerCounts.mediaPlayback = listenerFns.mediaPlayback.length;
+    Promise.resolve().then(() => store.deliverAllMedia());
   };
   globalThis.window.wallpaperRegisterMediaTimelineListener = (cb) => {
+    const store = useDevtoolsStore();
     listenerFns.mediaTimeline.push(cb);
-    listenerCounts.mediaTimeline = listenerFns.mediaTimeline.length;
+    store.listenerCounts.mediaTimeline = listenerFns.mediaTimeline.length;
+    Promise.resolve().then(() => store.deliverAllMedia());
   };
 
   globalThis.window.wallpaperRequestRandomFileForProperty = (name, cb) => {
-    const list = directoryFiles[name] ?? [];
+    const store = useDevtoolsStore();
+    const list = store.directoryFiles[name] ?? [];
     if (list.length === 0) {
       console.warn(
         `[WE Dev] wallpaperRequestRandomFileForProperty('${name}'): no files configured. Add some in the Directories tab.`,

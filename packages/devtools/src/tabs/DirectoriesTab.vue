@@ -1,7 +1,11 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import { propDefs } from "../config";
-import { directoryFiles, listenerFns, toast } from "../state";
+import { toast } from "vue-sonner";
+import { listenerFns, useDevtoolsStore } from "../store";
+
+const store = useDevtoolsStore();
+const directoryFiles = store.directoryFiles;
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
