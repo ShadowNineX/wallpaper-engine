@@ -299,6 +299,7 @@ export function wallpaperEnginePlugin(
         ? assignIndices(options.properties)
         : {};
       const cfg = {
+        title: options.title,
         properties,
         localization: options.localization ?? {},
       };

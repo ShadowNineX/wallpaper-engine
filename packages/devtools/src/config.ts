@@ -4,6 +4,7 @@ import type {
 } from "../../wallpaper-engine/src/types/project";
 
 export interface DevtoolsConfig {
+  title?: string;
   properties: Record<string, WallpaperPropertyDefinition>;
   localization: WallpaperLocalization;
 }
