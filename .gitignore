@@ -6,6 +6,9 @@ out
 dist
 *.tgz
 
+# generated during publish
+packages/wallpaper-engine/README.md
+
 # code coverage
 coverage
 *.lcov

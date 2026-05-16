@@ -1,6 +1,6 @@
 {
   "name": "wallpaper-engine",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "TypeScript types, Vite plugin, and runtime helpers for Wallpaper Engine web wallpapers",
   "keywords": [
     "wallpaper-engine",
@@ -51,7 +51,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
-    "prepublishOnly": "bun run --cwd ../.. build"
+    "prepublishOnly": "bun run --cwd ../.. build && node -e \"require('fs').copyFileSync('../../README.md', 'README.md')\""
   },
   "peerDependencies": {
     "vite": ">=5.0.0"
