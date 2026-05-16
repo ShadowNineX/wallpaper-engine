@@ -1,0 +1,16 @@
+{
+  "extends": "@vue/tsconfig/tsconfig.dom.json",
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "paths": {
+      "wallpaper-engine": ["../src/index.ts"],
+      "wallpaper-engine/plugin": ["../src/plugin/index.ts"],
+      "wallpaper-engine/helpers": ["../src/helpers.ts"]
+    },
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["src/**/*.ts", "src/**/*.vue", "vite.config.ts"]
+}
