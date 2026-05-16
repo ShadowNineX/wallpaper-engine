@@ -206,6 +206,18 @@ export interface WallpaperEnginePluginOptions {
    * }
    */
   localization?: WallpaperLocalization;
+  /**
+   * Enable the in-browser dev overlay during `vite dev`. The overlay stubs
+   * every `window.wallpaper*` global, renders a draggable panel to edit each
+   * property in real time, and lets you fire audio/media/plugin events
+   * manually — so wallpapers can be developed without round-tripping through
+   * the Wallpaper Engine host application.
+   *
+   * Disabled automatically for production builds regardless of this setting.
+   *
+   * @default true
+   */
+  devtools?: boolean;
 }
 
 /**
@@ -229,8 +241,62 @@ export interface WallpaperEnginePluginOptions {
 export function wallpaperEnginePlugin(
   options: WallpaperEnginePluginOptions,
 ): Plugin {
+  const devtoolsEnabled = options.devtools !== false;
+  const VIRTUAL_ID = "virtual:wallpaper-engine/devtools";
+  const RESOLVED_ID = "\0" + VIRTUAL_ID;
+  let isServe = false;
+  let cachedClientCode: string | undefined;
+  const loadClientCode = async (): Promise<string> => {
+    if (cachedClientCode !== undefined) return cachedClientCode;
+    // Reads the Vue UI bundle emitted by `vite build -c vite.devtools.config.ts`
+    // into `dist/plugin/devtools/client.js`. Imports are dynamic so this file
+    // stays browser-safe — property builders below are imported by user code.
+    const { readFileSync } = await import("node:fs");
+    const { fileURLToPath } = await import("node:url");
+    const url = new URL("./devtools/client.js", import.meta.url);
+    cachedClientCode = readFileSync(fileURLToPath(url), "utf8");
+    return cachedClientCode;
+  };
+
   return {
     name: "wallpaper-engine",
+
+    configResolved(config) {
+      isServe = config.command === "serve";
+    },
+
+    resolveId(id) {
+      if (id === VIRTUAL_ID) return RESOLVED_ID;
+      return null;
+    },
+
+    async load(id) {
+      if (id !== RESOLVED_ID) return null;
+      const properties = options.properties
+        ? assignIndices(options.properties)
+        : {};
+      const cfg = {
+        properties,
+        localization: options.localization ?? {},
+      };
+      return (
+        "window.__WE_DEVTOOLS_CONFIG__ = " +
+        JSON.stringify(cfg) +
+        ";\n" +
+        (await loadClientCode())
+      );
+    },
+
+    transformIndexHtml() {
+      if (!isServe || !devtoolsEnabled) return;
+      return [
+        {
+          tag: "script",
+          attrs: { type: "module", src: "/@id/" + VIRTUAL_ID },
+          injectTo: "head-prepend",
+        },
+      ];
+    },
 
     generateBundle() {
       const properties = options.properties

@@ -1,0 +1,144 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+/*
+ ---break---
+ */
+/*
+ * Full Tailwind v4 (theme + preflight + utilities). Safe to include
+ * preflight because this file is injected into the devtools Shadow DOM
+ * root, isolated from the host page.
+ */
+@import "tailwindcss";
+@import "tw-animate-css";
+/*
+ ---break---
+ */
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  --color-we-panel: #1c1d22;
+  --color-we-surface: #15161a;
+  --color-we-section: #16171c;
+  --color-we-border: #2e3037;
+  --color-we-border-strong: #3a3d45;
+  --color-we-text: #e6e8eb;
+  --color-we-muted: #b6b9c2;
+  --color-we-faint: #6c6f78;
+  --color-we-heading: #8c8f99;
+  --color-we-btn: #2a2c33;
+  --color-we-btn-hover: #353841;
+  --color-we-primary: #2c5fd0;
+  --color-we-primary-hover: #3a6fe0;
+  --color-we-on-bg: #1e4a2a;
+  --color-we-on-fg: #a7e3b3;
+  --color-we-on-border: #2e6a3d;
+}
+
+@layer components {
+  :host {
+    font-family:
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      "Segoe UI",
+      Roboto,
+      sans-serif;
+    font-size: 12px;
+    color: var(--color-we-text);
+  }
+}
+
+/*
+ ---break---
+ */
+
+@theme inline {
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+/*
+ ---break---
+ */
+
+:root {
+  --radius: 0.375rem;
+  --background: #1c1d22;
+  --foreground: #e6e8eb;
+  --card: #15161a;
+  --card-foreground: #e6e8eb;
+  --popover: #15161a;
+  --popover-foreground: #e6e8eb;
+  --primary: #2c5fd0;
+  --primary-foreground: #e6e8eb;
+  --secondary: #2a2c33;
+  --secondary-foreground: #e6e8eb;
+  --muted: #2a2c33;
+  --muted-foreground: #b6b9c2;
+  --accent: #353841;
+  --accent-foreground: #e6e8eb;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: #2e3037;
+  --input: #2e3037;
+  --ring: #2c5fd0;
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: #15161a;
+  --sidebar-foreground: #e6e8eb;
+  --sidebar-primary: #2c5fd0;
+  --sidebar-primary-foreground: #e6e8eb;
+  --sidebar-accent: #2a2c33;
+  --sidebar-accent-foreground: #e6e8eb;
+  --sidebar-border: #2e3037;
+  --sidebar-ring: #2c5fd0;
+}
+
+/*
+ ---break---
+ */
+
+/*
+ ---break---
+ */
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
