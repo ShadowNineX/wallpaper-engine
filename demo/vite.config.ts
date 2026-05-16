@@ -5,6 +5,7 @@ import { properties } from "./src/wallpaper";
 
 // https://vite.dev/config/
 export default defineConfig({
+  base: "./",
   plugins: [
     vue(),
     wallpaperEnginePlugin({
