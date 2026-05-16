@@ -1,6 +1,6 @@
 {
   "name": "wallpaper-engine",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "TypeScript types, Vite plugin, and runtime helpers for Wallpaper Engine web wallpapers",
   "keywords": [
     "wallpaper-engine",
