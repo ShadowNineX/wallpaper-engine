@@ -315,16 +315,18 @@ export function wallpaperEnginePlugin(
   const VIRTUAL_ID = "virtual:wallpaper-engine/devtools";
   const RESOLVED_ID = "\0" + VIRTUAL_ID;
   let isServe = false;
-  let cachedClientCode: string | undefined;
-  const loadClientCode = async (): Promise<string> => {
-    if (cachedClientCode !== undefined) return cachedClientCode;
-    // Reads the Vue UI bundle emitted by `vite build -c vite.devtools.config.ts`
-    // into `dist/plugin/devtools/client.js`. Imports are dynamic so this file
-    // stays browser-safe — property builders below are imported by user code.
-    const { readFileSync } = await import("node:fs");
-    const { fileURLToPath } = await import("node:url");
-    const url = new URL("./devtools/client.js", import.meta.url);
-    cachedClientCode = readFileSync(fileURLToPath(url), "utf8");
+  let cachedClientCode: Promise<string> | undefined;
+  const loadClientCode = (): Promise<string> => {
+    cachedClientCode ??= (async () => {
+      // Reads the bundled Vue UI asynchronously. Dynamic imports keep this
+      // entry browser-safe when consumers import only its property builders.
+      const [{ readFile }, { fileURLToPath }] = await Promise.all([
+        import(/* @vite-ignore */ "node:fs/promises"),
+        import(/* @vite-ignore */ "node:url"),
+      ]);
+      const url = new URL("./devtools/client.js", import.meta.url);
+      return readFile(fileURLToPath(url), "utf8");
+    })();
     return cachedClientCode;
   };
 
@@ -338,8 +340,8 @@ export function wallpaperEnginePlugin(
     async configureServer(server) {
       if (!devtoolsEnabled) return;
       const [fs, { fileURLToPath }] = await Promise.all([
-        import("node:fs"),
-        import("node:url"),
+        import(/* @vite-ignore */ "node:fs"),
+        import(/* @vite-ignore */ "node:url"),
       ]);
       const clientPath = fileURLToPath(
         new URL("./devtools/client.js", import.meta.url),

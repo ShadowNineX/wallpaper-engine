@@ -60,7 +60,7 @@ const averageColorResult: AverageColorResult = {
 
 describe("colorToWallpaperColor", () => {
   it.each([
-    ["#ff8000", "1 0.50196 0"],
+    ["#ff8000", "1 0.501961 0"],
     ["rgb(0 0 255 / 25%)", "0 0 1"],
     ["hsl(120 100% 50%)", "0 1 0"],
     ["hwb(180 0% 0%)", "0 1 1"],
@@ -111,13 +111,24 @@ describe("parseWallpaperColor", () => {
   it("parses a mixed color", () => {
     const { r, g, b } = parseWallpaperColor("1 0.5 0");
     expect(r).toBe(255);
-    expect(g).toBe(Math.ceil(0.5 * 255)); // 128
+    expect(g).toBe(Math.round(0.5 * 255)); // 128
     expect(b).toBe(0);
   });
 
-  it("defaults missing channels to 0", () => {
-    expect(parseWallpaperColor("")).toEqual({ r: 0, g: 0, b: 0 });
+  it("normalizes whitespace, rounds channels, and clamps their range", () => {
+    expect(parseWallpaperColor(" 0.501961\t2  -1 ")).toEqual({
+      r: 128,
+      g: 255,
+      b: 0,
+    });
   });
+
+  it.each(["", "0 1", "0 1 2 3", "0 nope 1", "0 Infinity 1"])(
+    'rejects malformed color "%s"',
+    (value) => {
+      expect(() => parseWallpaperColor(value)).toThrow(TypeError);
+    },
+  );
 });
 
 describe("wallpaperColorToRgb", () => {
@@ -289,6 +300,12 @@ describe("toFileUrl", () => {
 describe("clampAudio", () => {
   it("clamps values above 1 to 1", () => {
     expect(clampAudio([0, 0.5, 1, 1.2, 2])).toEqual([0, 0.5, 1, 1, 1]);
+  });
+
+  it("clamps negatives and replaces non-finite samples with zero", () => {
+    expect(clampAudio([-1, -0.1, Number.NaN, Number.POSITIVE_INFINITY])).toEqual(
+      [0, 0, 0, 0],
+    );
   });
 
   it("leaves values within range unchanged", () => {

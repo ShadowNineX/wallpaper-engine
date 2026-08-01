@@ -2,7 +2,6 @@ import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
-import vueDevTools from "vite-plugin-vue-devtools";
 import Icons from "unplugin-icons/vite";
 import Unfonts from "unplugin-fonts/vite";
 
@@ -40,11 +39,10 @@ function inlineCss(): Plugin {
 }
 
 /**
- * After every build (including `--watch` rebuilds) copy the emitted
- * `client.js` straight into the wallpaper-engine plugin dist so the Vite
- * dev server in the demo picks up the new code without a full rebuild of the
- * `wallpaper-engine` package. Errors are silenced — on a first-ever build the
- * destination directory may not exist yet; tsdown's `build:done` hook handles that.
+ * After every build (including `--watch` rebuilds), copy the emitted
+ * `client.js` straight into the wallpaper-engine plugin dist so the demo's
+ * Vite server picks up the new code without rebuilding the package.
+ * Copy failures fail the build instead of leaving a stale client artifact.
  */
 function copyToPluginDist(): Plugin {
   return {
@@ -56,12 +54,8 @@ function copyToPluginDist(): Plugin {
       const destDir = fileURLToPath(
         new URL("../wallpaper-engine/dist/plugin/devtools", import.meta.url),
       );
-      try {
-        await mkdir(destDir, { recursive: true });
-        await cp(src, destDir + "/client.js");
-      } catch {
-        // Destination may not exist on a clean workspace; silently skip.
-      }
+      await mkdir(destDir, { recursive: true });
+      await cp(src, destDir + "/client.js");
     },
   };
 }
@@ -98,7 +92,6 @@ export default defineConfig(({ command }) => ({
     tailwindcss(),
     inlineCss(),
     copyToPluginDist(),
-    command === "serve" && vueDevTools(),
   ],
   resolve: {
     alias: {

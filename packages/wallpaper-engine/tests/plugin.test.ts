@@ -12,17 +12,17 @@ import {
   type WallpaperUserPropertiesOf,
 } from "../src/plugin/index";
 
-const { readFileSyncMock, unwatchFileMock, watchFileMock } = vi.hoisted(() => ({
-  readFileSyncMock: vi.fn(() => "globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;"),
+const { readFileMock, unwatchFileMock, watchFileMock } = vi.hoisted(() => ({
+  readFileMock: vi.fn(async () => "globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;"),
   unwatchFileMock: vi.fn(),
   watchFileMock: vi.fn(),
 }));
 
 vi.mock("node:fs", () => ({
-  readFileSync: readFileSyncMock,
   unwatchFile: unwatchFileMock,
   watchFile: watchFileMock,
 }));
+vi.mock("node:fs/promises", () => ({ readFile: readFileMock }));
 
 // ---------------------------------------------------------------------------
 // Property builders
@@ -426,7 +426,7 @@ describe("wallpaperEnginePlugin", () => {
       }),
     );
 
-    expect(project.general.properties.hex.value).toBe("1 0.50196 0");
+    expect(project.general.properties.hex.value).toBe("1 0.501961 0");
     expect(project.general.properties.hsl.value).toBe("0 1 0");
     const wideGamut = project.general.properties.wideGamut.value
       .split(" ")
@@ -513,7 +513,7 @@ describe("wallpaperEnginePlugin", () => {
 
 describe("wallpaperEnginePlugin devtools hooks", () => {
   beforeEach(() => {
-    readFileSyncMock.mockClear();
+    readFileMock.mockClear();
     unwatchFileMock.mockClear();
     watchFileMock.mockClear();
   });
@@ -601,23 +601,25 @@ describe("wallpaperEnginePlugin devtools hooks", () => {
     expect(
       await plugin.load.call({} as never, "unrelated", {} as never),
     ).toBeNull();
-    const first = await plugin.load.call(
-      {} as never,
-      "\0virtual:wallpaper-engine/devtools",
-      {} as never,
-    );
-    const second = await plugin.load.call(
-      {} as never,
-      "\0virtual:wallpaper-engine/devtools",
-      {} as never,
-    );
+    const [first, second] = await Promise.all([
+      plugin.load.call(
+        {} as never,
+        "\0virtual:wallpaper-engine/devtools",
+        {} as never,
+      ),
+      plugin.load.call(
+        {} as never,
+        "\0virtual:wallpaper-engine/devtools",
+        {} as never,
+      ),
+    ]);
 
     expect(first).toContain('window.__WE_DEVTOOLS_CONFIG__ = {\"title\":\"Configured\"');
     expect(first).not.toContain("__WE_DEV_FILES_TOKEN__");
     expect(first).toContain('\"mode\":{\"index\":0,\"order\":0,\"type\":\"combo\"');
     expect(first).toContain("globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;");
     expect(second).toBe(first);
-    expect(readFileSyncMock).toHaveBeenCalledOnce();
+    expect(readFileMock).toHaveBeenCalledOnce();
   });
 
   it("watches the bundled client, invalidates its module, and reloads the page", async () => {

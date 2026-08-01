@@ -22,23 +22,32 @@ export type {
 
 /**
  * Parse a Wallpaper Engine color string (`"R G B"`, each channel 0–1) into
- * individual 0–255 integer channels.
+ * individual 0–255 integer channels. Channels outside 0–1 are clamped.
  *
  * @example
  * const { r, g, b } = parseWallpaperColor(props.mycolor.value);
  * ctx.fillStyle = `rgb(${r},${g},${b})`;
+ *
+ * @throws {TypeError} If the value does not contain exactly three finite channels.
  */
 export function parseWallpaperColor(value: string): {
   r: number;
   g: number;
   b: number;
 } {
-  const parts = value.split(" ");
-  return {
-    r: Math.ceil(+(parts[0] ?? "0") * 255),
-    g: Math.ceil(+(parts[1] ?? "0") * 255),
-    b: Math.ceil(+(parts[2] ?? "0") * 255),
-  };
+  const channels = value.trim().split(/\s+/).map(Number);
+  if (
+    channels.length !== 3 ||
+    channels.some((channel) => !Number.isFinite(channel))
+  ) {
+    throw new TypeError(
+      `Wallpaper Engine colors must contain three finite channels: "${value}"`,
+    );
+  }
+  const [red, green, blue] = channels as [number, number, number];
+  const toByte = (channel: number): number =>
+    Math.round(Math.min(1, Math.max(0, channel)) * 255);
+  return { r: toByte(red), g: toByte(green), b: toByte(blue) };
 }
 
 /**
@@ -95,7 +104,7 @@ export function toFileUrl(path: string): string {
  * Clamp all values in a Wallpaper Engine audio array to the 0–1 range.
  *
  * Due to the internal FFT implementation, values can occasionally exceed 1.0.
- * Clamping before use is strongly recommended by the official documentation.
+ * Values below zero are clamped as well, and non-finite samples become zero.
  *
  * @example
  * window.wallpaperRegisterAudioListener((raw) => {
@@ -104,7 +113,9 @@ export function toFileUrl(path: string): string {
  * });
  */
 export function clampAudio(audioArray: number[]): number[] {
-  return audioArray.map((v) => Math.min(v, 1));
+  return audioArray.map((value) =>
+    Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0,
+  );
 }
 
 /**

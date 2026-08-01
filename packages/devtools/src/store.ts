@@ -176,6 +176,12 @@ export const useDevtoolsStore = defineStore("devtools", () => {
     highContrastColor: "#ffffff",
   });
 
+  function clonePropertyValue(
+    value: WallpaperPropertyRuntimeValue,
+  ): WallpaperPropertyRuntimeValue {
+    return { ...value } as WallpaperPropertyRuntimeValue;
+  }
+
   // --- delivery helpers ---
 
   function deliverAllProperties(showToast = true): void {
@@ -186,7 +192,9 @@ export const useDevtoolsStore = defineStore("devtools", () => {
     }
     const userProperties: WallpaperUserProperties = {};
     for (const [key, value] of Object.entries(currentValues)) {
-      if (!isFetchAllDirectory(key)) userProperties[key] = value;
+      if (!isFetchAllDirectory(key)) {
+        userProperties[key] = clonePropertyValue(value);
+      }
     }
     l.applyUserProperties?.(userProperties);
     for (const [key, selection] of Object.entries(directorySelections)) {
@@ -205,7 +213,9 @@ export const useDevtoolsStore = defineStore("devtools", () => {
     if (isFetchAllDirectory(key)) return;
     const v = currentValues[key];
     if (!v) return;
-    listenerFns.property?.applyUserProperties?.({ [key]: v });
+    listenerFns.property?.applyUserProperties?.({
+      [key]: clonePropertyValue(v),
+    });
   }
 
   function setFileSelection(key: string, selection: DevFileEntry): void {

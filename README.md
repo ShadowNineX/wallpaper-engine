@@ -320,6 +320,10 @@ el.style.color = wallpaperColorToRgb(props.bgcolor.value);
 el.style.color = wallpaperColorToHex(props.bgcolor.value);
 ```
 
+`parseWallpaperColor` accepts arbitrary whitespace, rounds channels to the
+nearest 8-bit value, and clamps channels outside 0–1. It throws a `TypeError`
+for missing, extra, or non-finite channels instead of returning invalid CSS.
+
 #### Image and media color extraction
 
 `getAverageColor` accepts an image URL, data/blob URL, `HTMLImageElement`,
@@ -392,6 +396,9 @@ window.wallpaperRegisterAudioListener((raw) => {
   renderBars(left, right);
 });
 ```
+
+`clampAudio` returns a new array, clamps values below zero and above one, and
+replaces non-finite samples with zero.
 
 > [!IMPORTANT]
 > The Vite plugin scans emitted JavaScript and HTML for `wallpaperRegisterAudioListener(...)` calls and automatically writes `"supportsaudioprocessing": true` under `"general"`. Calls through `window`, `globalThis`, and the bare global are detected.

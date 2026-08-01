@@ -149,6 +149,29 @@ describe("devtools property state", () => {
     expect(applyUserProperties).toHaveBeenCalledWith({ speed: { value: 4 } });
   });
 
+  it("delivers detached property snapshots", async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+    store.currentValues.speed = { value: 4 };
+
+    store.deliverProperty("speed");
+    const changed = applyUserProperties.mock.calls[0]?.[0];
+    store.currentValues.speed.value = 5;
+
+    expect(changed).toEqual({ speed: { value: 4 } });
+    changed!.speed!.value = 9;
+    expect(store.currentValues.speed).toEqual({ value: 5 });
+
+    applyUserProperties.mockClear();
+    store.deliverAllProperties(false);
+    const replay = applyUserProperties.mock.calls[0]?.[0];
+    store.currentValues.color!.value = "1 1 1";
+
+    expect(replay?.color).toEqual({ value: "0.1 0.2 0.3" });
+  });
+
   it("reports replay attempts when no property listener is registered", async () => {
     const { useDevtoolsStore } = await loadStore();
 

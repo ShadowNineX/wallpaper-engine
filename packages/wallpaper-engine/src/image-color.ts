@@ -1,14 +1,7 @@
 import { FastAverageColor } from "fast-average-color";
 import type { FastAverageColorOptions } from "fast-average-color";
 
-type RgbColor = [number, number, number];
 type RgbaColor = [number, number, number, number];
-type RgbaColorWithThreshold = [number, number, number, number, number];
-type IgnoredColor =
-  | RgbColor
-  | RgbaColor
-  | RgbaColorWithThreshold
-  | Array<RgbColor | RgbaColor | RgbaColorWithThreshold>;
 
 /**
  * An image or media source accepted by the average-color helpers.
@@ -45,32 +38,7 @@ export type AverageColorSource =
  *   height: 100,
  * };
  */
-export interface AverageColorOptions {
-  /** Color returned when no usable pixels are available. */
-  defaultColor?: RgbaColor;
-  /** One color, or a list of colors, to exclude from the calculation. */
-  ignoredColor?: IgnoredColor;
-  /** `speed` downsizes large sources; `precision` samples at source size. */
-  mode?: "precision" | "speed";
-  /** Color calculation algorithm. Defaults to `sqrt`. */
-  algorithm?: "simple" | "sqrt" | "dominant";
-  /** Sample every nth pixel. Defaults to `1`. */
-  step?: number;
-  /** Left edge of the source region to sample. */
-  left?: number;
-  /** Top edge of the source region to sample. */
-  top?: number;
-  /** Width of the source region to sample. */
-  width?: number;
-  /** Height of the source region to sample. */
-  height?: number;
-  /** Suppress FastAverageColor's console errors when synchronous extraction fails. */
-  silent?: boolean;
-  /** `crossOrigin` value used when loading a string source. */
-  crossOrigin?: string;
-  /** RGB bucket size used by the `dominant` algorithm. */
-  dominantDivider?: number;
-}
+export interface AverageColorOptions extends FastAverageColorOptions {}
 
 /**
  * Every color representation returned by an average-color extraction.
@@ -126,15 +94,6 @@ export interface AverageColorExtractor {
   /** Release the extractor's internal canvas and rendering context. */
   destroy(): void;
 }
-
-type Assert<T extends true> = T;
-type AllFastAverageColorOptionsSupported = Assert<
-  [keyof FastAverageColorOptions] extends [keyof AverageColorOptions]
-    ? [keyof AverageColorOptions] extends [keyof FastAverageColorOptions]
-      ? true
-      : false
-    : false
->;
 
 /**
  * Create a reusable FastAverageColor-backed extractor.

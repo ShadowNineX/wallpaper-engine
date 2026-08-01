@@ -18,9 +18,7 @@ function ensureColorSpacesRegistered(): void {
 
 function formatChannel(channel: number): string {
   const clamped = Math.min(1, Math.max(0, channel));
-  // Truncation keeps exact 8-bit colors compatible with parseWallpaperColor's
-  // ceiling conversion instead of pushing a channel into the next integer.
-  return String(Math.trunc(clamped * CHANNEL_PRECISION) / CHANNEL_PRECISION);
+  return String(Math.round(clamped * CHANNEL_PRECISION) / CHANNEL_PRECISION);
 }
 
 function normalizeWallpaperChannels(value: string): string | undefined {
@@ -50,7 +48,7 @@ function normalizeWallpaperChannels(value: string): string | undefined {
  * // → "0 1 0"
  *
  * colorToWallpaperColor("#ff8000");
- * // → "1 0.50196 0"
+ * // → "1 0.501961 0"
  */
 export function colorToWallpaperColor(value: string): string {
   const normalized = normalizeWallpaperChannels(value);

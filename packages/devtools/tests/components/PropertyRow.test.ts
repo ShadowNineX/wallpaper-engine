@@ -27,7 +27,16 @@ vi.mock("../../src/dev-files", () => ({
 
 const definitions = {
   accent: { type: "color", text: "Accent", value: "0 0 0" },
-  speed: { type: "slider", text: "Speed", value: 2, min: 0, max: 10 },
+  speed: {
+    type: "slider",
+    text: "Speed",
+    value: 2,
+    min: 0,
+    max: 10,
+    fraction: true,
+    precision: 2,
+    step: 0.25,
+  },
   enabled: { type: "bool", text: "Enabled", value: true },
   mode: {
     type: "combo",
@@ -121,6 +130,23 @@ describe("PropertyRow", () => {
     await input.trigger("input");
     expect(applyUserProperties).toHaveBeenNthCalledWith(2, {
       greeting: { value: "Aether" },
+    });
+  });
+
+  it("moves sliders by their explicit configured step", async () => {
+    const { PropertyRow, listenerFns } = await loadPropertyRow();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const wrapper = mount(PropertyRow, {
+      props: { propKey: "speed", def: definitions.speed },
+    });
+
+    await wrapper
+      .get('[role="slider"]')
+      .trigger("keydown", { key: "ArrowRight", code: "ArrowRight" });
+
+    expect(applyUserProperties).toHaveBeenCalledWith({
+      speed: { value: 2.25 },
     });
   });
 

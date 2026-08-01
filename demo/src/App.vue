@@ -562,6 +562,99 @@ function setWallpaperPaused(value: boolean): void {
   void backgroundVideo.value?.play().catch(() => undefined);
 }
 
+function applyColorAndMotionProperties(values: Partial<UserProps>): void {
+  if (values.backgroundcolor) {
+    backgroundColor.value = wallpaperColorToHex(values.backgroundcolor.value);
+  }
+  if (values.accentcolor) {
+    accentColor.value = wallpaperColorToHex(values.accentcolor.value);
+  }
+  if (values.glowcolor) {
+    glowColor.value = wallpaperColorToHex(values.glowcolor.value);
+  }
+  if (values.animationspeed) {
+    animationSpeed.value = values.animationspeed.value;
+  }
+  if (values.particledensity) {
+    particleDensity.value = values.particledensity.value;
+  }
+  if (values.visualsensitivity) {
+    visualSensitivity.value = values.visualsensitivity.value;
+  }
+  if (values.visualstyle) {
+    visualStyle.value = values.visualstyle.value as VisualStyle;
+  }
+}
+
+function applyOverlayProperties(values: Partial<UserProps>): void {
+  if (values.showclock) showClock.value = values.showclock.value;
+  if (values.clockformat) {
+    clockFormat.value = values.clockformat.value as ClockFormat;
+  }
+  if (values.showseconds) showSeconds.value = values.showseconds.value;
+  if (values.showmedia) showMedia.value = values.showmedia.value;
+  if (values.usemediacolors) {
+    useMediaColors.value = values.usemediacolors.value;
+  }
+  if (values.greeting) greeting.value = values.greeting.value;
+}
+
+function applyBackgroundProperties(values: Partial<UserProps>): void {
+  if (values.customimage) customImage.value = values.customimage.value;
+  if (values.customvideo) customVideo.value = values.customvideo.value;
+  if (values.galleryinterval) {
+    galleryInterval.value = values.galleryinterval.value;
+  }
+
+  if (values.randomimages) {
+    randomImageDirectory.value = values.randomimages.value;
+    randomImage.value = "";
+  }
+  if (values.imagegallery) {
+    imageGalleryDirectory.value = values.imagegallery.value;
+    imageGallery.value = [];
+    galleryIndex.value = 0;
+  }
+  if (values.randomvideos) {
+    randomVideoDirectory.value = values.randomvideos.value;
+    randomVideo.value = "";
+  }
+  if (values.videogallery) {
+    videoGalleryDirectory.value = values.videogallery.value;
+    videoGallery.value = [];
+    galleryIndex.value = 0;
+  }
+  if (values.backgroundsource) {
+    backgroundSource.value = values.backgroundsource.value as BackgroundSource;
+    galleryIndex.value = 0;
+    previousGalleryChange = performance.now();
+  }
+}
+
+function refreshRandomBackground(values: Partial<UserProps>): void {
+  if (
+    (values.randomimages || values.backgroundsource) &&
+    backgroundSource.value === "randomimage" &&
+    randomImageDirectory.value
+  ) {
+    requestRandomFile("randomimages");
+  }
+  if (
+    (values.randomvideos || values.backgroundsource) &&
+    backgroundSource.value === "randomvideo" &&
+    randomVideoDirectory.value
+  ) {
+    requestRandomFile("randomvideos");
+  }
+}
+
+function applyUserPropertyUpdate(values: Partial<UserProps>): void {
+  applyColorAndMotionProperties(values);
+  applyOverlayProperties(values);
+  applyBackgroundProperties(values);
+  refreshRandomBackground(values);
+}
+
 // Register host listeners immediately. Wallpaper Engine may deliver startup
 // events before mounted hooks and only sends changed properties thereafter.
 globalThis.wallpaperRegisterAudioListener((data) => {
@@ -573,71 +666,7 @@ globalThis.wallpaperRegisterAudioListener((data) => {
 
 globalThis.wallpaperPropertyListener = {
   applyUserProperties(rawProperties) {
-    const values = rawProperties as Partial<UserProps>;
-    if (values.backgroundcolor)
-      backgroundColor.value = wallpaperColorToHex(values.backgroundcolor.value);
-    if (values.accentcolor)
-      accentColor.value = wallpaperColorToHex(values.accentcolor.value);
-    if (values.glowcolor)
-      glowColor.value = wallpaperColorToHex(values.glowcolor.value);
-    if (values.animationspeed)
-      animationSpeed.value = values.animationspeed.value;
-    if (values.particledensity)
-      particleDensity.value = values.particledensity.value;
-    if (values.visualsensitivity)
-      visualSensitivity.value = values.visualsensitivity.value;
-    if (values.visualstyle)
-      visualStyle.value = values.visualstyle.value as VisualStyle;
-    if (values.showclock) showClock.value = values.showclock.value;
-    if (values.clockformat)
-      clockFormat.value = values.clockformat.value as ClockFormat;
-    if (values.showseconds) showSeconds.value = values.showseconds.value;
-    if (values.showmedia) showMedia.value = values.showmedia.value;
-    if (values.usemediacolors)
-      useMediaColors.value = values.usemediacolors.value;
-    if (values.greeting) greeting.value = values.greeting.value;
-    if (values.customimage) customImage.value = values.customimage.value;
-    if (values.customvideo) customVideo.value = values.customvideo.value;
-    if (values.galleryinterval)
-      galleryInterval.value = values.galleryinterval.value;
-
-    if (values.randomimages) {
-      randomImageDirectory.value = values.randomimages.value;
-      randomImage.value = "";
-    }
-    if (values.imagegallery) {
-      imageGalleryDirectory.value = values.imagegallery.value;
-      imageGallery.value = [];
-      galleryIndex.value = 0;
-    }
-    if (values.randomvideos) {
-      randomVideoDirectory.value = values.randomvideos.value;
-      randomVideo.value = "";
-    }
-    if (values.videogallery) {
-      videoGalleryDirectory.value = values.videogallery.value;
-      videoGallery.value = [];
-      galleryIndex.value = 0;
-    }
-    if (values.backgroundsource) {
-      backgroundSource.value = values.backgroundsource.value as BackgroundSource;
-      galleryIndex.value = 0;
-      previousGalleryChange = performance.now();
-    }
-    if (
-      (values.randomimages || values.backgroundsource) &&
-      backgroundSource.value === "randomimage" &&
-      randomImageDirectory.value
-    ) {
-      requestRandomFile("randomimages");
-    }
-    if (
-      (values.randomvideos || values.backgroundsource) &&
-      backgroundSource.value === "randomvideo" &&
-      randomVideoDirectory.value
-    ) {
-      requestRandomFile("randomvideos");
-    }
+    applyUserPropertyUpdate(rawProperties as Partial<UserProps>);
   },
   applyGeneralProperties(values) {
     if (values.fps === undefined) return;
