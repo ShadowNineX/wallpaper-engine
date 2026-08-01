@@ -30,6 +30,9 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 
 type TabId = "properties" | "general" | "audio" | "media";
 
+const devtoolsBuildLabel = `v${__WE_DEVTOOLS_VERSION__} · ${__WE_DEVTOOLS_GIT_VERSION__}`;
+const devtoolsBuildTitle = `Devtools ${__WE_DEVTOOLS_VERSION__} (git ${__WE_DEVTOOLS_GIT_VERSION__})`;
+
 const tabs = [
   { id: "properties", label: "Properties", icon: SlidersHorizontal },
   { id: "general", label: "Runtime", icon: Settings2 },
@@ -307,11 +310,20 @@ function toggleCollapsed(): void {
           Wallpaper Engine Devtools
         </div>
         <div
-          v-if="cfg.title"
-          class="text-[11px] leading-4 text-we-faint"
-          :class="collapsed ? 'whitespace-normal' : 'truncate'"
+          class="flex min-w-0 items-center gap-1.5 text-[10px] leading-4 text-we-faint"
         >
-          {{ cfg.title }}
+          <span v-if="cfg.title" class="min-w-0 truncate">
+            {{ cfg.title }}
+          </span>
+          <span v-if="cfg.title" aria-hidden="true" class="shrink-0">·</span>
+          <span
+            data-devtools-version
+            class="shrink-0 font-mono text-[9px] tracking-tight"
+            :aria-label="devtoolsBuildTitle"
+            :title="devtoolsBuildTitle"
+          >
+            {{ devtoolsBuildLabel }}
+          </span>
         </div>
       </div>
       <button

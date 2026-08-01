@@ -1,463 +1,440 @@
-<div align="center">
+<h1 align="center">wallpaper-engine</h1>
 
-# wallpaper-engine
+<p align="center">
+  Build typed, Vite-powered web wallpapers for Wallpaper Engine.
+</p>
 
-TypeScript type definitions, a Vite plugin, and runtime helpers for building [Wallpaper Engine](https://www.wallpaperengine.io/) web wallpapers.
+<p align="center">
+  <a href="https://www.npmjs.com/package/wallpaper-engine"><img alt="npm version" src="https://img.shields.io/npm/v/wallpaper-engine"></a>
+  <a href="https://github.com/ShadowNineX/wallpaper-engine/actions"><img alt="build status" src="https://github.com/ShadowNineX/wallpaper-engine/actions/workflows/test_and_deploy.yml/badge.svg"></a>
+  <a href="https://codecov.io/gh/ShadowNineX/wallpaper-engine"><img alt="coverage" src="https://codecov.io/gh/ShadowNineX/wallpaper-engine/branch/main/graph/badge.svg"></a>
+  <a href="./LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+</p>
 
-[![npm](https://img.shields.io/npm/v/wallpaper-engine)](https://www.npmjs.com/package/wallpaper-engine)
-[![Build Status](https://github.com/ShadowNineX/wallpaper-engine/actions/workflows/test_and_deploy.yml/badge.svg)](https://github.com/ShadowNineX/wallpaper-engine/actions)
-[![codecov](https://codecov.io/gh/ShadowNineX/wallpaper-engine/branch/main/graph/badge.svg)](https://codecov.io/gh/ShadowNineX/wallpaper-engine)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <a href="#quick-start">🚀 Quick start</a> ·
+  <a href="#devtools">🛠️ Devtools</a> ·
+  <a href="#properties">🎛️ Properties</a> ·
+  <a href="#runtime-helpers">🧰 Helpers</a> ·
+  <a href="#wallpaper-engine-types">🪟 Types</a> ·
+  <a href="#development">🏗️ Development</a>
+</p>
 
-[:package: Installation](#installation) · [:electric_plug: Vite Plugin](#vite-plugin) · [:muscle: Strong Typing](#strong-property-typing) · [:wrench: Helpers](#helpers) · [:window: Window Augmentation](#window-augmentation) · [:books: Type Reference](#full-type-reference)
+`wallpaper-engine` is a TypeScript toolkit for [Wallpaper Engine](https://www.wallpaperengine.io/) web wallpapers. It combines the host API types, a `project.json`-generating Vite plugin, an in-browser host simulator, and focused runtime helpers in one package.
 
-</div>
+## <a id="what-you-get"></a>✨ What you get
 
-- **Full type coverage** for the entire Wallpaper Engine Web API — property listeners, media integration, audio, iCUE/LED plugins, and `window` augmentation
-- **Vite plugin** that auto-generates `project.json` at build time with full IntelliSense on your property definitions
-- **Strong inference** — define your properties once and TypeScript automatically types every key in `applyUserProperties`
-- **Tree-shakeable helpers** for color conversion and extraction, audio processing, file URLs, LED encoding, and FPS-limited animation loops
+- Complete types for properties, audio, media, playback, plugin events, iCUE, LED devices, and Wallpaper Engine's browser globals.
+- A Vite plugin that generates `project.json`, normalizes property definitions, and detects audio-listener usage.
+- An in-browser devtools overlay for testing properties and host events without reopening Wallpaper Engine.
+- Exact `applyUserProperties` inference from the property object you already define.
+- Tree-shakeable helpers for colors, image color extraction, audio data, file URLs, LED canvases, and FPS-limited loops.
+- No runtime dependencies in the published package. Vite is an optional peer dependency.
 
----
-
-## <a id="installation"></a>:package: Installation
+## <a id="installation"></a>📦 Installation
 
 ```bash
 bun add wallpaper-engine
-# or
-npm install wallpaper-engine
-# or
-pnpm add wallpaper-engine
 ```
 
-Vite is an optional peer dependency, required only if you use `wallpaper-engine/plugin`:
+The equivalent commands are `npm install wallpaper-engine` and `pnpm add wallpaper-engine`.
+
+Install Vite only when using the plugin entry point:
 
 ```bash
-bun add -d vite
+bun add --dev vite
 ```
 
----
+## <a id="quick-start"></a>🚀 Quick start
 
-## <a id="package-exports"></a>:inbox_tray: Package Exports
+### 1. Define properties once
 
-| Import path | Contents |
-|---|---|
-| `wallpaper-engine` | All TypeScript types + `window` augmentation |
-| `wallpaper-engine/plugin` | Vite plugin, property builders, `WallpaperUserPropertiesOf<T>` |
-| `wallpaper-engine/helpers` | Runtime utility functions |
+```ts
+// src/properties.ts
+import {
+  boolProperty,
+  colorProperty,
+  groupProperty,
+  sliderProperty,
+} from "wallpaper-engine/plugin";
 
----
+export const properties = {
+  appearance: groupProperty({ text: "Appearance" }),
+  accent: colorProperty({ text: "Accent", value: "oklch(70% 0.18 250)" }),
+  intensity: sliderProperty({
+    text: "Intensity",
+    value: 0.5,
+    min: 0,
+    max: 1,
+    fraction: true,
+    precision: 2,
+  }),
+  showClock: boolProperty({ text: "Show clock", value: true }),
+};
+```
 
-## <a id="vite-plugin"></a>:electric_plug: Vite Plugin
-
-The plugin emits a `project.json` asset alongside your build so Wallpaper Engine can load the wallpaper without any manual file maintenance.
-
-### Basic setup
+### 2. Add the Vite plugin
 
 ```ts
 // vite.config.ts
-import { defineConfig } from 'vite';
-import { wallpaperEnginePlugin, colorProperty, sliderProperty, boolProperty } from 'wallpaper-engine/plugin';
+import { defineConfig } from "vite";
+import { wallpaperEnginePlugin } from "wallpaper-engine/plugin";
+import { properties } from "./src/properties";
 
 export default defineConfig({
   plugins: [
     wallpaperEnginePlugin({
-      title: 'My Wallpaper',
-      properties: {
-        bgcolor:   colorProperty({ text: 'Background Color', value: 'hsl(0 0% 100%)' }),
-        speed:     sliderProperty({ text: 'Speed', value: 1, min: 0, max: 10 }),
-        showClock: boolProperty({ text: 'Show Clock', value: true }),
-      },
+      title: "My Wallpaper",
+      properties,
     }),
   ],
 });
 ```
 
-This outputs a `project.json` alongside your build:
+The production build now includes a minified `project.json` beside `index.html`. Development output stays readable.
 
-```json
-{
-  "file": "index.html",
-  "title": "My Wallpaper",
-  "type": "web",
-  "general": {
-    "properties": {
-      "bgcolor":   { "type": "color",  "text": "Background Color", "value": "1 1 1",  "index": 0, "order": 0 },
-      "speed":     { "type": "slider", "text": "Speed",            "value": 1,        "index": 1, "order": 1, "min": 0, "max": 10 },
-      "showClock": { "type": "bool",   "text": "Show Clock",       "value": true,     "index": 2, "order": 2 }
+### 3. Use inferred runtime values
+
+```ts
+// src/wallpaper.ts
+import "wallpaper-engine";
+import { wallpaperColorToHex } from "wallpaper-engine/helpers";
+import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
+import type { properties } from "./properties";
+
+type UserProperties = WallpaperUserPropertiesOf<typeof properties>;
+
+window.wallpaperPropertyListener = {
+  applyUserProperties(values: Partial<UserProperties>) {
+    if (values.accent) {
+      document.body.style.backgroundColor = wallpaperColorToHex(
+        values.accent.value,
+      );
     }
-  }
-}
-```
 
-### Project JSON formatting
+    if (values.intensity) {
+      document.documentElement.style.setProperty(
+        "--intensity",
+        String(values.intensity.value),
+      );
+    }
 
-Production builds minify `project.json` to one line by default. Development
-mode leaves it formatted. Set `minify` explicitly to override either default:
-
-```ts
-wallpaperEnginePlugin({
-  title: 'My Wallpaper',
-  minify: false, // keep production project.json readable
-});
-```
-
-### Property builder reference
-
-| Builder | Property type | Runtime value |
-|---|---|---|
-| `colorProperty` | Color picker | Accepts Color.js syntax; emits `WallpaperColorValue` as `"R G B"` (0–1 per channel) |
-| `sliderProperty` | Numeric slider | `WallpaperSliderValue` — `value: number` |
-| `boolProperty` | Checkbox | `WallpaperBoolValue` — `value: boolean` |
-| `comboProperty` | Dropdown | `WallpaperComboValue` — `value: string` (hidden key), `text: string` (label) |
-| `textInputProperty` | Text input | `WallpaperTextValue` — `value: string` |
-| `fileProperty` | File picker | `WallpaperFileValue` — `value: string` (path, prefix with `file:///`) |
-| `directoryProperty` | Directory picker | `WallpaperDirectoryValue` — `value: string` (path) |
-| `groupProperty` | Collapsible property section marker | No runtime value |
-
-#### Flexible color defaults
-
-`colorProperty` accepts every color string supported by
-[Color.js](https://colorjs.io): CSS named colors, hex, `rgb()`, `hsl()`,
-`hwb()`, Lab, LCH, OKLab, OKLCH, wide-gamut `color()` values, and more.
-Wallpaper Engine's native `"R G B"` format remains supported:
-
-```ts
-const properties = {
-  named: colorProperty({ text: 'Named', value: 'rebeccapurple' }),
-  hex: colorProperty({ text: 'Hex', value: '#ff8000' }),
-  rgb: colorProperty({ text: 'RGB', value: 'rgb(255 128 0 / 50%)' }),
-  hsl: colorProperty({ text: 'HSL', value: 'hsl(30 100% 50%)' }),
-  perceptual: colorProperty({ text: 'OKLCH', value: 'oklch(70% 0.2 40)' }),
-  wideGamut: colorProperty({
-    text: 'Display P3',
-    value: 'color(display-p3 0 1 0)',
-  }),
-  native: colorProperty({ text: 'Native', value: '1 0.5 0' }),
+    if (values.showClock) {
+      document.body.classList.toggle("clock-hidden", !values.showClock.value);
+    }
+  },
 };
 ```
 
-Values are converted immediately to Wallpaper Engine's space-separated sRGB
-channels. Wide-gamut colors use Color.js's CSS gamut mapping. Alpha is
-discarded because Wallpaper Engine color properties do not support it.
-Color.js is bundled into the package; consumers do not install it separately.
+`accent.value` is inferred as a Wallpaper Engine color string, `intensity.value` as `number`, and `showClock.value` as `boolean`. Group markers are excluded automatically.
 
-Fractional sliders use `precision` and `step` together. `precision` limits the
-number of decimal places Wallpaper Engine keeps, and Wallpaper Engine
-normalizes `step` to that precision before using it. When `precision` is
-omitted, Wallpaper Engine currently behaves as though the slider had
-`precision: 1` and `step: 0.1`; for example, `step: 0.005` by itself still
-increments by `0.1`.
+## <a id="package-entry-points"></a>🧩 Package entry points
 
-Always provide a matching `precision` for a custom fractional `step`.
-`sliderProperty` retains both fields and derives `step` as
-`10 ** -precision` only when `precision` is provided without `step`:
+| Import | Use it for | Formats |
+| --- | --- | --- |
+| `wallpaper-engine` | Host API types, global `Window` augmentation, and playback constants | ESM and CJS |
+| `wallpaper-engine/plugin` | Vite integration, property builders, and inferred property types | ESM |
+| `wallpaper-engine/helpers` | Side-effect-free runtime utilities | ESM and CJS |
+
+The entry points are independent. Projects that only need host types do not load Vite or the helper implementation.
+
+## <a id="devtools"></a>🛠️ Devtools
+
+Run Vite normally:
+
+```bash
+bun run dev
+```
+
+During `vite dev`, the plugin injects a draggable simulator into the page. It can:
+
+- edit every configured property and replay the complete property state;
+- change FPS, pause, resume, and emit plugin events;
+- generate silent, random, sine, bass, and stereo audio frames;
+- simulate media metadata, playback, thumbnail, and timeline events;
+- browse local files and directories using browser-native pickers;
+- show the embedded package version and Git revision in its header.
+
+The devtools are never injected into production builds. Disable them locally when needed:
+
+```ts
+wallpaperEnginePlugin({
+  title: "My Wallpaper",
+  devtools: false,
+});
+```
+
+### Files and directories in development
+
+Browsers do not expose native absolute filesystem paths. The simulator therefore passes local `blob:` URLs while developing; Wallpaper Engine continues to pass filesystem paths in production. `toFileUrl` accepts both representations.
+
+Property routing matches the host:
+
+- `fileProperty` delivers one selected image or video through `applyUserProperties`.
+- `directoryProperty({ mode: "ondemand" })` delivers the directory property, then answers `wallpaperRequestRandomFileForProperty` with one file.
+- `directoryProperty({ mode: "fetchall" })` reports additions, changes, and removals through the directory listener callbacks.
+
+Selected files remain local to the browser. They are not uploaded or copied into the project.
+
+## <a id="vite-plugin"></a>🔌 Vite plugin
+
+```ts
+import { wallpaperEnginePlugin } from "wallpaper-engine/plugin";
+```
+
+| Option | Type | Default | Purpose |
+| --- | --- | --- | --- |
+| `title` | `string` | required | Wallpaper title shown by the host |
+| `file` | `string` | `"index.html"` | Entry HTML file written to `project.json` |
+| `properties` | property record | `{}` | User-configurable Wallpaper Engine properties |
+| `localization` | localization record | — | BCP 47 translations for `ui_` labels |
+| `devtools` | `boolean` | `true` | Enable the development simulator |
+| `minify` | `boolean` | production only | Override environment-based JSON formatting |
+| `supportsAudioProcessing` | `boolean` | auto-detected | Force audio support on or off |
+
+The plugin assigns missing `index` and `order` fields by insertion order. Explicit values are preserved.
+
+### Audio detection
+
+Production JavaScript and HTML are scanned for calls to `wallpaperRegisterAudioListener`. Bare calls and calls through `window` or `globalThis` automatically set `general.supportsaudioprocessing`.
+
+Set `supportsAudioProcessing` explicitly when the listener is aliased or generated dynamically:
+
+```ts
+wallpaperEnginePlugin({
+  title: "Audio Wallpaper",
+  supportsAudioProcessing: true,
+});
+```
+
+## <a id="properties"></a>🎛️ Properties
+
+Import property builders from `wallpaper-engine/plugin`:
+
+| Builder | Wallpaper Engine control | Runtime value |
+| --- | --- | --- |
+| `colorProperty` | Color picker | `{ value: string }` |
+| `sliderProperty` | Numeric slider | `{ value: number }` |
+| `boolProperty` | Checkbox | `{ value: boolean }` |
+| `comboProperty` | Dropdown | `{ value: string; text: string }` |
+| `textInputProperty` | Text field | `{ value: string }` |
+| `fileProperty` | File picker | `{ value: string }` |
+| `directoryProperty` | Directory picker | `{ value: string }` |
+| `groupProperty` | Collapsible section marker | omitted |
+
+Every builder adds the correct `type` field while preserving Wallpaper Engine's native property shape.
+
+### Colors
+
+`colorProperty` accepts Wallpaper Engine's native `"R G B"` format and every color syntax supported by [Color.js](https://colorjs.io/): named colors, hex, `rgb()`, `hsl()`, `hwb()`, Lab, LCH, OKLab, OKLCH, and wide-gamut `color()` values.
+
+```ts
+const colors = {
+  named: colorProperty({ text: "Named", value: "rebeccapurple" }),
+  hex: colorProperty({ text: "Hex", value: "#ff8000" }),
+  perceptual: colorProperty({ text: "OKLCH", value: "oklch(70% 0.2 40)" }),
+  wideGamut: colorProperty({
+    text: "Display P3",
+    value: "color(display-p3 0 1 0)",
+  }),
+  native: colorProperty({ text: "Native", value: "1 0.5 0" }),
+};
+```
+
+Defaults are converted to space-separated sRGB channels immediately. Wide-gamut values use Color.js gamut mapping. Alpha is discarded because Wallpaper Engine color properties do not carry it. Color.js is bundled; consumers do not install it.
+
+### Fractional sliders
+
+Wallpaper Engine treats an omitted fractional `precision` as `1`, with an effective step of `0.1`. Provide a matching precision for finer increments:
 
 ```ts
 sliderProperty({
-  text: 'Fine adjustment',
-  value: 0.5,
-  min: 0,
-  max: 1,
-  fraction: true,
-  precision: 3, // derives "step": 0.001
-});
-
-sliderProperty({
-  text: 'Custom adjustment',
+  text: "Fine adjustment",
   value: 0.5,
   min: 0,
   max: 1,
   fraction: true,
   precision: 3,
-  step: 0.005, // remains 0.005 instead of being normalized to 0.1
+  // step is derived as 0.001
+});
+
+sliderProperty({
+  text: "Custom adjustment",
+  value: 0.5,
+  min: 0,
+  max: 1,
+  fraction: true,
+  precision: 3,
+  step: 0.005,
 });
 ```
 
-Group markers create collapsible sections in Wallpaper Engine's property list.
-Every property after a marker belongs to that section until the next marker;
-properties before the first marker remain ungrouped:
+An explicit `step` is preserved. When only `precision` is supplied, `sliderProperty` derives `10 ** -precision`.
+
+### Groups
+
+A group marker starts a collapsible section. Properties remain in that group until the next marker; properties before the first marker stay ungrouped.
 
 ```ts
 const properties = {
-  alwaysVisible: boolProperty({ text: 'Always visible', value: true }),
-  appearance: groupProperty({ text: 'Appearance' }),
-  background: colorProperty({ text: 'Background', value: '0 0 0' }),
-  motion: groupProperty({ text: 'Motion' }),
-  speed: sliderProperty({ text: 'Speed', value: 1, min: 0, max: 5 }),
+  alwaysVisible: boolProperty({ text: "Always visible", value: true }),
+  appearance: groupProperty({ text: "Appearance" }),
+  background: colorProperty({ text: "Background", value: "0 0 0" }),
+  motion: groupProperty({ text: "Motion" }),
+  speed: sliderProperty({ text: "Speed", value: 1, min: 0, max: 5 }),
 };
 ```
-
-Group markers are layout-only and are omitted from
-`WallpaperUserPropertiesOf<typeof properties>`.
 
 ### Localization
 
-Property labels starting with `ui_` are resolved against the localization map:
+Labels beginning with `ui_` resolve through the localization map:
 
 ```ts
 wallpaperEnginePlugin({
-  title: 'My Wallpaper',
+  title: "My Wallpaper",
   properties: {
-    bgcolor: colorProperty({ text: 'ui_bgcolor', value: '0 0 0' }),
+    background: colorProperty({ text: "ui_background", value: "0 0 0" }),
   },
   localization: {
-    'en-us': { 'ui_bgcolor': 'Background Color' },
-    'de-de': { 'ui_bgcolor': 'Hintergrundfarbe' },
+    "en-us": { ui_background: "Background color" },
+    "de-de": { ui_background: "Hintergrundfarbe" },
   },
 });
 ```
 
-### Development file and directory simulation
+## <a id="runtime-helpers"></a>🧰 Runtime helpers
 
-While Vite is serving, the devtools use the browser's native file and folder
-pickers. The browser keeps direct references to the selected files and exposes
-them as local `blob:` URLs; nothing is uploaded, copied into the project, or
-sent through the Vite server. The simulation follows Wallpaper Engine's
-property routing:
+All helpers are individually tree-shakeable and imported from `wallpaper-engine/helpers`.
 
-- `fileProperty` sends one selected image or video through
-  `applyUserProperties`.
-- `directoryProperty({ mode: 'ondemand' })` sends the selected directory
-  through `applyUserProperties`; `wallpaperRequestRandomFileForProperty`
-  returns one file from that directory.
-- `directoryProperty({ mode: 'fetchall' })` skips `applyUserProperties` and
-  sends file diffs through `userDirectoryFilesAddedOrChanged` and
-  `userDirectoryFilesRemoved`.
+| Helper | Purpose |
+| --- | --- |
+| `colorToWallpaperColor` | Convert a Color.js-supported value to native `"R G B"` |
+| `parseWallpaperColor` | Parse native channels into 0–255 RGB values |
+| `wallpaperColorToRgb` | Convert native channels to CSS `rgb()` |
+| `wallpaperColorToHex` | Convert native channels to CSS hex |
+| `getAverageColor` | One-shot image or media color extraction |
+| `createAverageColorExtractor` | Reusable color extraction for frames or multiple sources |
+| `toFileUrl` | Normalize Wallpaper Engine paths for browser use |
+| `clampAudio` | Clamp samples to 0–1 and replace non-finite values |
+| `leftChannel` / `rightChannel` | Split a 128-value stereo spectrum |
+| `encodeCanvasForLed` | Encode canvas RGB data for Wallpaper Engine LED APIs |
+| `createFpsLimiter` | Run `requestAnimationFrame` with a host-controlled FPS cap |
 
-`fileType` applies Wallpaper Engine's image/video extension filters, including
-nested directory files. Choosing **Browse** again for a directory reopens the
-browser picker and diffs files by relative path, size, and modification time.
-
-Browsers do not expose loadable absolute filesystem paths. In development,
-file callbacks therefore receive local `blob:` URLs instead; Wallpaper Engine
-continues to provide native filesystem paths in production. Pass either
-representation to `toFileUrl`. The devtools revoke local URLs when a selection
-is replaced or cleared, and the browser releases all remaining references when
-the page closes.
-
----
-
-## <a id="strong-property-typing"></a>:muscle: Strong Property Typing
-
-Define your properties in a dedicated file, then import it in both `vite.config.ts` and your wallpaper source. `WallpaperUserPropertiesOf<T>` maps each definition to its exact runtime value type automatically.
-
-```ts
-// src/properties.ts
-import { colorProperty, sliderProperty, boolProperty } from 'wallpaper-engine/plugin';
-
-export const myProperties = {
-  bgcolor:   colorProperty({ text: 'Background Color', value: '#000' }),
-  speed:     sliderProperty({ text: 'Speed', value: 1, min: 0, max: 5 }),
-  showClock: boolProperty({ text: 'Show Clock', value: true }),
-};
-```
-
-```ts
-// vite.config.ts
-import { wallpaperEnginePlugin } from 'wallpaper-engine/plugin';
-import { myProperties } from './src/properties';
-
-export default defineConfig({
-  plugins: [wallpaperEnginePlugin({ title: 'My Wallpaper', properties: myProperties })],
-});
-```
-
-```ts
-// src/wallpaper.ts
-import type { WallpaperUserPropertiesOf } from 'wallpaper-engine/plugin';
-import type { myProperties } from './properties';
-import { wallpaperColorToRgb } from 'wallpaper-engine/helpers';
-
-type MyProps = WallpaperUserPropertiesOf<typeof myProperties>;
-// → { bgcolor: WallpaperColorValue; speed: WallpaperSliderValue; showClock: WallpaperBoolValue }
-
-window.wallpaperPropertyListener = {
-  applyUserProperties(props: Partial<MyProps>) {
-    if (props.bgcolor)   document.body.style.background = wallpaperColorToRgb(props.bgcolor.value);
-    if (props.speed)     setSpeed(props.speed.value);       // inferred as number ✓
-    if (props.showClock) toggle(props.showClock.value);     // inferred as boolean ✓
-  },
-};
-```
-
----
-
-## <a id="helpers"></a>:wrench: Helpers
-
-All helpers are side-effect-free and individually tree-shakeable.
+### Color conversion
 
 ```ts
 import {
   colorToWallpaperColor,
   parseWallpaperColor,
-  wallpaperColorToRgb,
   wallpaperColorToHex,
+  wallpaperColorToRgb,
+} from "wallpaper-engine/helpers";
+
+colorToWallpaperColor("hsl(120 100% 50%)"); // "0 1 0"
+parseWallpaperColor("1 0.5 0");             // { r: 255, g: 128, b: 0 }
+wallpaperColorToRgb("1 0.5 0");             // "rgb(255,128,0)"
+wallpaperColorToHex("1 0.5 0");             // "#ff8000"
+```
+
+`parseWallpaperColor` accepts arbitrary whitespace, rounds to the nearest 8-bit channel, and clamps values outside 0–1. Missing, extra, or non-finite channels throw `TypeError`.
+
+### Image and media colors
+
+`getAverageColor` accepts URLs, data/blob URLs, images, videos, canvases, `OffscreenCanvas`, `ImageBitmap`, and `VideoFrame`:
+
+```ts
+import {
   createAverageColorExtractor,
   getAverageColor,
-  toFileUrl,
-  clampAudio,
-  leftChannel,
-  rightChannel,
-  encodeCanvasForLed,
-  createFpsLimiter,
-} from 'wallpaper-engine/helpers';
-```
+} from "wallpaper-engine/helpers";
 
-### Color
-
-```ts
-// Any Color.js-supported string → Wallpaper Engine "R G B"
-colorToWallpaperColor('hsl(120 100% 50%)'); // → "0 1 0"
-
-// "R G B" string (0–1 per channel) → { r, g, b } (0–255)
-const { r, g, b } = parseWallpaperColor(props.bgcolor.value);
-
-// → CSS "rgb(255,128,0)"
-el.style.color = wallpaperColorToRgb(props.bgcolor.value);
-
-// → CSS "#ff8000"
-el.style.color = wallpaperColorToHex(props.bgcolor.value);
-```
-
-`parseWallpaperColor` accepts arbitrary whitespace, rounds channels to the
-nearest 8-bit value, and clamps channels outside 0–1. It throws a `TypeError`
-for missing, extra, or non-finite channels instead of returning invalid CSS.
-
-#### Image and media color extraction
-
-`getAverageColor` accepts an image URL, data/blob URL, `HTMLImageElement`,
-`HTMLVideoElement`, canvas, `OffscreenCanvas`, `ImageBitmap`, or `VideoFrame`.
-It creates and disposes its extraction canvas automatically:
-
-```ts
 const color = await getAverageColor(image, {
-  algorithm: 'dominant',
-  mode: 'precision',
+  algorithm: "dominant",
+  mode: "precision",
   ignoredColor: [255, 255, 255, 255, 10],
 });
 
 document.body.style.backgroundColor = color.hex;
 ```
 
-For multiple images, cropped regions, or live video frames, reuse one extractor:
+Reuse an extractor for live media, cropped regions, or raw RGBA arrays:
 
 ```ts
 const extractor = createAverageColorExtractor();
 
-const full = await extractor.getColorAsync(image);
+const frame = extractor.getColor(video, { mode: "speed" });
 const corner = await extractor.getColorAsync(image, {
   left: 0,
   top: 0,
   width: 200,
   height: 200,
 });
-const currentFrame = extractor.getColor(video, { mode: 'speed' });
-const raw = extractor.getColorFromArray4(rgbaPixels, { algorithm: 'sqrt' });
+const pixels = extractor.getColorFromArray4(rgbaPixels, {
+  algorithm: "sqrt",
+});
 
 extractor.destroy();
 ```
 
-All FastAverageColor options are supported and forwarded unchanged:
-
-| Option | Purpose |
-|---|---|
-| `defaultColor` | RGBA fallback when no usable pixels are available |
-| `ignoredColor` | One RGB/RGBA color, a color with a matching threshold, or a list of them |
-| `mode` | `'speed'` downsizes large sources; `'precision'` samples at source size |
-| `algorithm` | `'simple'`, `'sqrt'` (default), or `'dominant'` |
-| `step` | Samples every nth pixel |
-| `left` | Left edge of the sampled source region |
-| `top` | Top edge of the sampled source region |
-| `width` | Width of the sampled source region |
-| `height` | Height of the sampled source region |
-| `silent` | Suppresses synchronous extraction errors in the console |
-| `crossOrigin` | Sets `crossOrigin` when loading a string source |
-| `dominantDivider` | Controls RGB bucket size for the dominant algorithm |
-
-Results include `rgb`, `rgba`, `hex`, `hexa`, raw RGBA `value`, `isDark`, and
-`isLight`. The reusable extractor also accepts `number[]`, `Uint8Array`, and
-`Uint8ClampedArray` RGBA pixel data through `getColorFromArray4`.
-
-### Files
-
-```ts
-// Prefix a WE path with file:/// before using it as an <img> or <video> src
-img.src = toFileUrl(props.myimage.value);
-```
+All FastAverageColor options are supported, including crop dimensions, sampling step, ignored colors, fallback color, algorithm, mode, cross-origin behavior, and dominant-color bucket size.
 
 ### Audio
 
 ```ts
+import {
+  clampAudio,
+  leftChannel,
+  rightChannel,
+} from "wallpaper-engine/helpers";
+
 window.wallpaperRegisterAudioListener((raw) => {
-  const audio = clampAudio(raw);     // clamp all 128 values to 0–1
-  const left  = leftChannel(audio);  // indices 0–63  (bass → treble)
-  const right = rightChannel(audio); // indices 64–127 (bass → treble)
+  const audio = clampAudio(raw);
+  const left = leftChannel(audio);   // indices 0–63, bass to treble
+  const right = rightChannel(audio); // indices 64–127, bass to treble
+
   renderBars(left, right);
 });
 ```
 
-`clampAudio` returns a new array, clamps values below zero and above one, and
-replaces non-finite samples with zero.
+`clampAudio` returns a new array, clamps negative and greater-than-one values, and replaces `NaN` or infinities with zero.
 
-> [!IMPORTANT]
-> The Vite plugin scans emitted JavaScript and HTML for `wallpaperRegisterAudioListener(...)` calls and automatically writes `"supportsaudioprocessing": true` under `"general"`. Calls through `window`, `globalThis`, and the bare global are detected.
->
-> Detection runs on production output. If the listener is registered through an alias or generated runtime code, set `supportsAudioProcessing: true` explicitly. Set it to `false` only when you need to suppress automatic detection.
-
-### LED / RGB
+### Files, LED data, and frame rate
 
 ```ts
-// Encode a canvas as the RGB byte string expected by setAllDevicesByImageData
-const canvas  = document.getElementById('RGBCanvas') as HTMLCanvasElement;
+import {
+  createFpsLimiter,
+  encodeCanvasForLed,
+  toFileUrl,
+} from "wallpaper-engine/helpers";
+
+image.src = toFileUrl(values.cover.value);
+
 const encoded = encodeCanvasForLed(canvas);
-window.wpPlugins.led.setAllDevicesByImageData(encoded, canvas.width, canvas.height);
-```
+window.wpPlugins.led.setAllDevicesByImageData(
+  encoded,
+  canvas.width,
+  canvas.height,
+);
 
-### FPS-limited animation loop
-
-Mirrors the FPS cap delivered by `applyGeneralProperties`. Pass `0` for unlimited.
-
-```ts
-const loop = createFpsLimiter((dt) => renderFrame(dt));
-
+const loop = createFpsLimiter((delta) => renderFrame(delta));
 window.wallpaperPropertyListener = {
-  applyGeneralProperties(props) {
-    if (props.fps !== undefined) loop.setLimit(props.fps);
+  applyGeneralProperties(properties) {
+    if (properties.fps !== undefined) loop.setLimit(properties.fps);
   },
 };
-
-window.onload = () => loop.start();
+loop.start();
 ```
 
----
+Pass `0` to `setLimit` for an uncapped animation loop.
 
-## <a id="window-augmentation"></a>:window: Window Augmentation
+## <a id="wallpaper-engine-types"></a>🪟 Wallpaper Engine types
 
-If you're not using Vite or don't need the plugin, the main `wallpaper-engine` entry is all you need. A single side-effect import augments the global `Window` interface so every WE API is fully typed — no manual `declare` blocks, no runtime cost.
+The main entry exposes the host API without requiring handwritten global declarations.
 
-```ts
-import 'wallpaper-engine';
+### Project-wide augmentation
 
-// All of these are now fully typed:
-window.wallpaperPropertyListener = { ... };
-window.wallpaperRegisterAudioListener((audio) => { ... });
-window.wallpaperRequestRandomFileForProperty('mydir');
-window.wallpaperPluginListener = { onPluginLoaded(name, version) { ... } };
-window.wpPlugins.led.setAllDevicesByImageData(encoded, w, h);
-window.cue.setLedsColorsAsync(deviceIndex, leds);
+Add the package to `compilerOptions.types` when every wallpaper source file should see the globals:
 
-// Media integration
-window.wallpaperRegisterMediaPropertiesListener((e) => { /* e.title, e.artist, ... */ });
-window.wallpaperRegisterMediaPlaybackListener((e) => { /* e.state */ });
-window.wallpaperRegisterMediaThumbnailListener((e) => { /* e.thumbnail (base64 PNG) */ });
-```
-
-The import is erased at compile time — nothing is added to your bundle.
-
-Two alternatives that also work without an `import` in your source:
-
-**`tsconfig.json`** — applies the augmentation project-wide, no import needed anywhere:
 ```json
 {
   "compilerOptions": {
@@ -466,54 +443,60 @@ Two alternatives that also work without an `import` in your source:
 }
 ```
 
-**Triple-slash reference** — per-file, useful if you only want types in specific files:
+Alternatively, load the augmentation from one source entry:
+
 ```ts
-/// <reference types="wallpaper-engine" />
+import "wallpaper-engine";
 ```
 
----
+Typed globals include:
 
-## <a id="full-type-reference"></a>:books: Full Type Reference
+```ts
+window.wallpaperPropertyListener = { /* ... */ };
+window.wallpaperRegisterAudioListener((audio) => { /* ... */ });
+window.wallpaperRequestRandomFileForProperty("gallery");
+window.wallpaperPluginListener = { /* ... */ };
+window.wallpaperRegisterMediaPropertiesListener((event) => { /* ... */ });
+window.wallpaperRegisterMediaPlaybackListener((event) => { /* ... */ });
+window.wallpaperRegisterMediaThumbnailListener((event) => { /* ... */ });
+window.wpPlugins.led.setAllDevicesByImageData(data, width, height);
+window.cue.setLedsColorsAsync(deviceIndex, colors);
+```
 
-All types are exported from `wallpaper-engine` (main entry).
+### Notable exported types
 
-### Property definition types (`project.json`)
+| Area | Types |
+| --- | --- |
+| Project definitions | `WallpaperProject`, `WallpaperProjectGeneral`, `WallpaperPropertyDefinition`, property-specific interfaces, `WallpaperLocalization` |
+| Runtime properties | `WallpaperUserProperties`, `WallpaperPropertyRuntimeValue`, property-specific value interfaces, `WallpaperGeneralProperties` |
+| Listeners | `WallpaperPropertyListener`, `WallpaperPluginListener` |
+| Media | Media status, properties, thumbnail, playback, and timeline event types |
+| Hardware | `WallpaperCuePlugin`, `WallpaperLedPlugin`, CUE device, LED color, position, and protocol types |
 
-`WallpaperColorProperty` · `WallpaperSliderProperty` · `WallpaperBoolProperty` · `WallpaperComboProperty` · `WallpaperTextInputProperty` · `WallpaperFileProperty` · `WallpaperDirectoryProperty` · `WallpaperGroupProperty` · `WallpaperPropertyDefinition` · `WallpaperProject` · `WallpaperProjectGeneral` · `WallpaperLocalization`
+Playback constants are also available from the main entry: `PLAYBACK_STOPPED`, `PLAYBACK_PLAYING`, and `PLAYBACK_PAUSED`.
 
-### Runtime value types (`applyUserProperties`)
+## <a id="development"></a>🏗️ Development
 
-`WallpaperColorValue` · `WallpaperSliderValue` · `WallpaperBoolValue` · `WallpaperComboValue` · `WallpaperTextValue` · `WallpaperFileValue` · `WallpaperDirectoryValue` · `WallpaperUserProperties` · `WallpaperGeneralProperties`
-
-### Listener interfaces
-
-`WallpaperPropertyListener` · `WallpaperPluginListener`
-
-### Media integration
-
-`WallpaperMediaStatusEvent` · `WallpaperMediaPropertiesEvent` · `WallpaperMediaThumbnailEvent` · `WallpaperMediaPlaybackEvent` · `WallpaperMediaPlaybackState` · `WallpaperMediaTimelineEvent`
-
-### iCUE / LED
-
-`WallpaperCuePlugin` · `WallpaperLedPlugin` · `CueDeviceInfo` · `CueLedColor` · `CueLedPosition` · `CueProtocolDetails`
-
----
-
-## <a id="building"></a>:building_construction: Building
+This repository is a Bun workspace containing the published package, the private Vue devtools client, and a consumer demo.
 
 ```bash
-bun run build      # production build (ESM + CJS + .d.ts)
-bun run dev        # watch mode
-bun run typecheck  # type-check without emitting
+bun install
+bun run typecheck
+bun run test:run
+bun run build
 ```
 
-Output goes to `dist/` with the following structure:
+Useful development commands:
 
-```
-dist/
-  index.js / index.cjs / index.d.ts
-  helpers.js / helpers.cjs / helpers.d.ts
-  plugin/
-    index.js / index.cjs / index.d.ts
+```bash
+bun run dev           # watch and copy the devtools client
+bun run dev:demo      # start the consumer demo
+bun run test          # run workspace tests
+bun run test:coverage # collect workspace coverage
 ```
 
+The root build compiles the devtools first, then bundles the library with tsdown and copies the self-contained client into the plugin distribution.
+
+## <a id="license"></a>📄 License
+
+[MIT](./LICENSE) © ShadowNineX

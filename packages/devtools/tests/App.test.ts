@@ -10,6 +10,8 @@ vi.mock("vue-sonner", () => ({
 
 beforeEach(() => {
   vi.resetModules();
+  vi.stubGlobal("__WE_DEVTOOLS_VERSION__", "1.2.3");
+  vi.stubGlobal("__WE_DEVTOOLS_GIT_VERSION__", "abc1234-dirty");
   setActivePinia(createPinia());
   window.__WE_DEVTOOLS_CONFIG__ = {
     title: "Aether test wallpaper",
@@ -33,6 +35,11 @@ describe("devtools app shell", () => {
 
     expect(wrapper.text()).toContain("Wallpaper Engine Devtools");
     expect(wrapper.text()).toContain("Aether test wallpaper");
+    const version = wrapper.get("[data-devtools-version]");
+    expect(version.text()).toBe("v1.2.3 · abc1234-dirty");
+    expect(version.attributes("title")).toBe(
+      "Devtools 1.2.3 (git abc1234-dirty)",
+    );
     expect(
       wrapper
         .findAll('[role="tab"]')

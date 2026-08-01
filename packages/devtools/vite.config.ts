@@ -1,9 +1,39 @@
+import { execFileSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { fileURLToPath, URL } from "node:url";
 import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import Icons from "unplugin-icons/vite";
 import Unfonts from "unplugin-fonts/vite";
+
+// The client is bundled into the published package, so report that version
+// instead of the private devtools workspace's placeholder version.
+const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const PUBLISHED_PACKAGE_JSON = fileURLToPath(
+  new URL("../wallpaper-engine/package.json", import.meta.url),
+);
+const { version: DEVTOOLS_VERSION } = JSON.parse(
+  readFileSync(PUBLISHED_PACKAGE_JSON, "utf8"),
+) as { version: string };
+
+function getGitVersion(): string {
+  try {
+    return execFileSync(
+      "git",
+      ["describe", "--always", "--dirty", "--abbrev=7"],
+      {
+        cwd: REPOSITORY_ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      },
+    ).trim();
+  } catch {
+    return process.env.GITHUB_SHA?.slice(0, 7) ?? "unknown";
+  }
+}
+
+const DEVTOOLS_GIT_VERSION = getGitVersion();
 
 /**
  * Rollup plugin: take any emitted `.css` asset, remove it from the bundle,
@@ -98,15 +128,18 @@ export default defineConfig(({ command }) => ({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
-  define:
-    command === "build"
+  define: {
+    __WE_DEVTOOLS_VERSION__: JSON.stringify(DEVTOOLS_VERSION),
+    __WE_DEVTOOLS_GIT_VERSION__: JSON.stringify(DEVTOOLS_GIT_VERSION),
+    ...(command === "build"
       ? {
           "process.env.NODE_ENV": JSON.stringify("production"),
           __VUE_OPTIONS_API__: "false",
           __VUE_PROD_DEVTOOLS__: "false",
           __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
         }
-      : {},
+      : {}),
+  },
   build: {
     outDir: fileURLToPath(new URL("./dist", import.meta.url)),
     emptyOutDir: true,
