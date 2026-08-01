@@ -90,6 +90,18 @@ This outputs a `project.json` alongside your build:
 }
 ```
 
+### Project JSON formatting
+
+Production builds minify `project.json` to one line by default. Development
+mode leaves it formatted. Set `minify` explicitly to override either default:
+
+```ts
+wallpaperEnginePlugin({
+  title: 'My Wallpaper',
+  minify: false, // keep production project.json readable
+});
+```
+
 ### Property builder reference
 
 | Builder | Property type | Runtime value |

@@ -221,6 +221,15 @@ export interface WallpaperEnginePluginOptions {
   /** Wallpaper title shown in the Wallpaper Engine UI */
   title: string;
   /**
+   * Emit `project.json` without indentation or line breaks. Defaults to
+   * enabled for production builds and disabled during development.
+   *
+   * @default `true` for build, `false` for dev
+   * @example
+   * minify: false
+   */
+  minify?: boolean;
+  /**
    * Override automatic audio-listener detection.
    *
    * By default, production JavaScript and HTML are scanned for calls to
@@ -396,7 +405,10 @@ export function wallpaperEnginePlugin(
       this.emitFile({
         type: "asset",
         fileName: "project.json",
-        source: JSON.stringify(project, null, "\t"),
+        source:
+          options.minify ?? !isServe
+            ? JSON.stringify(project)
+            : JSON.stringify(project, null, "\t"),
       });
     },
   };

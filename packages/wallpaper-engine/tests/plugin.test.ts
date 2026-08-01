@@ -217,7 +217,11 @@ function runGenerateBundle(
     bundle,
   );
   if (!emitted) throw new Error("emitFile was not called");
-  return { fileName: emitted.fileName, project: JSON.parse(emitted.source) };
+  return {
+    fileName: emitted.fileName,
+    source: emitted.source,
+    project: JSON.parse(emitted.source),
+  };
 }
 
 describe("wallpaperEnginePlugin", () => {
@@ -242,6 +246,33 @@ describe("wallpaperEnginePlugin", () => {
       wallpaperEnginePlugin({ title: "T", file: "main.html" }),
     );
     expect(project.file).toBe("main.html");
+  });
+
+  it("minifies project.json by default for builds", () => {
+    const { source } = runGenerateBundle(
+      wallpaperEnginePlugin({ title: "T" }),
+    );
+
+    expect(source).toBe('{"file":"index.html","title":"T","type":"web"}');
+  });
+
+  it("pretty-prints project.json when minification is disabled", () => {
+    const { source } = runGenerateBundle(
+      wallpaperEnginePlugin({ title: "T", minify: false }),
+    );
+
+    expect(source).toContain('\n\t"file": "index.html"');
+  });
+
+  it("defaults to pretty output during development", () => {
+    const plugin = wallpaperEnginePlugin({ title: "T" });
+    if (typeof plugin.configResolved !== "function") {
+      throw new Error("configResolved hook is not callable");
+    }
+    plugin.configResolved.call({} as never, { command: "serve" } as never);
+
+    const { source } = runGenerateBundle(plugin);
+    expect(source).toContain('\n\t"file": "index.html"');
   });
 
   it("nests supportsaudioprocessing under general when enabled", () => {
@@ -423,22 +454,14 @@ describe("wallpaperEnginePlugin", () => {
   });
 
   it("outputs valid JSON", () => {
-    const plugin = wallpaperEnginePlugin({
-      title: "T",
-      properties: { c: colorProperty({ text: "C", value: "0 0 0" }) },
-    });
-    let raw = "";
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (plugin.generateBundle as any).call(
-      {
-        emitFile: (f: { source: string }) => {
-          raw = f.source;
-        },
-      },
-      {},
-      {},
+    const { source } = runGenerateBundle(
+      wallpaperEnginePlugin({
+        title: "T",
+        properties: { c: colorProperty({ text: "C", value: "0 0 0" }) },
+      }),
     );
-    expect(() => JSON.parse(raw)).not.toThrow();
+
+    expect(() => JSON.parse(source)).not.toThrow();
   });
 });
 
