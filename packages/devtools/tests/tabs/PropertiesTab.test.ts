@@ -51,7 +51,7 @@ describe("PropertiesTab", () => {
     expect(setPaused).toHaveBeenCalledWith(false);
   });
 
-  it("renders native group boundaries as initially closed sections", async () => {
+  it("renders group boundaries as animated, initially closed sections", async () => {
     window.__WE_DEVTOOLS_CONFIG__ = {
       properties: {
         speed: {
@@ -94,10 +94,17 @@ describe("PropertiesTab", () => {
 
     const appearance = wrapper.get('[data-property-group="appearance"]');
     const advanced = wrapper.get('[data-property-group="advanced"]');
-    expect((appearance.element as HTMLDetailsElement).open).toBe(false);
-    expect((advanced.element as HTMLDetailsElement).open).toBe(false);
-    expect(appearance.get("summary").text()).toBe("Appearance");
-    expect(advanced.get("summary").text()).toBe("Advanced");
+    const appearanceToggle = appearance.get("[data-property-group-toggle]");
+    const advancedToggle = advanced.get("[data-property-group-toggle]");
+    const appearanceContent = appearance.get(
+      '[data-property-group-content="appearance"]',
+    );
+    expect(appearanceToggle.attributes("aria-expanded")).toBe("false");
+    expect(advancedToggle.attributes("aria-expanded")).toBe("false");
+    expect(appearanceContent.attributes("aria-hidden")).toBe("true");
+    expect(appearanceContent.attributes()).toHaveProperty("inert");
+    expect(appearanceToggle.text()).toBe("Appearance");
+    expect(advancedToggle.text()).toBe("Advanced");
     expect(appearance.findAll("article").map((row) => row.text())).toEqual([
       expect.stringContaining("Color"),
       expect.stringContaining("Enabled"),
@@ -105,6 +112,17 @@ describe("PropertiesTab", () => {
     expect(advanced.findAll("article").map((row) => row.text())).toEqual([
       expect.stringContaining("Speed"),
     ]);
+
+    await appearanceToggle.trigger("click");
+    expect(appearanceToggle.attributes("aria-expanded")).toBe("true");
+    expect(appearanceContent.attributes("aria-hidden")).toBe("false");
+    expect(appearanceContent.attributes()).not.toHaveProperty("inert");
+    expect(advancedToggle.attributes("aria-expanded")).toBe("false");
+
+    await appearanceToggle.trigger("click");
+    expect(appearanceToggle.attributes("aria-expanded")).toBe("false");
+    expect(appearanceContent.attributes("aria-hidden")).toBe("true");
+    expect(appearanceContent.attributes()).toHaveProperty("inert");
   });
 
   it("shows an explicit empty state without configured properties", async () => {
