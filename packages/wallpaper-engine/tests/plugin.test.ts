@@ -180,17 +180,19 @@ describe("wallpaperEnginePlugin", () => {
     expect(project.file).toBe("main.html");
   });
 
-  it("sets supportsaudioprocessing when enabled", () => {
+  it("nests supportsaudioprocessing under general when enabled", () => {
     const { project } = runGenerateBundle(
       wallpaperEnginePlugin({ title: "T", supportsAudioProcessing: true }),
     );
-    expect(project.supportsaudioprocessing).toBe(true);
+    expect(project.general).toEqual({ supportsaudioprocessing: true });
+    expect(project.supportsaudioprocessing).toBeUndefined();
   });
 
   it("omits supportsaudioprocessing when not set", () => {
     const { project } = runGenerateBundle(
       wallpaperEnginePlugin({ title: "T" }),
     );
+    expect(project.general?.supportsaudioprocessing).toBeUndefined();
     expect(project.supportsaudioprocessing).toBeUndefined();
   });
 

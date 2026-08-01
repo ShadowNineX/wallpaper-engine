@@ -330,6 +330,9 @@ export function wallpaperEnginePlugin(
       const general: WallpaperProjectGeneral = {};
       if (properties) general.properties = properties;
       if (options.localization) general.localization = options.localization;
+      if (options.supportsAudioProcessing) {
+        general.supportsaudioprocessing = true;
+      }
 
       const project: WallpaperProject = {
         file: options.file ?? "index.html",
@@ -337,9 +340,6 @@ export function wallpaperEnginePlugin(
         type: "web",
       };
 
-      if (options.supportsAudioProcessing) {
-        project.supportsaudioprocessing = true;
-      }
 
       if (Object.keys(general).length > 0) {
         project.general = general;
