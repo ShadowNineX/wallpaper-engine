@@ -76,8 +76,19 @@ describe("toFileUrl", () => {
     );
   });
 
-  it("handles an empty path", () => {
-    expect(toFileUrl("")).toBe("file:///");
+  it("preserves URLs that are already browser-loadable", () => {
+    const urls = [
+      "/assets/image.png",
+      "https://example.com/image.png",
+      "data:image/png;base64,AA==",
+      "blob:https://example.com/id",
+      "file:///C:/images/photo.jpg",
+    ];
+    for (const url of urls) expect(toFileUrl(url)).toBe(url);
+  });
+
+  it("keeps an empty path empty", () => {
+    expect(toFileUrl("")).toBe("");
   });
 });
 

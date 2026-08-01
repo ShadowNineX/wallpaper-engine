@@ -61,16 +61,20 @@ export function wallpaperColorToHex(value: string): string {
 // ---------------------------------------------------------------------------
 
 /**
- * Prefix a Wallpaper Engine file/directory path with `file:///` to make it
- * usable as an `<img>` or `<video>` `src`.
+ * Convert a Wallpaper Engine filesystem path to a browser-loadable file URL.
  *
- * The raw path delivered by `applyUserProperties` is not a valid URL on its own.
+ * Paths from Wallpaper Engine are prefixed with `file:///`. URLs already
+ * usable by a browser — including the local `blob:` URLs emitted by the Vite
+ * devtools — are returned unchanged.
  *
  * @example
  * img.src = toFileUrl(props.myimage.value);
- * // → "file:///C:/Users/.../myimage.png"
+ * // Wallpaper Engine: "C:/Users/.../myimage.png" → "file:///C:/Users/.../myimage.png"
+ * // Vite devtools: "blob:http://localhost/..." → unchanged
  */
 export function toFileUrl(path: string): string {
+  if (!path) return "";
+  if (/^(?:\/|https?:|data:|blob:|file:)/i.test(path)) return path;
   return "file:///" + path;
 }
 

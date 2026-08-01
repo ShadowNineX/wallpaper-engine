@@ -172,14 +172,20 @@ describe("Wallpaper Engine host globals", () => {
       PLAYBACK_PAUSED: 1,
       PLAYBACK_STOPPED: 2,
     });
-    expect(() => window.wpPlugins.led.setAllDevicesByImageData("data")).not.toThrow();
+    expect(() =>
+      window.wpPlugins.led.setAllDevicesByImageData("data", 1, 1),
+    ).not.toThrow();
     window.cue.getProtocolDetails(protocol);
     window.cue.getDeviceCount(count);
     window.cue.getDeviceInfo(0, info);
     window.cue.getLedPositionsByDeviceIndex(positions);
     expect(() => window.cue.setLedsColorsAsync([])).not.toThrow();
-    expect(() => window.cue.setAllLedsColorsAsync([])).not.toThrow();
-    expect(() => window.cue.setLedColorsByImageData("data")).not.toThrow();
+    expect(() =>
+      window.cue.setAllLedsColorsAsync([], { ledId: 0, r: 0, g: 0, b: 0 }),
+    ).not.toThrow();
+    expect(() =>
+      window.cue.setLedColorsByImageData([], "data", 1, 1),
+    ).not.toThrow();
 
     expect(protocol).toHaveBeenCalledWith(
       expect.objectContaining({ sdkVersion: "0.0.0-dev", breakingChanges: false }),

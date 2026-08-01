@@ -12,12 +12,21 @@ import type {
   WallpaperUserProperties,
 } from "../../wallpaper-engine/src/types/listeners";
 import type { WallpaperPropertyDefinition } from "../../wallpaper-engine/src/types/project";
+import type {
+  DevDirectorySelection,
+  DevFileEntry,
+} from "../../wallpaper-engine/src/types/dev-files";
 import { propDefs, tr } from "./config";
 
 type RuntimePropertyDefinition = Exclude<
   WallpaperPropertyDefinition,
   { type: "group" }
 >;
+
+interface DirectoryChangeSummary {
+  addedOrChanged: string[];
+  removed: string[];
+}
 
 // ---------------------------------------------------------------------------
 // Listener slots — plain (non-reactive) callbacks; exported at module level
@@ -71,6 +80,16 @@ function createInitialValues(): WallpaperUserProperties {
   return values;
 }
 
+function createInitialDisplayPaths(): Record<string, string> {
+  const paths: Record<string, string> = {};
+  for (const [key, def] of Object.entries(propDefs)) {
+    if (def.type === "file" || def.type === "directory") {
+      paths[key] = def.value;
+    }
+  }
+  return paths;
+}
+
 function isFetchAllDirectory(key: string): boolean {
   const def = propDefs[key];
   return def?.type === "directory" && def.mode === "fetchall";
@@ -120,8 +139,14 @@ export const useDevtoolsStore = defineStore("devtools", () => {
 
   // --- wallpaper property state ---
   const currentValues = reactive<WallpaperUserProperties>(createInitialValues());
+  const propertyDisplayPaths = reactive<Record<string, string>>(
+    createInitialDisplayPaths(),
+  );
   const general = reactive({ fps: 60, paused: false });
   const directoryFiles = reactive<Record<string, string[]>>({});
+  const directorySelections = reactive<Record<string, DevDirectorySelection>>(
+    {},
+  );
 
   // --- media state ---
   const mediaActive = ref(false);
@@ -162,6 +187,13 @@ export const useDevtoolsStore = defineStore("devtools", () => {
       if (!isFetchAllDirectory(key)) userProperties[key] = value;
     }
     l.applyUserProperties?.(userProperties);
+    for (const [key, selection] of Object.entries(directorySelections)) {
+      if (!isFetchAllDirectory(key) || selection.files.length === 0) continue;
+      l.userDirectoryFilesAddedOrChanged?.(
+        key,
+        selection.files.map((file) => file.url),
+      );
+    }
     l.applyGeneralProperties?.({ fps: general.fps });
     l.setPaused?.(general.paused);
     if (showToast) toast("Startup state replayed.");
@@ -172,6 +204,114 @@ export const useDevtoolsStore = defineStore("devtools", () => {
     const v = currentValues[key];
     if (!v) return;
     listenerFns.property?.applyUserProperties?.({ [key]: v });
+  }
+
+  function setFileSelection(key: string, selection: DevFileEntry): void {
+    if (propDefs[key]?.type !== "file") return;
+    const value = currentValues[key];
+    if (!value) return;
+    propertyDisplayPaths[key] = selection.path;
+    value.value = selection.url;
+    deliverProperty(key);
+  }
+
+  function clearFileSelection(key: string): void {
+    if (propDefs[key]?.type !== "file") return;
+    const value = currentValues[key];
+    if (!value) return;
+    propertyDisplayPaths[key] = "";
+    value.value = "";
+    deliverProperty(key);
+  }
+
+  function notifyDirectoryChanges(
+    key: string,
+    previous: DevDirectorySelection | undefined,
+    next: DevDirectorySelection | undefined,
+  ): DirectoryChangeSummary {
+    const previousByPath = new Map(
+      previous?.files.map((file) => [file.relativePath, file]) ?? [],
+    );
+    const nextByPath = new Map(
+      next?.files.map((file) => [file.relativePath, file]) ?? [],
+    );
+    const removed = [...previousByPath]
+      .filter(([path, file]) => {
+        const replacement = nextByPath.get(path);
+        return !replacement || replacement.url !== file.url;
+      })
+      .map(([, file]) => file.url);
+    const addedOrChanged = [...nextByPath]
+      .filter(([path, file]) => {
+        const old = previousByPath.get(path);
+        return (
+          !old ||
+          old.size !== file.size ||
+          old.mtimeMs !== file.mtimeMs ||
+          old.url !== file.url
+        );
+      })
+      .map(([, file]) => file.url);
+
+    if (removed.length > 0) {
+      try {
+        listenerFns.property?.userDirectoryFilesRemoved?.(key, removed);
+      } catch (error) {
+        console.error("[WE Dev] directory removal listener threw", error);
+      }
+    }
+    if (addedOrChanged.length > 0) {
+      try {
+        listenerFns.property?.userDirectoryFilesAddedOrChanged?.(
+          key,
+          addedOrChanged,
+        );
+      } catch (error) {
+        console.error("[WE Dev] directory change listener threw", error);
+      }
+    }
+    return { addedOrChanged, removed };
+  }
+
+  function setDirectorySelection(
+    key: string,
+    selection: DevDirectorySelection,
+  ): DirectoryChangeSummary {
+    const definition = propDefs[key];
+    if (definition?.type !== "directory") {
+      return { addedOrChanged: [], removed: [] };
+    }
+    const previous = directorySelections[key];
+    directorySelections[key] = selection;
+    directoryFiles[key] = selection.files.map((file) => file.url);
+    propertyDisplayPaths[key] = selection.path;
+    const value = currentValues[key];
+    if (value) value.value = selection.path;
+
+    if (definition.mode === "ondemand") {
+      deliverProperty(key);
+      return { addedOrChanged: [], removed: [] };
+    }
+    return notifyDirectoryChanges(key, previous, selection);
+  }
+
+  function clearDirectorySelection(key: string): DirectoryChangeSummary {
+    const definition = propDefs[key];
+    if (definition?.type !== "directory") {
+      return { addedOrChanged: [], removed: [] };
+    }
+    const previous = directorySelections[key];
+    delete directorySelections[key];
+    directoryFiles[key] = [];
+    propertyDisplayPaths[key] = "";
+    const value = currentValues[key];
+    if (value) value.value = "";
+
+    if (definition.mode === "ondemand") {
+      deliverProperty(key);
+      return { addedOrChanged: [], removed: [] };
+    }
+    return notifyDirectoryChanges(key, previous, undefined);
   }
 
   /** Silently deliver all current media state to every registered media listener. */
@@ -193,6 +333,8 @@ export const useDevtoolsStore = defineStore("devtools", () => {
     currentValues,
     general,
     directoryFiles,
+    propertyDisplayPaths,
+    directorySelections,
     // media state
     mediaActive,
     lastPlaybackState,
@@ -203,6 +345,10 @@ export const useDevtoolsStore = defineStore("devtools", () => {
     fanout,
     deliverAllProperties,
     deliverProperty,
+    setFileSelection,
+    clearFileSelection,
+    setDirectorySelection,
+    clearDirectorySelection,
     deliverAllMedia,
   };
 });

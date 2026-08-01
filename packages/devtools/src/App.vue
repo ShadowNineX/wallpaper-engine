@@ -8,7 +8,6 @@ import {
   useWindowSize,
 } from "@vueuse/core";
 import AudioLines from "~icons/ph/waveform-duotone";
-import FolderOpen from "~icons/ph/folder-open-duotone";
 import Maximize2 from "~icons/ph/arrows-out-simple";
 import Minus from "~icons/ph/minus";
 import Music2 from "~icons/ph/music-notes-duotone";
@@ -25,7 +24,6 @@ import PropertiesTab from "./tabs/PropertiesTab.vue";
 import GeneralTab from "./tabs/GeneralTab.vue";
 import AudioTab from "./tabs/AudioTab.vue";
 import MediaTab from "./tabs/MediaTab.vue";
-import DirectoriesTab from "./tabs/DirectoriesTab.vue";
 import { Toaster } from "@/components/ui/sonner";
 import StatusBar from "./components/StatusBar.vue";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -34,14 +32,13 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 const store = useDevtoolsStore();
 const { mediaActive } = storeToRefs(store);
 
-type TabId = "properties" | "general" | "audio" | "media" | "directories";
+type TabId = "properties" | "general" | "audio" | "media";
 
 const tabs = [
   { id: "properties", label: "Properties", icon: SlidersHorizontal },
   { id: "general", label: "Runtime", icon: Settings2 },
   { id: "audio", label: "Audio", icon: AudioLines },
   { id: "media", label: "Media", icon: Music2 },
-  { id: "directories", label: "Files", icon: FolderOpen },
 ] as const;
 
 const tabComponents = {
@@ -49,7 +46,6 @@ const tabComponents = {
   general: GeneralTab,
   audio: AudioTab,
   media: MediaTab,
-  directories: DirectoriesTab,
 } as const;
 
 const toastOptions = {
@@ -288,7 +284,7 @@ function tabActive(id: TabId): boolean {
           @update:model-value="changeTab"
         >
           <TabsList
-            class="grid h-auto w-full shrink-0 grid-cols-5 gap-1 rounded-none border-b border-we-border bg-[#11141b]/95 px-2 py-2"
+            class="grid h-auto w-full shrink-0 grid-cols-4 gap-1 rounded-none border-b border-we-border bg-[#11141b]/95 px-2 py-2"
           >
             <TabsTrigger
               v-for="tab in tabs"

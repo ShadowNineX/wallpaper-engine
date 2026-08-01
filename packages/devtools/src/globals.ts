@@ -95,7 +95,7 @@ export function installGlobals(): void {
     const list = store.directoryFiles[name] ?? [];
     if (list.length === 0) {
       console.warn(
-        `[WE Dev] wallpaperRequestRandomFileForProperty('${name}'): no files configured. Add some in the Directories tab.`,
+        `[WE Dev] wallpaperRequestRandomFileForProperty('${name}'): no files configured. Select a folder for this property in the Properties tab.`,
       );
       return;
     }

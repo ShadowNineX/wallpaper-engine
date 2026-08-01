@@ -30,7 +30,12 @@ describe("devtools app shell", () => {
 
     expect(wrapper.text()).toContain("Wallpaper Engine Devtools");
     expect(wrapper.text()).toContain("Aether test wallpaper");
-    expect(wrapper.findAll('[role="tab"]')).toHaveLength(5);
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual([
+      "Properties",
+      "Runtime",
+      "Audio",
+      "Media",
+    ]);
     expect(wrapper.text()).toContain("User properties");
 
     const runtimeTab = wrapper

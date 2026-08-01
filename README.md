@@ -115,10 +115,16 @@ wallpaperEnginePlugin({
 | `directoryProperty` | Directory picker | `WallpaperDirectoryValue` — `value: string` (path) |
 | `groupProperty` | Collapsible property section marker | No runtime value |
 
-Fractional sliders accept either `precision` (decimal places) or an explicit
-`step`. Wallpaper Engine uses `precision` to format the displayed value and the
-singular `step` field for its increment. `sliderProperty` retains `precision`
-and derives `step` automatically when only `precision` is provided:
+Fractional sliders use `precision` and `step` together. `precision` limits the
+number of decimal places Wallpaper Engine keeps, and Wallpaper Engine
+normalizes `step` to that precision before using it. When `precision` is
+omitted, Wallpaper Engine currently behaves as though the slider had
+`precision: 1` and `step: 0.1`; for example, `step: 0.005` by itself still
+increments by `0.1`.
+
+Always provide a matching `precision` for a custom fractional `step`.
+`sliderProperty` retains both fields and derives `step` as
+`10 ** -precision` only when `precision` is provided without `step`:
 
 ```ts
 sliderProperty({
@@ -127,7 +133,7 @@ sliderProperty({
   min: 0,
   max: 1,
   fraction: true,
-  precision: 3, // emits "step": 0.001
+  precision: 3, // derives "step": 0.001
 });
 
 sliderProperty({
@@ -136,7 +142,8 @@ sliderProperty({
   min: 0,
   max: 1,
   fraction: true,
-  step: 0.05,
+  precision: 3,
+  step: 0.005, // remains 0.005 instead of being normalized to 0.1
 });
 ```
 
@@ -173,6 +180,34 @@ wallpaperEnginePlugin({
   },
 });
 ```
+
+### Development file and directory simulation
+
+While Vite is serving, the devtools use the browser's native file and folder
+pickers. The browser keeps direct references to the selected files and exposes
+them as local `blob:` URLs; nothing is uploaded, copied into the project, or
+sent through the Vite server. The simulation follows Wallpaper Engine's
+property routing:
+
+- `fileProperty` sends one selected image or video through
+  `applyUserProperties`.
+- `directoryProperty({ mode: 'ondemand' })` sends the selected directory
+  through `applyUserProperties`; `wallpaperRequestRandomFileForProperty`
+  returns one file from that directory.
+- `directoryProperty({ mode: 'fetchall' })` skips `applyUserProperties` and
+  sends file diffs through `userDirectoryFilesAddedOrChanged` and
+  `userDirectoryFilesRemoved`.
+
+`fileType` applies Wallpaper Engine's image/video extension filters, including
+nested directory files. Choosing **Browse** again for a directory reopens the
+browser picker and diffs files by relative path, size, and modification time.
+
+Browsers do not expose loadable absolute filesystem paths. In development,
+file callbacks therefore receive local `blob:` URLs instead; Wallpaper Engine
+continues to provide native filesystem paths in production. Pass either
+representation to `toFileUrl`. The devtools revoke local URLs when a selection
+is replaced or cleared, and the browser releases all remaining references when
+the page closes.
 
 ---
 

@@ -55,10 +55,11 @@ export function colorProperty(
 /**
  * Define a numeric slider property.
  *
- * Wallpaper Engine uses `precision` to format the slider value and `step` to
- * determine its increment. When only `precision` is supplied, this builder
- * retains it and derives `step` as `10 ** -precision`. An explicit `step`
- * takes precedence.
+ * Wallpaper Engine normalizes `step` to the configured `precision`. When
+ * `precision` is omitted, it currently behaves as `precision: 1` and
+ * `step: 0.1`, so finer custom steps must include a matching precision. When
+ * only `precision` is supplied, this builder derives `step` as
+ * `10 ** -precision`; an explicit `step` is emitted unchanged.
  *
  * @example
  * sliderProperty({
@@ -319,27 +320,27 @@ export function wallpaperEnginePlugin(
       isServe = config.command === "serve";
     },
 
-    configureServer(server) {
+    async configureServer(server) {
       if (!devtoolsEnabled) return;
-      void Promise.all([import("node:fs"), import("node:url")]).then(
-        ([fs, { fileURLToPath }]) => {
-          const clientPath = fileURLToPath(
-            new URL("./devtools/client.js", import.meta.url),
-          );
-          // Use stat-polling watchFile instead of chokidar: avoids Windows
-          // path-normalisation mismatches (forward vs back slashes) and works
-          // correctly across Bun workspace symlinks.
-          fs.watchFile(clientPath, { interval: 500 }, () => {
-            cachedClientCode = undefined;
-            const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
-            if (mod) server.moduleGraph.invalidateModule(mod);
-            server.ws.send({ type: "full-reload" });
-          });
-          server.httpServer?.once("close", () => {
-            fs.unwatchFile(clientPath);
-          });
-        },
+      const [fs, { fileURLToPath }] = await Promise.all([
+        import("node:fs"),
+        import("node:url"),
+      ]);
+      const clientPath = fileURLToPath(
+        new URL("./devtools/client.js", import.meta.url),
       );
+      // Use stat-polling watchFile instead of chokidar: avoids Windows
+      // path-normalisation mismatches (forward vs back slashes) and works
+      // correctly across Bun workspace symlinks.
+      fs.watchFile(clientPath, { interval: 500 }, () => {
+        cachedClientCode = undefined;
+        const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
+        if (mod) server.moduleGraph.invalidateModule(mod);
+        server.ws.send({ type: "full-reload" });
+      });
+      server.httpServer?.once("close", () => {
+        fs.unwatchFile(clientPath);
+      });
     },
 
     resolveId(id) {
@@ -397,7 +398,6 @@ export function wallpaperEnginePlugin(
         type: "web",
       };
 
-
       if (Object.keys(general).length > 0) {
         project.general = general;
       }
@@ -406,7 +406,7 @@ export function wallpaperEnginePlugin(
         type: "asset",
         fileName: "project.json",
         source:
-          options.minify ?? !isServe
+          (options.minify ?? !isServe)
             ? JSON.stringify(project)
             : JSON.stringify(project, null, "\t"),
       });
@@ -422,12 +422,14 @@ type BundleOutput =
   | { type: "chunk"; code: string }
   | { type: "asset"; fileName: string; source: string | Uint8Array };
 
-const AUDIO_LISTENER_CALL =
-  /(?:\b(?:window|globalThis)\s*(?:\.\s*wallpaperRegisterAudioListener|\[\s*["']wallpaperRegisterAudioListener["']\s*\])|\bwallpaperRegisterAudioListener)\s*(?:\?\.)?\s*\(/;
+const AUDIO_LISTENER_CALLS = [
+  /\bwallpaperRegisterAudioListener\s*(?:\?\.)?\s*\(/,
+  /\b(?:window|globalThis)\s*\[\s*["']wallpaperRegisterAudioListener["']\s*\]\s*(?:\?\.)?\s*\(/,
+] as const;
 
 function bundleOutputRegistersAudioListener(output: BundleOutput): boolean {
   if (output.type === "chunk") {
-    return AUDIO_LISTENER_CALL.test(output.code);
+    return AUDIO_LISTENER_CALLS.some((pattern) => pattern.test(output.code));
   }
 
   if (!/\.(?:[cm]?js|html?)$/i.test(output.fileName)) return false;
@@ -435,7 +437,7 @@ function bundleOutputRegistersAudioListener(output: BundleOutput): boolean {
     typeof output.source === "string"
       ? output.source
       : new TextDecoder().decode(output.source);
-  return AUDIO_LISTENER_CALL.test(source);
+  return AUDIO_LISTENER_CALLS.some((pattern) => pattern.test(source));
 }
 
 /**

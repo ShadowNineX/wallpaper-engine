@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, ref } from "vue";
+import FolderOpen from "~icons/ph/folder-open";
+import RefreshCw from "~icons/ph/arrows-clockwise";
+import X from "~icons/ph/x";
 import type {
   WallpaperBoolValue,
   WallpaperColorValue,
   WallpaperComboValue,
-  WallpaperDirectoryValue,
-  WallpaperFileValue,
   WallpaperSliderValue,
   WallpaperTextValue,
 } from "../../../wallpaper-engine/src/types/listeners";
@@ -13,6 +14,15 @@ import type { WallpaperPropertyDefinition } from "../../../wallpaper-engine/src/
 import { tr } from "../config";
 import { hexToWeColor, weColorToHex } from "../color";
 import { useDevtoolsStore } from "../store";
+import { toast } from "vue-sonner";
+import {
+  devFilePickerAvailable,
+  pickDevDirectory,
+  pickDevFile,
+  releaseDevDirectory,
+  releaseDevFile,
+} from "../dev-files";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
@@ -29,6 +39,7 @@ const props = defineProps<{
 
 const store = useDevtoolsStore();
 const currentValues = store.currentValues;
+const browsing = ref(false);
 const label = computed(() => tr(props.def.text || props.propKey));
 
 function onColor(event: Event): void {
@@ -71,20 +82,41 @@ function onText(event: Event): void {
   store.deliverProperty(props.propKey);
 }
 
-function onFile(event: Event): void {
-  const value = currentValues[props.propKey] as WallpaperFileValue | undefined;
-  if (!value) return;
-  value.value = (event.target as HTMLInputElement).value;
-  store.deliverProperty(props.propKey);
+async function browsePath(): Promise<void> {
+  if (props.def.type !== "file" && props.def.type !== "directory") return;
+  browsing.value = true;
+  try {
+    if (props.def.type === "file") {
+      const previousUrl = currentValues[props.propKey]?.value;
+      const selection = await pickDevFile(props.def.fileType);
+      if (selection) {
+        store.setFileSelection(props.propKey, selection);
+        if (typeof previousUrl === "string") releaseDevFile(previousUrl);
+      }
+    } else {
+      const selection = await pickDevDirectory(
+        props.def.fileType,
+        store.directorySelections[props.propKey]?.id,
+      );
+      if (selection) store.setDirectorySelection(props.propKey, selection);
+    }
+  } catch (error) {
+    toast(error instanceof Error ? error.message : "Unable to browse local files.");
+  } finally {
+    browsing.value = false;
+  }
 }
 
-function onDirectory(event: Event): void {
-  const value = currentValues[props.propKey] as
-    | WallpaperDirectoryValue
-    | undefined;
-  if (!value) return;
-  value.value = (event.target as HTMLInputElement).value;
-  store.deliverProperty(props.propKey);
+function clearPath(): void {
+  if (props.def.type === "file") {
+    const previousUrl = currentValues[props.propKey]?.value;
+    store.clearFileSelection(props.propKey);
+    if (typeof previousUrl === "string") releaseDevFile(previousUrl);
+  } else if (props.def.type === "directory") {
+    const directoryId = store.directorySelections[props.propKey]?.id;
+    store.clearDirectorySelection(props.propKey);
+    if (directoryId) releaseDevDirectory(directoryId);
+  }
 }
 </script>
 
@@ -200,29 +232,51 @@ function onDirectory(event: Event): void {
       @change="onText"
     />
 
-    <Input
-      v-else-if="def.type === 'file'"
-      :id="propKey"
-      type="text"
-      placeholder="C:/path/to/file"
-      :model-value="
-        (currentValues[propKey] as WallpaperFileValue | undefined)?.value ?? ''
-      "
-      class="h-8 font-mono text-[10px]"
-      @change="onFile"
-    />
-
-    <Input
-      v-else-if="def.type === 'directory'"
-      :id="propKey"
-      type="text"
-      placeholder="C:/path/to/directory"
-      :model-value="
-        (currentValues[propKey] as WallpaperDirectoryValue | undefined)?.value ??
-        ''
-      "
-      class="h-8 font-mono text-[10px]"
-      @change="onDirectory"
-    />
+    <div
+      v-else-if="def.type === 'file' || def.type === 'directory'"
+      class="space-y-1.5"
+    >
+      <div class="flex items-center gap-2">
+        <Input
+          :id="propKey"
+          type="text"
+          readonly
+          :placeholder="
+            def.type === 'file' ? 'No file selected' : 'No folder selected'
+          "
+          :model-value="store.propertyDisplayPaths[propKey] ?? ''"
+          class="h-8 min-w-0 flex-1 font-mono text-[10px]"
+        />
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          class="h-8 shrink-0 gap-1.5 px-2.5 text-[10px]"
+          :disabled="browsing || !devFilePickerAvailable"
+          :aria-busy="browsing"
+          data-browse-path
+          @click="browsePath"
+        >
+          <RefreshCw v-if="browsing" class="size-3 animate-spin" />
+          <FolderOpen v-else class="size-3" />
+          Browse
+        </Button>
+        <Button
+          v-if="store.propertyDisplayPaths[propKey]"
+          type="button"
+          size="icon"
+          variant="outline"
+          class="size-8 shrink-0"
+          :aria-label="`Clear ${label}`"
+          data-clear-path
+          @click="clearPath"
+        >
+          <X class="size-3" />
+        </Button>
+      </div>
+      <p v-if="!devFilePickerAvailable" class="px-1 text-[10px] text-we-faint">
+        This browser cannot expose selected local files.
+      </p>
+    </div>
   </article>
 </template>

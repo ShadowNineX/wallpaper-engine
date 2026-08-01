@@ -567,6 +567,7 @@ describe("wallpaperEnginePlugin devtools hooks", () => {
     );
 
     expect(first).toContain('window.__WE_DEVTOOLS_CONFIG__ = {\"title\":\"Configured\"');
+    expect(first).not.toContain("__WE_DEV_FILES_TOKEN__");
     expect(first).toContain('\"mode\":{\"index\":0,\"order\":0,\"type\":\"combo\"');
     expect(first).toContain("globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;");
     expect(second).toBe(first);

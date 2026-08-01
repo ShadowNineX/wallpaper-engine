@@ -24,6 +24,7 @@ import {
 import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
 import {
   createFpsLimiter,
+  toFileUrl,
   wallpaperColorToHex,
 } from "wallpaper-engine/helpers";
 import { properties } from "./wallpaper";
@@ -157,7 +158,7 @@ const activePath = computed(() => {
   }
 });
 
-const activeUrl = computed(() => wallpaperFileUrl(activePath.value));
+const activeUrl = computed(() => toFileUrl(activePath.value));
 const isVideoBackground = computed(
   () =>
     backgroundSource.value === "video" ||
@@ -261,11 +262,6 @@ const mediaCardStyle = computed<CSSProperties>(() => ({
   "--card-contrast": mediaHighContrast.value || "#ffffff",
 }));
 
-function wallpaperFileUrl(path: string): string {
-  if (!path) return "";
-  if (/^(?:data:|blob:|https?:|file:)/i.test(path)) return path;
-  return `file:///${path.replaceAll("\\", "/")}`;
-}
 
 function formatDuration(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));

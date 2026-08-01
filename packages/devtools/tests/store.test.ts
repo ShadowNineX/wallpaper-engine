@@ -1,6 +1,7 @@
 import { createPinia, setActivePinia } from "pinia";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "vue-sonner";
+import type { WallpaperPropertyDefinition } from "../../wallpaper-engine/src/types/project";
 
 vi.mock("vue-sonner", () => ({ toast: vi.fn() }));
 
@@ -29,7 +30,7 @@ const properties = {
     value: "C:/gallery",
     mode: "fetchall",
   },
-} as const;
+} satisfies Record<string, WallpaperPropertyDefinition>;
 
 beforeEach(() => {
   vi.resetModules();
@@ -96,6 +97,41 @@ describe("devtools property state", () => {
     expect(applyGeneralProperties).toHaveBeenCalledWith({ fps: 30 });
     expect(setPaused).toHaveBeenCalledWith(true);
     expect(toast).toHaveBeenCalledWith("Startup state replayed.");
+  });
+
+  it("replays fetch-all directory files through their dedicated callback", async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const applyUserProperties = vi.fn();
+    const addedOrChanged = vi.fn();
+    listenerFns.property = {
+      applyUserProperties,
+      userDirectoryFilesAddedOrChanged: addedOrChanged,
+    };
+    const store = useDevtoolsStore();
+    store.setDirectorySelection("gallery", {
+      id: "directory-1",
+      path: "Gallery",
+      files: [
+        {
+          id: "file-1",
+          name: "image.png",
+          path: "Gallery/image.png",
+          relativePath: "image.png",
+          url: "blob:http://localhost/file-1",
+          size: 10,
+          mtimeMs: 20,
+        },
+      ],
+    });
+    applyUserProperties.mockClear();
+    addedOrChanged.mockClear();
+
+    store.deliverAllProperties(false);
+
+    expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty("gallery");
+    expect(addedOrChanged).toHaveBeenCalledWith("gallery", [
+      "blob:http://localhost/file-1",
+    ]);
   });
 
   it("delivers one changed property and ignores fetch-all directory properties", async () => {
