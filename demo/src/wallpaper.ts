@@ -12,16 +12,16 @@ import {
 export const properties = {
   appearancegroup: groupProperty({ text: "Appearance" }),
   backgroundcolor: colorProperty({
-    text: "Background color",
-    value: "0.025 0.035 0.08",
+    text: "Background color · HSL default",
+    value: "hsl(228 52% 5%)",
   }),
   accentcolor: colorProperty({
-    text: "Accent color",
-    value: "0.35 0.58 1",
+    text: "Accent color · Hex default",
+    value: "#5994ff",
   }),
   glowcolor: colorProperty({
-    text: "Secondary glow",
-    value: "0.69 0.32 1",
+    text: "Secondary glow · LCH default",
+    value: "lch(62% 85 315)",
   }),
   animationspeed: sliderProperty({
     text: "Animation speed",
