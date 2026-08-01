@@ -50,11 +50,31 @@ export function colorProperty(
   return { type: "color", ...opts };
 }
 
-/** Define a numeric slider property */
+/**
+ * Define a numeric slider property.
+ *
+ * Wallpaper Engine reads `step`, not `precision`, when determining the slider
+ * increment. When only `precision` is supplied, this builder derives
+ * `step` as `10 ** -precision`. An explicit `step` takes precedence.
+ *
+ * @example
+ * sliderProperty({
+ *   text: "Opacity",
+ *   value: 0.5,
+ *   min: 0,
+ *   max: 1,
+ *   fraction: true,
+ *   precision: 3,
+ * }); // step: 0.001
+ */
 export function sliderProperty(
   opts: Without<WallpaperSliderProperty, "type">,
 ): WallpaperSliderProperty {
-  return { type: "slider", ...opts };
+  const property: WallpaperSliderProperty = { type: "slider", ...opts };
+  if (property.step === undefined && property.precision !== undefined) {
+    property.step = 10 ** -property.precision;
+  }
+  return property;
 }
 
 /** Define a boolean checkbox property */

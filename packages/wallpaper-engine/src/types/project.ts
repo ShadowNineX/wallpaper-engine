@@ -56,6 +56,11 @@ export interface WallpaperSliderProperty extends WallpaperPropertyBase {
   fraction?: boolean;
   /** Number of decimal places when `fraction` is `true` (default: `2`). */
   precision?: number;
+  /**
+   * Numeric increment accepted by Wallpaper Engine's `project.json` format.
+   * When omitted, {@link sliderProperty} derives it from `precision`.
+   */
+  step?: number;
 }
 
 /** Checkbox (on/off toggle) property. */

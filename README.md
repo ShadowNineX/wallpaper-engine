@@ -104,6 +104,30 @@ This outputs a `project.json` alongside your build:
 | `fileProperty` | File picker | `WallpaperFileValue` — `value: string` (path, prefix with `file:///`) |
 | `directoryProperty` | Directory picker | `WallpaperDirectoryValue` — `value: string` (path) |
 
+Fractional sliders accept either `precision` (decimal places) or an explicit
+`step`. Wallpaper Engine reads the singular `step` field from `project.json`;
+`sliderProperty` derives it automatically when only `precision` is provided:
+
+```ts
+sliderProperty({
+  text: 'Fine adjustment',
+  value: 0.5,
+  min: 0,
+  max: 1,
+  fraction: true,
+  precision: 3, // emits "step": 0.001
+});
+
+sliderProperty({
+  text: 'Custom adjustment',
+  value: 0.5,
+  min: 0,
+  max: 1,
+  fraction: true,
+  step: 0.05,
+});
+```
+
 ### Localization
 
 Property labels starting with `ui_` are resolved against the localization map:

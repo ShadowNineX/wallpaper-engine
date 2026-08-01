@@ -55,7 +55,7 @@ describe("sliderProperty", () => {
     expect(prop.max).toBe(10);
   });
 
-  it("accepts fraction and precision", () => {
+  it("converts precision to Wallpaper Engine's step field", () => {
     const prop = sliderProperty({
       text: "S",
       value: 0.5,
@@ -66,6 +66,33 @@ describe("sliderProperty", () => {
     });
     expect(prop.fraction).toBe(true);
     expect(prop.precision).toBe(3);
+    expect(prop.step).toBe(0.001);
+  });
+
+  it("accepts an explicit step instead of precision", () => {
+    const prop = sliderProperty({
+      text: "S",
+      value: 0.5,
+      min: 0,
+      max: 1,
+      fraction: true,
+      step: 0.05,
+    });
+    expect(prop.step).toBe(0.05);
+    expect(prop.precision).toBeUndefined();
+  });
+
+  it("prefers an explicit step over derived precision", () => {
+    const prop = sliderProperty({
+      text: "S",
+      value: 0.5,
+      min: 0,
+      max: 1,
+      fraction: true,
+      precision: 3,
+      step: 0.05,
+    });
+    expect(prop.step).toBe(0.05);
   });
 });
 
@@ -201,6 +228,35 @@ describe("wallpaperEnginePlugin", () => {
       wallpaperEnginePlugin({ title: "T" }),
     );
     expect(project.general).toBeUndefined();
+  });
+
+  it("emits derived and explicit slider steps in project.json", () => {
+    const { project } = runGenerateBundle(
+      wallpaperEnginePlugin({
+        title: "T",
+        properties: {
+          precise: sliderProperty({
+            text: "Precise",
+            value: 0.5,
+            min: 0,
+            max: 1,
+            fraction: true,
+            precision: 3,
+          }),
+          stepped: sliderProperty({
+            text: "Stepped",
+            value: 0.5,
+            min: 0,
+            max: 1,
+            fraction: true,
+            step: 0.05,
+          }),
+        },
+      }),
+    );
+    expect(project.general.properties.precise.step).toBe(0.001);
+    expect(project.general.properties.precise.steps).toBeUndefined();
+    expect(project.general.properties.stepped.step).toBe(0.05);
   });
 
   it("auto-assigns index and order to properties", () => {
