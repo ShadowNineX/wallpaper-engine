@@ -123,6 +123,24 @@ export interface WallpaperDirectoryProperty extends WallpaperPropertyBase {
   mode: "ondemand" | "fetchall";
 }
 
+/**
+ * Collapsible section marker in Wallpaper Engine's property list.
+ * Every following property belongs to this group until the next group marker.
+ * Group markers are layout metadata and are not delivered to
+ * `applyUserProperties`.
+ *
+ * @example
+ * {
+ *   type: "group",
+ *   text: "Appearance",
+ *   value: "",
+ * }
+ */
+export interface WallpaperGroupProperty extends WallpaperPropertyBase {
+  type: "group";
+  value: "";
+}
+
 /** Union of all property definition types stored in `project.json`. */
 export type WallpaperPropertyDefinition =
   | WallpaperColorProperty
@@ -131,6 +149,7 @@ export type WallpaperPropertyDefinition =
   | WallpaperComboProperty
   | WallpaperTextInputProperty
   | WallpaperFileProperty
+  | WallpaperGroupProperty
   | WallpaperDirectoryProperty;
 
 // ---------------------------------------------------------------------------

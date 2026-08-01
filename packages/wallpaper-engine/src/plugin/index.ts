@@ -14,6 +14,7 @@ import type {
   WallpaperComboProperty,
   WallpaperDirectoryProperty,
   WallpaperFileProperty,
+  WallpaperGroupProperty,
   WallpaperLocalization,
   WallpaperProject,
   WallpaperProjectGeneral,
@@ -28,6 +29,7 @@ export type {
   WallpaperComboProperty,
   WallpaperDirectoryProperty,
   WallpaperFileProperty,
+  WallpaperGroupProperty,
   WallpaperLocalization,
   WallpaperProject,
   WallpaperProjectGeneral,
@@ -113,6 +115,24 @@ export function directoryProperty(
   return { type: "directory", ...opts };
 }
 
+/**
+ * Define a collapsible property group marker.
+ *
+ * Properties after this marker belong to the group until the next marker.
+ * The marker itself has no runtime value in `applyUserProperties`.
+ *
+ * @example
+ * const properties = {
+ *   appearance: groupProperty({ text: "Appearance" }),
+ *   background: colorProperty({ text: "Background", value: "0 0 0" }),
+ * };
+ */
+export function groupProperty(
+  opts: Without<WallpaperGroupProperty, "type" | "value">,
+): WallpaperGroupProperty {
+  return { ...opts, type: "group", value: "" };
+}
+
 // ---------------------------------------------------------------------------
 // Property definition → runtime value type mapping
 // ---------------------------------------------------------------------------
@@ -183,7 +203,9 @@ export type PropertyDefinitionToValue<T extends WallpaperPropertyDefinition> =
 export type WallpaperUserPropertiesOf<
   T extends Record<string, WallpaperPropertyDefinition>,
 > = {
-  readonly [K in keyof T]: PropertyDefinitionToValue<T[K]>;
+  readonly [K in keyof T as T[K] extends { type: "group" }
+    ? never
+    : K]: PropertyDefinitionToValue<T[K]>;
 };
 
 // ---------------------------------------------------------------------------

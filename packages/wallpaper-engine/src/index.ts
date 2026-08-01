@@ -6,6 +6,7 @@ export type {
   WallpaperComboProperty,
   WallpaperDirectoryProperty,
   WallpaperFileProperty,
+  WallpaperGroupProperty,
   WallpaperFileType,
   WallpaperLocalization,
   WallpaperProject,

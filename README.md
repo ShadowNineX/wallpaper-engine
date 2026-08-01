@@ -103,6 +103,7 @@ This outputs a `project.json` alongside your build:
 | `textInputProperty` | Text input | `WallpaperTextValue` — `value: string` |
 | `fileProperty` | File picker | `WallpaperFileValue` — `value: string` (path, prefix with `file:///`) |
 | `directoryProperty` | Directory picker | `WallpaperDirectoryValue` — `value: string` (path) |
+| `groupProperty` | Collapsible property section marker | No runtime value |
 
 Fractional sliders accept either `precision` (decimal places) or an explicit
 `step`. Wallpaper Engine uses `precision` to format the displayed value and the
@@ -128,6 +129,23 @@ sliderProperty({
   step: 0.05,
 });
 ```
+
+Group markers create collapsible sections in Wallpaper Engine's property list.
+Every property after a marker belongs to that section until the next marker;
+properties before the first marker remain ungrouped:
+
+```ts
+const properties = {
+  alwaysVisible: boolProperty({ text: 'Always visible', value: true }),
+  appearance: groupProperty({ text: 'Appearance' }),
+  background: colorProperty({ text: 'Background', value: '0 0 0' }),
+  motion: groupProperty({ text: 'Motion' }),
+  speed: sliderProperty({ text: 'Speed', value: 1, min: 0, max: 5 }),
+};
+```
+
+Group markers are layout-only and are omitted from
+`WallpaperUserPropertiesOf<typeof properties>`.
 
 ### Localization
 
@@ -322,7 +340,7 @@ All types are exported from `wallpaper-engine` (main entry).
 
 ### Property definition types (`project.json`)
 
-`WallpaperColorProperty` · `WallpaperSliderProperty` · `WallpaperBoolProperty` · `WallpaperComboProperty` · `WallpaperTextInputProperty` · `WallpaperFileProperty` · `WallpaperDirectoryProperty` · `WallpaperPropertyDefinition` · `WallpaperProject` · `WallpaperProjectGeneral` · `WallpaperLocalization`
+`WallpaperColorProperty` · `WallpaperSliderProperty` · `WallpaperBoolProperty` · `WallpaperComboProperty` · `WallpaperTextInputProperty` · `WallpaperFileProperty` · `WallpaperDirectoryProperty` · `WallpaperGroupProperty` · `WallpaperPropertyDefinition` · `WallpaperProject` · `WallpaperProjectGeneral` · `WallpaperLocalization`
 
 ### Runtime value types (`applyUserProperties`)
 

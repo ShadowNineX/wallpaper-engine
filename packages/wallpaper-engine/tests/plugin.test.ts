@@ -1,13 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import {
   boolProperty,
   colorProperty,
   comboProperty,
   directoryProperty,
   fileProperty,
+  groupProperty,
   sliderProperty,
   textInputProperty,
   wallpaperEnginePlugin,
+  type WallpaperUserPropertiesOf,
 } from "../src/plugin/index";
 
 const { readFileSyncMock, unwatchFileMock, watchFileMock } = vi.hoisted(() => ({
@@ -163,6 +165,28 @@ describe("directoryProperty", () => {
   });
 });
 
+describe("groupProperty", () => {
+  it("creates Wallpaper Engine's native group marker", () => {
+    expect(groupProperty({ text: "Appearance", order: 4 })).toEqual({
+      text: "Appearance",
+      order: 4,
+      type: "group",
+      value: "",
+    });
+  });
+
+  it("is omitted from inferred applyUserProperties values", () => {
+    const definitions = {
+      appearance: groupProperty({ text: "Appearance" }),
+      enabled: boolProperty({ text: "Enabled", value: true }),
+    };
+
+    expectTypeOf<
+      keyof WallpaperUserPropertiesOf<typeof definitions>
+    >().toEqualTypeOf<"enabled">();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Vite plugin — generateBundle output
 // ---------------------------------------------------------------------------
@@ -258,6 +282,27 @@ describe("wallpaperEnginePlugin", () => {
     expect(project.general.properties.precise.step).toBe(0.001);
     expect(project.general.properties.precise.steps).toBeUndefined();
     expect(project.general.properties.stepped.step).toBe(0.05);
+  });
+
+  it("emits native group markers in project.json", () => {
+    const { project } = runGenerateBundle(
+      wallpaperEnginePlugin({
+        title: "T",
+        properties: {
+          appearance: groupProperty({ text: "Appearance" }),
+          enabled: boolProperty({ text: "Enabled", value: true }),
+        },
+      }),
+    );
+    expect(project.general.properties.appearance).toEqual({
+      index: 0,
+      order: 0,
+      text: "Appearance",
+      type: "group",
+      value: "",
+    });
+    expect(project.general.properties.enabled.index).toBe(1);
+    expect(project.general.properties.enabled.order).toBe(1);
   });
 
   it("auto-assigns index and order to properties", () => {

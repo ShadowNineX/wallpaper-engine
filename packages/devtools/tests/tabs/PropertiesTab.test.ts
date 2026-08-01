@@ -51,6 +51,62 @@ describe("PropertiesTab", () => {
     expect(setPaused).toHaveBeenCalledWith(false);
   });
 
+  it("renders native group boundaries as initially closed sections", async () => {
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: {
+        speed: {
+          type: "slider",
+          text: "Speed",
+          value: 1,
+          min: 0,
+          max: 5,
+          order: 5,
+        },
+        advanced: { type: "group", text: "Advanced", value: "", order: 4 },
+        loose: { type: "textinput", text: "Loose", value: "a", order: 0 },
+        appearance: {
+          type: "group",
+          text: "ui_appearance",
+          value: "",
+          order: 1,
+        },
+        color: {
+          type: "color",
+          text: "Color",
+          value: "0 0 0",
+          order: 2,
+        },
+        enabled: { type: "bool", text: "Enabled", value: true, order: 3 },
+      },
+      localization: { "en-us": { ui_appearance: "Appearance" } },
+    };
+    const { default: PropertiesTab } = await import(
+      "../../src/tabs/PropertiesTab.vue"
+    );
+    const wrapper = mount(PropertiesTab);
+
+    expect(
+      wrapper
+        .get("[data-ungrouped-properties]")
+        .findAll("article")
+        .map((row) => row.text()),
+    ).toEqual([expect.stringContaining("Loose")]);
+
+    const appearance = wrapper.get('[data-property-group="appearance"]');
+    const advanced = wrapper.get('[data-property-group="advanced"]');
+    expect((appearance.element as HTMLDetailsElement).open).toBe(false);
+    expect((advanced.element as HTMLDetailsElement).open).toBe(false);
+    expect(appearance.get("summary").text()).toBe("Appearance");
+    expect(advanced.get("summary").text()).toBe("Advanced");
+    expect(appearance.findAll("article").map((row) => row.text())).toEqual([
+      expect.stringContaining("Color"),
+      expect.stringContaining("Enabled"),
+    ]);
+    expect(advanced.findAll("article").map((row) => row.text())).toEqual([
+      expect.stringContaining("Speed"),
+    ]);
+  });
+
   it("shows an explicit empty state without configured properties", async () => {
     window.__WE_DEVTOOLS_CONFIG__ = { properties: {}, localization: {} };
     const { default: PropertiesTab } = await import(

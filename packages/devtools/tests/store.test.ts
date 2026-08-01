@@ -5,6 +5,7 @@ import { toast } from "vue-sonner";
 vi.mock("vue-sonner", () => ({ toast: vi.fn() }));
 
 const properties = {
+  appearance: { type: "group", text: "Appearance", value: "" },
   color: { type: "color", text: "Color", value: "0.1 0.2 0.3" },
   speed: { type: "slider", text: "Speed", value: 2, min: 0, max: 5 },
   enabled: { type: "bool", text: "Enabled", value: true },
@@ -54,6 +55,7 @@ describe("devtools property state", () => {
     const { useDevtoolsStore } = await loadStore();
     const store = useDevtoolsStore();
 
+    expect(store.currentValues).not.toHaveProperty("appearance");
     expect(store.currentValues).toEqual({
       color: { value: "0.1 0.2 0.3" },
       speed: { value: 2 },
@@ -83,6 +85,9 @@ describe("devtools property state", () => {
     store.deliverAllProperties();
 
     expect(applyUserProperties).toHaveBeenCalledOnce();
+    expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty(
+      "appearance",
+    );
     expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty("gallery");
     expect(applyUserProperties.mock.calls[0]?.[0]).toMatchObject({
       color: { value: "0.1 0.2 0.3" },

@@ -14,6 +14,11 @@ import type {
 import type { WallpaperPropertyDefinition } from "../../wallpaper-engine/src/types/project";
 import { propDefs, tr } from "./config";
 
+type RuntimePropertyDefinition = Exclude<
+  WallpaperPropertyDefinition,
+  { type: "group" }
+>;
+
 // ---------------------------------------------------------------------------
 // Listener slots — plain (non-reactive) callbacks; exported at module level
 // so globals.ts can access them before Pinia is active.
@@ -44,7 +49,7 @@ function stringifyValue(raw: unknown): string {
 }
 
 function wrapValue(
-  def: WallpaperPropertyDefinition,
+  def: RuntimePropertyDefinition,
   raw: unknown,
 ): WallpaperPropertyRuntimeValue {
   if (def.type === "combo") {
@@ -60,6 +65,7 @@ function wrapValue(
 function createInitialValues(): WallpaperUserProperties {
   const values: WallpaperUserProperties = {};
   for (const [key, def] of Object.entries(propDefs)) {
+    if (def.type === "group") continue;
     values[key] = wrapValue(def, def.value);
   }
   return values;

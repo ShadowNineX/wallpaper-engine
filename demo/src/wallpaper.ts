@@ -4,11 +4,13 @@ import {
   comboProperty,
   directoryProperty,
   fileProperty,
+  groupProperty,
   sliderProperty,
   textInputProperty,
 } from "wallpaper-engine/plugin";
 
 export const properties = {
+  appearancegroup: groupProperty({ text: "Appearance" }),
   backgroundcolor: colorProperty({
     text: "Background color",
     value: "0.025 0.035 0.08",
@@ -53,6 +55,7 @@ export const properties = {
       { label: "Hidden", value: "off" },
     ],
   }),
+  interfacegroup: groupProperty({ text: "Interface" }),
   showclock: boolProperty({ text: "Show clock", value: true }),
   clockformat: comboProperty({
     text: "Clock format",
@@ -78,6 +81,7 @@ export const properties = {
     text: "Header text",
     value: "AETHER // LIVE",
   }),
+  backgroundgroup: groupProperty({ text: "Background media" }),
   backgroundsource: comboProperty({
     text: "Background source",
     value: "generated",
