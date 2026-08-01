@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "ignoreFindings": ["packages/devtools/src/components/ui/**"],
+  "ignoreDependencies": ["unfonts.css", "~icons"],
+  "ignoreUnresolvedImports": ["**/devtools/client.js"],
+  "framework": [
+    {
+      "name": "unplugin-fonts-fontsource",
+      "enablers": ["unplugin-fonts"],
+      "toolingDependencies": [
+        "@fontsource-variable/jetbrains-mono",
+        "@fontsource-variable/space-grotesk"
+      ]
+    },
+    {
+      "name": "unplugin-icons-phosphor",
+      "enablers": ["unplugin-icons"],
+      "toolingDependencies": ["@iconify-json/ph"]
+    }
+  ]
+}

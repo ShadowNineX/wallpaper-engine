@@ -9,7 +9,7 @@ import {
   toFileUrl,
   wallpaperColorToHex,
   wallpaperColorToRgb,
-} from "../helpers";
+} from "../src/helpers";
 
 // ---------------------------------------------------------------------------
 // Color helpers
@@ -232,5 +232,51 @@ describe("createFpsLimiter", () => {
     const loop = createFpsLimiter(() => {});
     expect(() => loop.setLimit(60)).not.toThrow();
     expect(() => loop.setLimit(0)).not.toThrow();
+  });
+
+  it("draws each requested frame when unlimited and caps long frame deltas", () => {
+    const callbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        callbacks.push(callback);
+        return callbacks.length;
+      }),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.stubGlobal("performance", { now: () => 0 });
+    const draw = vi.fn();
+    const limiter = createFpsLimiter(draw);
+    limiter.start();
+
+    callbacks.shift()?.(16);
+    callbacks.shift()?.(5_000);
+
+    expect(draw).toHaveBeenNthCalledWith(1, 0.016);
+    expect(draw).toHaveBeenNthCalledWith(2, 1);
+  });
+
+  it("skips frames below the configured threshold and draws once accumulated", () => {
+    const callbacks: FrameRequestCallback[] = [];
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((callback: FrameRequestCallback) => {
+        callbacks.push(callback);
+        return callbacks.length;
+      }),
+    );
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+    vi.stubGlobal("performance", { now: () => 0 });
+    const draw = vi.fn();
+    const limiter = createFpsLimiter(draw);
+    limiter.setLimit(10);
+    limiter.start();
+
+    callbacks.shift()?.(50);
+    expect(draw).not.toHaveBeenCalled();
+    callbacks.shift()?.(110);
+
+    expect(draw).toHaveBeenCalledOnce();
+    expect(draw).toHaveBeenCalledWith(0.06);
   });
 });

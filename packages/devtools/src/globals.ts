@@ -7,6 +7,16 @@ import type {
   WallpaperPropertyListener,
 } from "../../wallpaper-engine/src/types/listeners";
 import { listenerFns, useDevtoolsStore } from "./store";
+function deliverOnRegistration(action: () => void): void {
+  queueMicrotask(() => {
+    try {
+      action();
+    } catch (error) {
+      console.error("[WE Dev] listener threw during registration", error);
+    }
+  });
+}
+
 
 /**
  * Stub every `window.wallpaper*` host global. Listener assignments are
@@ -22,7 +32,7 @@ export function installGlobals(): void {
       const store = useDevtoolsStore();
       listenerFns.property = v;
       store.listenerCounts.property = v !== undefined;
-      Promise.resolve().then(() => store.deliverAllProperties());
+      deliverOnRegistration(() => store.deliverAllProperties(false));
     },
   });
 
@@ -45,31 +55,39 @@ export function installGlobals(): void {
     const store = useDevtoolsStore();
     listenerFns.mediaStatus.push(cb);
     store.listenerCounts.mediaStatus = listenerFns.mediaStatus.length;
-    Promise.resolve().then(() => store.deliverAllMedia());
+    deliverOnRegistration(() => cb({ enabled: store.mediaActive }));
   };
   globalThis.window.wallpaperRegisterMediaPropertiesListener = (cb) => {
     const store = useDevtoolsStore();
     listenerFns.mediaProps.push(cb);
     store.listenerCounts.mediaProps = listenerFns.mediaProps.length;
-    Promise.resolve().then(() => store.deliverAllMedia());
+    if (store.mediaActive) {
+      deliverOnRegistration(() => cb({ ...store.mediaProps }));
+    }
   };
   globalThis.window.wallpaperRegisterMediaThumbnailListener = (cb) => {
     const store = useDevtoolsStore();
     listenerFns.mediaThumb.push(cb);
     store.listenerCounts.mediaThumb = listenerFns.mediaThumb.length;
-    Promise.resolve().then(() => store.deliverAllMedia());
+    if (store.mediaActive) {
+      deliverOnRegistration(() => cb({ ...store.mediaThumb }));
+    }
   };
   globalThis.window.wallpaperRegisterMediaPlaybackListener = (cb) => {
     const store = useDevtoolsStore();
     listenerFns.mediaPlayback.push(cb);
     store.listenerCounts.mediaPlayback = listenerFns.mediaPlayback.length;
-    Promise.resolve().then(() => store.deliverAllMedia());
+    if (store.mediaActive) {
+      deliverOnRegistration(() => cb({ state: store.lastPlaybackState }));
+    }
   };
   globalThis.window.wallpaperRegisterMediaTimelineListener = (cb) => {
     const store = useDevtoolsStore();
     listenerFns.mediaTimeline.push(cb);
     store.listenerCounts.mediaTimeline = listenerFns.mediaTimeline.length;
-    Promise.resolve().then(() => store.deliverAllMedia());
+    if (store.mediaActive) {
+      deliverOnRegistration(() => cb({ ...store.mediaTimeline }));
+    }
   };
 
   globalThis.window.wallpaperRequestRandomFileForProperty = (name, cb) => {

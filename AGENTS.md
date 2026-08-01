@@ -6,7 +6,7 @@ Bun workspaces monorepo. Publishes a single npm package (`wallpaper-engine`) pro
 
 - **Bun** is the package manager and script runner. Use `bun install`, `bun run <script>`.
 - Root scripts delegate to workspaces via `bun run --filter=<name> <script>`.
-- Build: `bun run build` — builds `@wallpaper-engine/devtools` first, then `wallpaper-engine` (tsup's `onSuccess` copies the devtools client artifact into the published dist).
+- Build: `bun run build` — builds `@wallpaper-engine/devtools` first, then `wallpaper-engine` (tsdown's `build:done` hook copies the devtools client artifact into the published dist).
 - Watch: `bun run dev`
 - Typecheck: `bun run typecheck`
 - Tests: `bun run test` (watch) / `bun run test:run` (single)
@@ -32,7 +32,7 @@ Three independent entry points in [packages/wallpaper-engine/package.json](packa
 | `wallpaper-engine/plugin` | [packages/wallpaper-engine/src/plugin/index.ts](packages/wallpaper-engine/src/plugin/index.ts) | The **only** file allowed to import from `vite`. `vite` is an optional peer dep. At runtime it reads the bundled devtools client from `./devtools/client.js` (relative to the built `dist/plugin/index.js`). |
 | `wallpaper-engine/helpers` | [packages/wallpaper-engine/src/helpers.ts](packages/wallpaper-engine/src/helpers.ts) | Side-effect-free, individually tree-shakeable runtime utilities. No imports from other entry points. |
 
-Build is configured in [packages/wallpaper-engine/tsup.config.ts](packages/wallpaper-engine/tsup.config.ts): two configs — browser entries (ESM+CJS+dts) and a plugin entry (ESM only) whose `onSuccess` hook copies `../devtools/dist/client.js` to `dist/plugin/devtools/client.js`. Always run the root `bun run build` (not the package script directly) so devtools is built first.
+Build is configured in [packages/wallpaper-engine/tsdown.config.ts](packages/wallpaper-engine/tsdown.config.ts): two configs — browser entries (ESM+CJS+dts) and a plugin entry (ESM only) whose `build:done` hook copies `../devtools/dist/client.js` to `dist/plugin/devtools/client.js`. Always run the root `bun run build` (not the package script directly) so devtools is built first.
 
 Tests live in [packages/wallpaper-engine/src/__tests__/](packages/wallpaper-engine/src/__tests__/) and mirror the source structure (`plugin.test.ts`, `helpers.test.ts`).
 

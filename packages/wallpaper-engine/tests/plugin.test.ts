@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   boolProperty,
   colorProperty,
@@ -8,7 +8,19 @@ import {
   sliderProperty,
   textInputProperty,
   wallpaperEnginePlugin,
-} from "../plugin/index";
+} from "../src/plugin/index";
+
+const { readFileSyncMock, unwatchFileMock, watchFileMock } = vi.hoisted(() => ({
+  readFileSyncMock: vi.fn(() => "globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;"),
+  unwatchFileMock: vi.fn(),
+  watchFileMock: vi.fn(),
+}));
+
+vi.mock("node:fs", () => ({
+  readFileSync: readFileSyncMock,
+  unwatchFile: unwatchFileMock,
+  watchFile: watchFileMock,
+}));
 
 // ---------------------------------------------------------------------------
 // Property builders
@@ -246,5 +258,160 @@ describe("wallpaperEnginePlugin", () => {
       {},
     );
     expect(() => JSON.parse(raw)).not.toThrow();
+  });
+});
+
+describe("wallpaperEnginePlugin devtools hooks", () => {
+  beforeEach(() => {
+    readFileSyncMock.mockClear();
+    unwatchFileMock.mockClear();
+    watchFileMock.mockClear();
+  });
+
+  it("only injects the devtools module while Vite is serving", () => {
+    const plugin = wallpaperEnginePlugin({ title: "T" });
+    if (typeof plugin.configResolved !== "function") {
+      throw new Error("configResolved hook is not callable");
+    }
+    if (typeof plugin.transformIndexHtml !== "function") {
+      throw new Error("transformIndexHtml hook is not callable");
+    }
+
+    plugin.configResolved.call({} as never, { command: "build" } as never);
+    expect(
+      plugin.transformIndexHtml.call({} as never, "", {} as never),
+    ).toBeUndefined();
+
+    plugin.configResolved.call({} as never, { command: "serve" } as never);
+    expect(
+      plugin.transformIndexHtml.call({} as never, "", {} as never),
+    ).toEqual([
+      {
+        tag: "script",
+        attrs: {
+          type: "module",
+          src: "/@id/virtual:wallpaper-engine/devtools",
+        },
+        injectTo: "head-prepend",
+      },
+    ]);
+  });
+
+  it("never injects devtools when explicitly disabled", () => {
+    const plugin = wallpaperEnginePlugin({ title: "T", devtools: false });
+    if (
+      typeof plugin.configResolved !== "function" ||
+      typeof plugin.transformIndexHtml !== "function"
+    ) {
+      throw new Error("plugin hooks are not callable");
+    }
+
+    plugin.configResolved.call({} as never, { command: "serve" } as never);
+
+    expect(
+      plugin.transformIndexHtml.call({} as never, "", {} as never),
+    ).toBeUndefined();
+  });
+
+  it("resolves only its virtual module id", () => {
+    const plugin = wallpaperEnginePlugin({ title: "T" });
+    if (typeof plugin.resolveId !== "function") {
+      throw new Error("resolveId hook is not callable");
+    }
+
+    expect(
+      plugin.resolveId.call(
+        {} as never,
+        "virtual:wallpaper-engine/devtools",
+        undefined,
+        {} as never,
+      ),
+    ).toBe("\0virtual:wallpaper-engine/devtools");
+    expect(
+      plugin.resolveId.call({} as never, "other", undefined, {} as never),
+    ).toBeNull();
+  });
+
+  it("loads injected config and caches the bundled devtools client", async () => {
+    const plugin = wallpaperEnginePlugin({
+      title: "Configured",
+      properties: {
+        mode: comboProperty({
+          text: "Mode",
+          value: "a",
+          options: [{ label: "A", value: "a" }],
+        }),
+      },
+      localization: { "en-us": { ui_mode: "Mode" } },
+    });
+    if (typeof plugin.load !== "function") {
+      throw new Error("load hook is not callable");
+    }
+
+    expect(
+      await plugin.load.call({} as never, "unrelated", {} as never),
+    ).toBeNull();
+    const first = await plugin.load.call(
+      {} as never,
+      "\0virtual:wallpaper-engine/devtools",
+      {} as never,
+    );
+    const second = await plugin.load.call(
+      {} as never,
+      "\0virtual:wallpaper-engine/devtools",
+      {} as never,
+    );
+
+    expect(first).toContain('window.__WE_DEVTOOLS_CONFIG__ = {\"title\":\"Configured\"');
+    expect(first).toContain('\"mode\":{\"index\":0,\"order\":0,\"type\":\"combo\"');
+    expect(first).toContain("globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;");
+    expect(second).toBe(first);
+    expect(readFileSyncMock).toHaveBeenCalledOnce();
+  });
+
+  it("watches the bundled client, invalidates its module, and reloads the page", async () => {
+    let onClientChange: (() => void) | undefined;
+    let onServerClose: (() => void) | undefined;
+    watchFileMock.mockImplementation((_path, _options, callback) => {
+      onClientChange = callback;
+    });
+    const invalidateModule = vi.fn();
+    const send = vi.fn();
+    const plugin = wallpaperEnginePlugin({ title: "T" });
+    if (typeof plugin.configureServer !== "function") {
+      throw new Error("configureServer hook is not callable");
+    }
+
+    plugin.configureServer.call({} as never, {
+      moduleGraph: {
+        getModuleById: vi.fn(() => ({ id: "virtual" })),
+        invalidateModule,
+      },
+      ws: { send },
+      httpServer: {
+        once: vi.fn((_event, callback) => {
+          onServerClose = callback;
+        }),
+      },
+    } as never);
+    await vi.waitFor(() => expect(watchFileMock).toHaveBeenCalledOnce());
+
+    onClientChange?.();
+    expect(invalidateModule).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledWith({ type: "full-reload" });
+
+    onServerClose?.();
+    expect(unwatchFileMock).toHaveBeenCalledOnce();
+  });
+
+  it("does not install a client watcher when devtools are disabled", () => {
+    const plugin = wallpaperEnginePlugin({ title: "T", devtools: false });
+    if (typeof plugin.configureServer !== "function") {
+      throw new Error("configureServer hook is not callable");
+    }
+
+    plugin.configureServer.call({} as never, {} as never);
+
+    expect(watchFileMock).not.toHaveBeenCalled();
   });
 });

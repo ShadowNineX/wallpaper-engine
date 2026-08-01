@@ -13,9 +13,10 @@
     "dev": "bun run --filter=@wallpaper-engine/devtools dev",
     "dev:devtools": "bun run --filter=@wallpaper-engine/devtools dev:ui",
     "dev:demo": "bun run --filter=demo dev",
-    "typecheck": "bun run --filter=wallpaper-engine typecheck",
-    "test": "bun run --filter=wallpaper-engine test",
-    "test:run": "bun run --filter=wallpaper-engine test:run"
+    "typecheck": "bun run --filter=@wallpaper-engine/devtools typecheck && bun run --filter=wallpaper-engine typecheck",
+    "test": "bun run --filter='*' test",
+    "test:run": "bun run --filter=@wallpaper-engine/devtools test:run && bun run --filter=wallpaper-engine test:run",
+    "test:coverage": "bun run --filter=@wallpaper-engine/devtools test:coverage && bun run --filter=wallpaper-engine test:coverage"
   },
   "devDependencies": {
     "@types/bun": "^1.3.14",

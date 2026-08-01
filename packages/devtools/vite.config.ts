@@ -3,6 +3,8 @@ import { defineConfig, type Plugin } from "vite";
 import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import vueDevTools from "vite-plugin-vue-devtools";
+import Icons from "unplugin-icons/vite";
+import Unfonts from "unplugin-fonts/vite";
 
 /**
  * Rollup plugin: take any emitted `.css` asset, remove it from the bundle,
@@ -42,7 +44,7 @@ function inlineCss(): Plugin {
  * `client.js` straight into the wallpaper-engine plugin dist so the Vite
  * dev server in the demo picks up the new code without a full rebuild of the
  * `wallpaper-engine` package. Errors are silenced — on a first-ever build the
- * destination directory may not exist yet; tsup's `onSuccess` handles that.
+ * destination directory may not exist yet; tsdown's `build:done` hook handles that.
  */
 function copyToPluginDist(): Plugin {
   return {
@@ -75,6 +77,24 @@ function copyToPluginDist(): Plugin {
 export default defineConfig(({ command }) => ({
   plugins: [
     vue(),
+    Icons({
+      compiler: "vue3",
+      defaultClass: "we-icon",
+    }),
+    Unfonts({
+      fontsource: {
+        families: [
+          {
+            name: "Space Grotesk Variable",
+            variable: { wght: true },
+          },
+          {
+            name: "JetBrains Mono Variable",
+            variable: { wght: true },
+          },
+        ],
+      },
+    }),
     tailwindcss(),
     inlineCss(),
     copyToPluginDist(),

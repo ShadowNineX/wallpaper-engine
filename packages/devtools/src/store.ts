@@ -12,7 +12,7 @@ import type {
   WallpaperUserProperties,
 } from "../../wallpaper-engine/src/types/listeners";
 import type { WallpaperPropertyDefinition } from "../../wallpaper-engine/src/types/project";
-import { propDefs } from "./config";
+import { propDefs, tr } from "./config";
 
 // ---------------------------------------------------------------------------
 // Listener slots — plain (non-reactive) callbacks; exported at module level
@@ -50,16 +50,24 @@ function wrapValue(
   if (def.type === "combo") {
     const v = stringifyValue(raw);
     const found = def.options.find((o) => o.value === v);
-    return { value: v, text: found?.label ?? v };
+    return { value: v, text: tr(found?.label ?? v) };
   }
   if (def.type === "bool") return { value: Boolean(raw) };
   if (def.type === "slider") return { value: Number(raw) };
   return { value: stringifyValue(raw) };
 }
 
-const initialValues: WallpaperUserProperties = {};
-for (const [key, def] of Object.entries(propDefs)) {
-  initialValues[key] = wrapValue(def, def.value);
+function createInitialValues(): WallpaperUserProperties {
+  const values: WallpaperUserProperties = {};
+  for (const [key, def] of Object.entries(propDefs)) {
+    values[key] = wrapValue(def, def.value);
+  }
+  return values;
+}
+
+function isFetchAllDirectory(key: string): boolean {
+  const def = propDefs[key];
+  return def?.type === "directory" && def.mode === "fetchall";
 }
 
 /** Silently deliver to a listener list (no toast on empty). */
@@ -105,14 +113,13 @@ export const useDevtoolsStore = defineStore("devtools", () => {
   });
 
   // --- wallpaper property state ---
-  const currentValues = reactive<WallpaperUserProperties>({ ...initialValues });
-  const general = reactive({ fps: 60 });
+  const currentValues = reactive<WallpaperUserProperties>(createInitialValues());
+  const general = reactive({ fps: 60, paused: false });
   const directoryFiles = reactive<Record<string, string[]>>({});
 
   // --- media state ---
-  /** null = never explicitly set; false = disabled (default on boot) */
-  const mediaActive = ref<boolean | null>(false);
-  const lastPlaybackState = ref<WallpaperMediaPlaybackState | null>(0);
+  const mediaActive = ref(false);
+  const lastPlaybackState = ref<WallpaperMediaPlaybackState>(0);
 
   const mediaProps = reactive<WallpaperMediaPropertiesEvent>({
     title: "Test Track",
@@ -128,7 +135,7 @@ export const useDevtoolsStore = defineStore("devtools", () => {
 
   const mediaThumb = reactive<WallpaperMediaThumbnailEvent>({
     thumbnail:
-      "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%23282828'/%3E%3Cpath d='M38 68V36l28-8v32' fill='none' stroke='%23555555' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='34' cy='68' r='8' fill='%23555555'/%3E%3Ccircle cx='62' cy='60' r='8' fill='%23555555'/%3E%3C/svg%3E",
+      "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
     primaryColor: "#202020",
     secondaryColor: "#404040",
     tertiaryColor: "#808080",
@@ -138,18 +145,24 @@ export const useDevtoolsStore = defineStore("devtools", () => {
 
   // --- delivery helpers ---
 
-  function deliverAllProperties(): void {
+  function deliverAllProperties(showToast = true): void {
     const l = listenerFns.property;
     if (!l) {
-      toast("No property listener registered.");
+      if (showToast) toast("No property listener registered.");
       return;
     }
-    l.applyUserProperties?.({ ...currentValues });
+    const userProperties: WallpaperUserProperties = {};
+    for (const [key, value] of Object.entries(currentValues)) {
+      if (!isFetchAllDirectory(key)) userProperties[key] = value;
+    }
+    l.applyUserProperties?.(userProperties);
     l.applyGeneralProperties?.({ fps: general.fps });
-    toast("Properties re-delivered.");
+    l.setPaused?.(general.paused);
+    if (showToast) toast("Startup state replayed.");
   }
 
   function deliverProperty(key: string): void {
+    if (isFetchAllDirectory(key)) return;
     const v = currentValues[key];
     if (!v) return;
     listenerFns.property?.applyUserProperties?.({ [key]: v });
@@ -157,18 +170,14 @@ export const useDevtoolsStore = defineStore("devtools", () => {
 
   /** Silently deliver all current media state to every registered media listener. */
   function deliverAllMedia(): void {
-    const enabled = mediaActive.value ?? false;
+    const enabled = mediaActive.value;
     deliver(listenerFns.mediaStatus, { enabled });
-    // Only push media data events when enabling — mirrors real WE behavior where
-    // disabling media does not re-fire thumbnail/props/timeline/playback events.
-    if (enabled) {
-      deliver(listenerFns.mediaProps, { ...mediaProps });
-      if (lastPlaybackState.value !== null) {
-        deliver(listenerFns.mediaPlayback, { state: lastPlaybackState.value });
-      }
-      deliver(listenerFns.mediaTimeline, { ...mediaTimeline });
-      deliver(listenerFns.mediaThumb, { ...mediaThumb });
-    }
+    if (!enabled) return;
+
+    deliver(listenerFns.mediaProps, { ...mediaProps });
+    deliver(listenerFns.mediaPlayback, { state: lastPlaybackState.value });
+    deliver(listenerFns.mediaTimeline, { ...mediaTimeline });
+    deliver(listenerFns.mediaThumb, { ...mediaThumb });
   }
 
   return {

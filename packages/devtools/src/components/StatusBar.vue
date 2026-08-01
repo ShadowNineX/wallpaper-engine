@@ -1,52 +1,66 @@
 <script setup lang="ts">
-import { useDevtoolsStore } from "../store";
+import { computed } from "vue";
 import { storeToRefs } from "pinia";
+import { useDevtoolsStore } from "../store";
 
 const { listenerCounts } = storeToRefs(useDevtoolsStore());
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+const mediaListenerCount = computed(
+  () =>
+    listenerCounts.value.mediaStatus +
+    listenerCounts.value.mediaProps +
+    listenerCounts.value.mediaThumb +
+    listenerCounts.value.mediaPlayback +
+    listenerCounts.value.mediaTimeline,
+);
 
-function badgeClass(active: boolean): string {
-  return cn(
-    "text-[10px] px-1.5 py-0.5 rounded",
-    active
-      ? "border-[var(--color-we-on-border)] bg-[var(--color-we-on-bg)] text-[var(--color-we-on-fg)]"
-      : "border-[var(--color-we-border)] bg-[var(--color-we-btn)] text-[var(--color-we-muted)]",
-  );
-}
+const statuses = computed(() => [
+  {
+    label: "Properties",
+    detail: listenerCounts.value.property ? "ready" : "waiting",
+    active: listenerCounts.value.property,
+  },
+  {
+    label: "Plugins",
+    detail: listenerCounts.value.plugin ? "ready" : "waiting",
+    active: listenerCounts.value.plugin,
+  },
+  {
+    label: "Audio",
+    detail: `${listenerCounts.value.audio} listeners`,
+    active: listenerCounts.value.audio > 0,
+  },
+  {
+    label: "Media",
+    detail: `${mediaListenerCount.value} of 5`,
+    active: mediaListenerCount.value > 0,
+  },
+]);
 </script>
 
 <template>
   <div
-    class="flex flex-wrap gap-1 border-b border-we-border bg-we-surface px-2.5 py-1.5"
+    class="grid shrink-0 grid-cols-2 gap-1.5 border-b border-we-border bg-we-surface/85 p-2"
   >
-    <Badge variant="outline" :class="badgeClass(!!listenerCounts.property)"
-      >prop</Badge
+    <div
+      v-for="status in statuses"
+      :key="status.label"
+      class="flex min-w-0 items-center gap-2 rounded-md border border-white/8 bg-[linear-gradient(135deg,rgba(91,134,237,0.1),rgba(139,92,246,0.06))] px-2.5 py-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+      :title="`${status.label}: ${status.detail}`"
     >
-    <Badge variant="outline" :class="badgeClass(!!listenerCounts.plugin)"
-      >plugin</Badge
-    >
-    <Badge variant="outline" :class="badgeClass(listenerCounts.audio > 0)"
-      >audio({{ listenerCounts.audio }})</Badge
-    >
-    <Badge variant="outline" :class="badgeClass(listenerCounts.mediaStatus > 0)"
-      >mStatus({{ listenerCounts.mediaStatus }})</Badge
-    >
-    <Badge variant="outline" :class="badgeClass(listenerCounts.mediaProps > 0)"
-      >mProps({{ listenerCounts.mediaProps }})</Badge
-    >
-    <Badge variant="outline" :class="badgeClass(listenerCounts.mediaThumb > 0)"
-      >mThumb({{ listenerCounts.mediaThumb }})</Badge
-    >
-    <Badge
-      variant="outline"
-      :class="badgeClass(listenerCounts.mediaPlayback > 0)"
-      >mPlay({{ listenerCounts.mediaPlayback }})</Badge
-    >
-    <Badge
-      variant="outline"
-      :class="badgeClass(listenerCounts.mediaTimeline > 0)"
-      >mTime({{ listenerCounts.mediaTimeline }})</Badge
-    >
+      <span
+        class="size-1.5 shrink-0 rounded-full"
+        :class="
+          status.active
+            ? 'bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.7)]'
+            : 'bg-we-border-strong'
+        "
+      />
+      <span class="min-w-0 truncate text-[11px] font-medium text-we-muted">
+        {{ status.label }}
+      </span>
+      <span class="ml-auto shrink-0 text-[11px] text-we-faint">
+        {{ status.detail }}
+      </span>
+    </div>
   </div>
 </template>

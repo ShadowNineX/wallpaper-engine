@@ -9,7 +9,7 @@ export default defineConfig({
   plugins: [
     vue(),
     wallpaperEnginePlugin({
-      title: "Example Wallpaper",
+      title: "Aether // Reactive Desktop",
       supportsAudioProcessing: true,
       properties,
     }),

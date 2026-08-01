@@ -45,12 +45,13 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
-    "build:lib": "tsup",
-    "dev": "tsup --watch",
+    "build": "tsdown",
+    "build:lib": "tsdown",
+    "dev": "tsdown --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "prepublishOnly": "bun run --cwd ../.. build && node -e \"require('fs').copyFileSync('../../README.md', 'README.md')\""
   },
   "peerDependencies": {
@@ -63,7 +64,7 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.6",
-    "tsup": "^8.5.1",
+    "tsdown": "^0.22.14",
     "vite": "^8.0.13",
     "vitest": "^4.1.6"
   }

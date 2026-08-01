@@ -1,6 +1,6 @@
-import { defineConfig } from "tsup";
-import { cp, mkdir, access } from "node:fs/promises";
+import { access, cp, mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { defineConfig } from "tsdown";
 
 const DEVTOOLS_CLIENT = fileURLToPath(
   new URL("../devtools/dist/client.js", import.meta.url),
@@ -11,6 +11,7 @@ export default defineConfig([
   {
     entry: ["src/index.ts", "src/helpers.ts"],
     format: ["esm", "cjs"],
+    fixedExtension: false,
     dts: true,
     clean: true,
     sourcemap: true,
@@ -20,19 +21,22 @@ export default defineConfig([
   {
     entry: { "plugin/index": "src/plugin/index.ts" },
     format: ["esm"],
+    fixedExtension: false,
     dts: true,
     clean: false,
     sourcemap: true,
-    async onSuccess() {
-      try {
-        await access(DEVTOOLS_CLIENT);
-      } catch {
-        throw new Error(
-          `Devtools client not found at ${DEVTOOLS_CLIENT}. Run \`bun run build:devtools\` from the repo root first.`,
-        );
-      }
-      await mkdir("dist/plugin/devtools", { recursive: true });
-      await cp(DEVTOOLS_CLIENT, "dist/plugin/devtools/client.js");
+    hooks: {
+      "build:done": async () => {
+        try {
+          await access(DEVTOOLS_CLIENT);
+        } catch {
+          throw new Error(
+            `Devtools client not found at ${DEVTOOLS_CLIENT}. Run \`bun run build:devtools\` from the repo root first.`,
+          );
+        }
+        await mkdir("dist/plugin/devtools", { recursive: true });
+        await cp(DEVTOOLS_CLIENT, "dist/plugin/devtools/client.js");
+      },
     },
   },
 ]);

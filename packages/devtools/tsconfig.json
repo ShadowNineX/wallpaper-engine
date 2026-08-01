@@ -6,7 +6,7 @@
     "moduleDetection": "force",
     "jsx": "preserve",
     "allowJs": false,
-    "types": ["vite/client"],
+    "types": ["vite/client", "unplugin-icons/types/vue", "unplugin-fonts/client"],
 
     "baseUrl": ".",
     "paths": {

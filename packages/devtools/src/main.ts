@@ -2,6 +2,7 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import App from "./App.vue";
 import { installGlobals } from "./globals";
+import "unfonts.css";
 import "./style.css";
 
 declare global {
@@ -11,12 +12,31 @@ declare global {
   // eslint-disable-next-line no-var
   var __WE_DEVTOOLS_CSS__: string | undefined;
 }
+const FONT_STYLE_ID = "we-devtools-fonts";
+
+function installDocumentFonts(css: string): void {
+  // Chromium does not register @font-face rules from a shadow-root stylesheet
+  // in the document FontFaceSet. Hoist only those rules; all UI styles remain
+  // isolated inside the shadow root.
+  const fontFaces = css.match(/@font-face\s*\{[^{}]*\}/g);
+  if (!fontFaces?.length) return;
+
+  let style = document.getElementById(FONT_STYLE_ID) as HTMLStyleElement | null;
+  if (!style) {
+    style = document.createElement("style");
+    style.id = FONT_STYLE_ID;
+    document.head.appendChild(style);
+  }
+  style.textContent = fontFaces.join("\n");
+}
+
 
 installGlobals();
 
 let mount: HTMLElement;
 
 if (globalThis.__WE_DEVTOOLS_CSS__) {
+  installDocumentFonts(globalThis.__WE_DEVTOOLS_CSS__);
   // Production: mount inside a Shadow DOM with inlined CSS.
   const host = document.createElement("div");
   host.id = "we-devtools-root";

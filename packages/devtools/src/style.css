@@ -1,4 +1,11 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/*
+ ---break---
+ */
+/*
+ ---break---
+ */
 /*
  ---break---
  */
@@ -15,33 +22,35 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-we-panel: #1c1d22;
-  --color-we-surface: #15161a;
-  --color-we-section: #16171c;
-  --color-we-border: #2e3037;
-  --color-we-border-strong: #3a3d45;
-  --color-we-text: #e6e8eb;
-  --color-we-muted: #b6b9c2;
-  --color-we-faint: #6c6f78;
-  --color-we-heading: #8c8f99;
-  --color-we-btn: #2a2c33;
-  --color-we-btn-hover: #353841;
-  --color-we-primary: #2c5fd0;
-  --color-we-primary-hover: #3a6fe0;
-  --color-we-on-bg: #1e4a2a;
-  --color-we-on-fg: #a7e3b3;
-  --color-we-on-border: #2e6a3d;
+  --font-sans:
+    "Space Grotesk Variable", "Space Grotesk", ui-sans-serif, system-ui,
+    sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
+  --color-we-panel: #181a20;
+  --color-we-surface: #121419;
+  --color-we-section: #20232b;
+  --color-we-border: #414753;
+  --color-we-border-strong: #565d6b;
+  --color-we-text: #f4f4f5;
+  --color-we-muted: #bcc0ca;
+  --color-we-faint: #adb1bd;
+  --color-we-heading: #a3a8b3;
+  --color-we-btn: #292d36;
+  --color-we-btn-hover: #373c48;
+  --color-we-primary: #5b86ed;
+  --color-we-primary-hover: #7098f4;
+  --color-we-on-bg: #173f2a;
+  --color-we-on-fg: #a7e8bc;
+  --color-we-on-border: #2f7048;
 }
 
 @layer components {
   :host {
-    font-family:
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      "Segoe UI",
-      Roboto,
-      sans-serif;
+    font-family: var(--font-sans);
+    font-feature-settings:
+      "ss01" 1,
+      "ss02" 1;
     font-size: 12px;
     color: var(--color-we-text);
   }
@@ -97,37 +106,37 @@
 :host,
 :root {
   --radius: 0.375rem;
-  --background: #1c1d22;
-  --foreground: #e6e8eb;
-  --card: #15161a;
-  --card-foreground: #e6e8eb;
-  --popover: #15161a;
-  --popover-foreground: #e6e8eb;
-  --primary: #2c5fd0;
-  --primary-foreground: #e6e8eb;
-  --secondary: #2a2c33;
-  --secondary-foreground: #e6e8eb;
-  --muted: #2a2c33;
-  --muted-foreground: #b6b9c2;
-  --accent: #353841;
-  --accent-foreground: #e6e8eb;
+  --background: #181a20;
+  --foreground: #f4f4f5;
+  --card: #121419;
+  --card-foreground: #f4f4f5;
+  --popover: #181a20;
+  --popover-foreground: #f4f4f5;
+  --primary: #5b86ed;
+  --primary-foreground: #ffffff;
+  --secondary: #292d36;
+  --secondary-foreground: #f4f4f5;
+  --muted: #292d36;
+  --muted-foreground: #bcc0ca;
+  --accent: #373c48;
+  --accent-foreground: #f4f4f5;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: #2e3037;
-  --input: #2e3037;
-  --ring: #2c5fd0;
+  --border: #414753;
+  --input: #414753;
+  --ring: #5b86ed;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: #15161a;
-  --sidebar-foreground: #e6e8eb;
-  --sidebar-primary: #2c5fd0;
-  --sidebar-primary-foreground: #e6e8eb;
-  --sidebar-accent: #2a2c33;
-  --sidebar-accent-foreground: #e6e8eb;
-  --sidebar-border: #2e3037;
-  --sidebar-ring: #2c5fd0;
+  --sidebar: #121419;
+  --sidebar-foreground: #f4f4f5;
+  --sidebar-primary: #5b86ed;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #292d36;
+  --sidebar-accent-foreground: #f4f4f5;
+  --sidebar-border: #414753;
+  --sidebar-ring: #5b86ed;
 }
 
 /*
@@ -176,6 +185,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+
+  ::selection {
+    color: var(--primary-foreground);
+    background-color: color-mix(in srgb, var(--primary) 55%, transparent);
+  }
   body {
     @apply bg-background text-foreground;
   }
@@ -183,7 +197,7 @@
 
 /*
  * Shadow DOM compatibility: browsers do not reliably process @property rules
- * declared inside a shadow-root <style> element, so the Tailwind v4 CSS
+ * declared inside a shadow-root \3c style> element, so the Tailwind v4 CSS
  * variable initial-values from @layer properties are never registered.
  * Without those initial values, `translate: var(--tw-translate-x) var(--tw-translate-y)`
  * becomes invalid and layout utilities like -translate-y-1/2 silently break.
@@ -216,5 +230,144 @@
     --tw-ring-offset-color: #fff;
     --tw-ring-offset-shadow: 0 0 #0000;
     --tw-outline-style: solid;
+  }
+}
+
+@layer components {
+  .we-card {
+    @apply rounded-lg border border-we-border/70 bg-we-section/90 p-3;
+    background-image: linear-gradient(
+      145deg,
+      rgb(32 35 43 / 96%),
+      rgb(24 26 32 / 96%)
+    );
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+  }
+
+  .we-card-header {
+    @apply mb-3 flex items-center justify-between gap-3;
+  }
+
+  .we-card-title {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-we-heading;
+  }
+
+  .we-card-description {
+    @apply mt-0.5 text-[11px] leading-relaxed text-we-faint;
+  }
+
+  .we-field {
+    @apply grid grid-cols-[104px_minmax(0,1fr)] items-center gap-3;
+  }
+
+  .we-field-label {
+    @apply text-[11px] font-medium text-we-muted;
+  }
+
+  .we-icon-button {
+    @apply inline-flex size-8 items-center justify-center rounded-md border border-we-border bg-transparent text-we-muted transition-colors hover:bg-we-btn-hover hover:text-we-text;
+  }
+
+  .we-toast {
+    @apply pointer-events-auto relative flex w-full items-start gap-3 overflow-hidden rounded-xl border border-we-border-strong/80 bg-we-panel/95 p-3.5 pr-10 text-we-text backdrop-blur-xl;
+    background-image: linear-gradient(
+      145deg,
+      rgb(32 35 43 / 97%),
+      rgb(18 20 25 / 97%)
+    );
+    box-shadow:
+      0 18px 48px rgb(3 7 18 / 52%),
+      inset 0 1px 0 rgb(255 255 255 / 5%);
+  }
+
+  .we-toast-content {
+    @apply min-w-0 flex-1;
+  }
+
+  .we-toast-title {
+    @apply text-[12px] font-semibold leading-5 tracking-[-0.01em] text-we-text;
+  }
+
+  .we-toast-description {
+    @apply mt-0.5 text-[11px] leading-relaxed text-we-muted;
+  }
+
+  .we-toast-icon {
+    @apply mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-we-primary/12 text-we-primary ring-1 ring-we-primary/25;
+  }
+
+  .we-toast-close {
+    @apply absolute right-2.5 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded-md border border-we-border bg-we-btn/80 text-we-faint transition-colors hover:border-we-border-strong hover:bg-we-btn-hover hover:text-we-text focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-we-primary/60;
+  }
+
+  .we-toast-action,
+  .we-toast-cancel {
+    @apply shrink-0 rounded-md px-2.5 py-1.5 text-[11px] font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-we-primary/60;
+  }
+
+  .we-toast-action {
+    @apply bg-we-primary text-white hover:bg-we-primary-hover;
+  }
+
+  .we-toast-cancel {
+    @apply border border-we-border bg-we-btn text-we-muted hover:bg-we-btn-hover hover:text-we-text;
+  }
+
+  .we-toast-default,
+  .we-toast-info,
+  .we-toast-loading {
+    @apply border-we-primary/35;
+  }
+
+  .we-toast-success {
+    @apply border-emerald-400/35;
+  }
+
+  .we-toast-success .we-toast-icon {
+    @apply bg-emerald-400/10 text-emerald-300 ring-emerald-400/25;
+  }
+
+  .we-toast-error {
+    @apply border-rose-400/40;
+  }
+
+  .we-toast-error .we-toast-icon {
+    @apply bg-rose-400/10 text-rose-300 ring-rose-400/25;
+  }
+
+  .we-toast-warning {
+    @apply border-amber-400/40;
+  }
+
+  .we-toast-warning .we-toast-icon {
+    @apply bg-amber-400/10 text-amber-300 ring-amber-400/25;
+  }
+}
+
+
+.we-tab-content-enter-active {
+  transition: opacity 140ms ease-out;
+  will-change: opacity;
+}
+
+.we-tab-content-leave-active {
+  transition: opacity 90ms ease-in;
+  will-change: opacity;
+}
+
+.we-tab-content-enter-from,
+.we-tab-content-leave-to {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .we-tab-content-enter-active,
+  .we-tab-content-leave-active {
+    transition: none;
+  }
+
+  .we-tab-content-enter-from,
+  .we-tab-content-leave-to {
+    opacity: 1;
   }
 }

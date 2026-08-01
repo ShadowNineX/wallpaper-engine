@@ -1,8 +1,22 @@
 <script setup lang="ts">
-import { ref, shallowRef } from "vue";
-import { useDraggable } from "@vueuse/core";
+import { computed, nextTick, ref, shallowRef } from "vue";
+import {
+  useDebounceFn,
+  useDraggable,
+  useEventListener,
+  useResizeObserver,
+  useWindowSize,
+} from "@vueuse/core";
+import AudioLines from "~icons/ph/waveform-duotone";
+import FolderOpen from "~icons/ph/folder-open-duotone";
+import Maximize2 from "~icons/ph/arrows-out-simple";
+import Minus from "~icons/ph/minus";
+import Music2 from "~icons/ph/music-notes-duotone";
+import Settings2 from "~icons/ph/gear-six-duotone";
+import SlidersHorizontal from "~icons/ph/sliders-horizontal-duotone";
 import { audioState } from "./audio";
 import "vue-sonner/style.css";
+import type { ToasterProps } from "vue-sonner";
 import { cfg } from "./config";
 import { useDevtoolsStore } from "./store";
 import { storeToRefs } from "pinia";
@@ -15,18 +29,21 @@ import DirectoriesTab from "./tabs/DirectoriesTab.vue";
 import { Toaster } from "@/components/ui/sonner";
 import StatusBar from "./components/StatusBar.vue";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-const { mediaActive } = storeToRefs(useDevtoolsStore());
+const store = useDevtoolsStore();
+const { mediaActive } = storeToRefs(store);
 
 type TabId = "properties" | "general" | "audio" | "media" | "directories";
 
-const tabs: Array<{ id: TabId; label: string }> = [
-  { id: "properties", label: "Properties" },
-  { id: "general", label: "General" },
-  { id: "audio", label: "Audio" },
-  { id: "media", label: "Media" },
-  { id: "directories", label: "Directories" },
-];
+const tabs = [
+  { id: "properties", label: "Properties", icon: SlidersHorizontal },
+  { id: "general", label: "Runtime", icon: Settings2 },
+  { id: "audio", label: "Audio", icon: AudioLines },
+  { id: "media", label: "Media", icon: Music2 },
+  { id: "directories", label: "Files", icon: FolderOpen },
+] as const;
+
 const tabComponents = {
   properties: PropertiesTab,
   general: GeneralTab,
@@ -35,52 +52,186 @@ const tabComponents = {
   directories: DirectoriesTab,
 } as const;
 
+const toastOptions = {
+  unstyled: true,
+  classes: {
+    toast: "we-toast",
+    content: "we-toast-content",
+    title: "we-toast-title",
+    description: "we-toast-description",
+    icon: "we-toast-icon",
+    closeButton: "we-toast-close",
+    actionButton: "we-toast-action",
+    cancelButton: "we-toast-cancel",
+    default: "we-toast-default",
+    success: "we-toast-success",
+    error: "we-toast-error",
+    info: "we-toast-info",
+    warning: "we-toast-warning",
+    loading: "we-toast-loading",
+  },
+} satisfies NonNullable<ToasterProps["toastOptions"]>;
+
 const active = ref<TabId>("properties");
 const collapsed = ref(false);
-
 const panel = shallowRef<HTMLElement | null>(null);
 const header = shallowRef<HTMLElement | null>(null);
+const panelWidth = Math.min(440, Math.max(280, window.innerWidth - 24));
 const {
   style: dragStyle,
   x: panelX,
   y: panelY,
+  isDragging,
 } = useDraggable(panel, {
   handle: header,
-  initialValue: () => ({ x: window.innerWidth - 16 - 380, y: 16 }),
+  initialValue: () => ({
+    x: Math.max(12, window.innerWidth - 12 - panelWidth),
+    y: 12,
+  }),
   containerElement: document.documentElement,
 });
 
-let lastExpandedWidth = 0;
-let lastExpandedHeight = 0;
+const { width: viewportWidth } = useWindowSize();
+const isViewportResizing = ref(false);
+const toastPosition = computed<NonNullable<ToasterProps["position"]>>(() => {
+  const width = panel.value?.offsetWidth ?? panelWidth;
+  return panelX.value + width / 2 > viewportWidth.value / 2
+    ? "bottom-left"
+    : "bottom-right";
+});
 
-function toggleCollapsed(): void {
-  const expanding = collapsed.value;
-  if (!expanding) {
-    // Store dimensions now, before the collapse animation removes them
-    lastExpandedWidth = panel.value?.offsetWidth ?? lastExpandedWidth;
-    lastExpandedHeight = panel.value?.offsetHeight ?? lastExpandedHeight;
-  }
-  collapsed.value = !collapsed.value;
-  if (expanding) {
-    if (lastExpandedWidth > 0) {
-      panelX.value = Math.max(
-        0,
-        Math.min(panelX.value, window.innerWidth - lastExpandedWidth),
-      );
-    }
-    if (lastExpandedHeight > 0) {
-      panelY.value = Math.max(
-        0,
-        Math.min(panelY.value, window.innerHeight - lastExpandedHeight),
-      );
-    }
-  }
+const VIEWPORT_MARGIN = 12;
+let panelSizeAnimation: Animation | undefined;
+let pendingPanelHeight: number | undefined;
+
+function cancelPanelSizeAnimation(): void {
+  const animation = panelSizeAnimation;
+  panelSizeAnimation = undefined;
+  animation?.cancel();
 }
 
-function tabDot(id: TabId): string | null {
-  if (id === "audio" && audioState.mode !== "off") return "bg-amber-400";
-  if (id === "media" && mediaActive.value === true) return "bg-emerald-400";
-  return null;
+function animatePanelHeight(fromHeight: number): void {
+  const element = panel.value;
+  if (
+    !element ||
+    collapsed.value ||
+    typeof element.animate !== "function" ||
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  ) {
+    constrainPanelToViewport();
+    return;
+  }
+
+  const toHeight = element.getBoundingClientRect().height;
+  if (Math.abs(fromHeight - toHeight) < 1) {
+    constrainPanelToViewport();
+    return;
+  }
+
+  const animation = element.animate(
+    [{ height: `${fromHeight}px` }, { height: `${toHeight}px` }],
+    {
+      duration: 260,
+      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+    },
+  );
+  panelSizeAnimation = animation;
+  animation.addEventListener(
+    "finish",
+    () => {
+      if (panelSizeAnimation !== animation) return;
+      panelSizeAnimation = undefined;
+      constrainPanelToViewport();
+    },
+    { once: true },
+  );
+}
+
+function changeTab(value: unknown): void {
+  if (
+    typeof value !== "string" ||
+    !Object.hasOwn(tabComponents, value) ||
+    value === active.value
+  ) {
+    return;
+  }
+
+  cancelPanelSizeAnimation();
+  pendingPanelHeight = panel.value?.getBoundingClientRect().height;
+  active.value = value as TabId;
+}
+
+function onTabEnter(): void {
+  const fromHeight = pendingPanelHeight;
+  pendingPanelHeight = undefined;
+  if (fromHeight !== undefined) animatePanelHeight(fromHeight);
+}
+
+
+function constrainPanelToViewport(): void {
+  const element = panel.value;
+  if (!element) return;
+
+  const maxX = Math.max(
+    VIEWPORT_MARGIN,
+    window.innerWidth - VIEWPORT_MARGIN - element.offsetWidth,
+  );
+  const maxY = Math.max(
+    VIEWPORT_MARGIN,
+    window.innerHeight - VIEWPORT_MARGIN - element.offsetHeight,
+  );
+
+  panelX.value = Math.min(maxX, Math.max(VIEWPORT_MARGIN, panelX.value));
+  panelY.value = Math.min(maxY, Math.max(VIEWPORT_MARGIN, panelY.value));
+}
+
+const finishViewportResize = useDebounceFn(() => {
+  isViewportResizing.value = false;
+}, 120);
+
+useEventListener(window, "resize", () => {
+  cancelPanelSizeAnimation();
+  isViewportResizing.value = true;
+  void nextTick(constrainPanelToViewport);
+  void finishViewportResize();
+});
+useResizeObserver(panel, constrainPanelToViewport);
+
+let lastExpandedWidth = panelWidth;
+
+
+function toggleCollapsed(): void {
+  cancelPanelSizeAnimation();
+  const viewportWidth = window.innerWidth;
+  const maxPanelWidth = Math.max(0, viewportWidth - 24);
+  const currentWidth = panel.value?.offsetWidth ?? panelWidth;
+  const rightEdge = panelX.value + currentWidth;
+
+  if (!collapsed.value) {
+    lastExpandedWidth = currentWidth;
+    void nextTick(constrainPanelToViewport);
+    const collapsedWidth = Math.min(280, maxPanelWidth);
+    panelX.value = Math.max(
+      0,
+      Math.min(rightEdge - collapsedWidth, viewportWidth - collapsedWidth),
+    );
+    collapsed.value = true;
+    return;
+  }
+
+  const expandedWidth = Math.min(lastExpandedWidth, maxPanelWidth);
+  panelX.value = Math.max(
+    0,
+    Math.min(rightEdge - expandedWidth, viewportWidth - expandedWidth),
+  );
+  void nextTick(constrainPanelToViewport);
+  collapsed.value = false;
+}
+
+function tabActive(id: TabId): boolean {
+  if (id === "audio") return audioState.mode !== "off";
+  if (id === "media") return mediaActive.value;
+  return false;
 }
 </script>
 
@@ -88,70 +239,98 @@ function tabDot(id: TabId): string | null {
   <div
     ref="panel"
     :style="dragStyle"
-    class="fixed z-2147483647 flex flex-col overflow-hidden rounded-lg border border-we-border bg-we-panel text-we-text shadow-[0_8px_24px_rgba(0,0,0,0.4)] text-xs transition-[width] duration-200 ease-in-out"
-    :class="collapsed ? 'w-64' : 'w-95'"
+    class="fixed z-2147483647 flex max-h-[calc(100dvh-24px)] max-w-[calc(100dvw-24px)] flex-col overflow-hidden rounded-xl border border-[#4b5570] bg-we-panel text-xs text-we-text shadow-[0_24px_80px_rgba(3,7,18,0.72),0_0_42px_rgba(91,134,237,0.1)]"
+    :class="[
+      collapsed ? 'w-[280px]' : 'w-[440px]',
+      isDragging || isViewportResizing
+        ? 'transition-none'
+        : 'transition-[width,left,top] duration-250 ease-in-out',
+    ]"
   >
-    <div
+    <header
       ref="header"
-      class="flex cursor-move items-center gap-2 bg-we-surface px-2.5 py-2 select-none"
-      :class="collapsed ? '' : 'border-b border-we-border'"
+      class="flex shrink-0 cursor-move items-center gap-3 border-b border-[#49516a] bg-[linear-gradient(120deg,#121b31_0%,#241638_58%,#151726_100%)] px-3 py-2.5 select-none"
     >
-      <span class="text-xs font-semibold whitespace-nowrap"
-        >Wallpaper Engine Dev</span
+      <div
+        class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(91,134,237,0.3),rgba(139,92,246,0.24))] text-[#92b2ff] ring-1 ring-white/10 shadow-[0_0_20px_rgba(91,134,237,0.16)]"
       >
-      <span
-        v-if="cfg.title"
-        class="text-xs text-we-muted whitespace-nowrap truncate"
-        >{{ cfg.title }}</span
-      >
-      <div class="flex-1" />
+        <SlidersHorizontal class="size-4.5" />
+      </div>
+      <div class="min-w-0 flex-1">
+        <div class="truncate text-[13px] font-semibold leading-4 tracking-[-0.01em] text-we-text">
+          Wallpaper Engine Devtools
+        </div>
+        <div v-if="cfg.title" class="truncate text-[11px] leading-4 text-we-faint">
+          {{ cfg.title }}
+        </div>
+      </div>
       <button
-        class="flex h-5.5 w-5.5 items-center justify-center rounded border border-we-border bg-transparent text-we-text cursor-pointer hover:bg-we-btn leading-none"
+        type="button"
+        class="we-icon-button shrink-0"
+        :aria-label="collapsed ? 'Expand devtools' : 'Collapse devtools'"
+        :title="collapsed ? 'Expand' : 'Collapse'"
         @click="toggleCollapsed"
       >
-        {{ collapsed ? "▢" : "—" }}
+        <Maximize2 v-if="collapsed" class="size-3.5" />
+        <Minus v-else class="size-3.5" />
       </button>
-    </div>
-    <!-- Collapsible body: grid-row trick animates height without knowing it -->
+    </header>
+
     <div
-      class="grid transition-[grid-template-rows] duration-200 ease-in-out"
+      class="grid min-h-0 flex-1 transition-[grid-template-rows] duration-250 ease-in-out"
       :class="collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'"
     >
-      <div class="overflow-hidden">
+      <div class="flex h-full min-h-0 flex-col overflow-hidden">
         <StatusBar />
         <Tabs
           :model-value="active"
-          @update:model-value="(v) => (active = v as TabId)"
+          class="flex min-h-0 flex-1 flex-col overflow-hidden"
+          @update:model-value="changeTab"
         >
-          <div
-            class="border-b border-we-border bg-we-surface px-1.5 pt-1.5 pb-0"
+          <TabsList
+            class="grid h-auto w-full shrink-0 grid-cols-5 gap-1 rounded-none border-b border-we-border bg-[#11141b]/95 px-2 py-2"
           >
-            <TabsList
-              class="h-auto w-full flex-wrap justify-start gap-0.5 rounded-none bg-transparent p-0"
+            <TabsTrigger
+              v-for="tab in tabs"
+              :key="tab.id"
+              :value="tab.id"
+              class="group relative flex h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-md border border-transparent bg-transparent px-1 text-[11px] font-medium text-we-faint shadow-none transition-all hover:bg-we-btn/70 hover:text-we-text data-[state=active]:border-we-primary/40 data-[state=active]:bg-[linear-gradient(145deg,rgba(91,134,237,0.18),rgba(139,92,246,0.1))] data-[state=active]:text-white data-[state=active]:shadow-[inset_0_-2px_0_rgba(91,134,237,0.75)]"
             >
-              <TabsTrigger
-                v-for="t in tabs"
-                :key="t.id"
-                :value="t.id"
-                class="h-auto flex-none rounded-t rounded-b-none border border-b-0 px-2.5 py-1 text-[11px] transition-colors shadow-none bg-transparent data-[state=active]:bg-we-panel data-[state=active]:text-we-text data-[state=active]:border-we-border data-[state=active]:shadow-none data-[state=inactive]:border-transparent data-[state=inactive]:text-we-muted hover:text-we-text"
+              <component :is="tab.icon" class="size-4" />
+              <span class="truncate">{{ tab.label }}</span>
+              <span
+                v-if="tabActive(tab.id)"
+                class="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-emerald-400 ring-2 ring-we-surface"
+              />
+            </TabsTrigger>
+          </TabsList>
+
+          <ScrollArea type="hover" class="min-h-0 flex-1">
+            <main class="p-3 pr-4">
+              <Transition
+                name="we-tab-content"
+                mode="out-in"
+                @enter="onTabEnter"
               >
-                <span class="flex items-center gap-1">
-                  <span
-                    v-if="tabDot(t.id)"
-                    class="size-1.5 shrink-0 rounded-full"
-                    :class="tabDot(t.id)"
-                  />
-                  {{ t.label }}
-                </span>
-              </TabsTrigger>
-            </TabsList>
-          </div>
-          <div class="overflow-auto p-2.5 max-h-[70vh]">
-            <component :is="tabComponents[active]" />
-          </div>
+                <component :is="tabComponents[active]" :key="active" />
+              </Transition>
+            </main>
+          </ScrollArea>
         </Tabs>
       </div>
     </div>
-    <Toaster />
+    <Toaster
+      theme="dark"
+      :position="toastPosition"
+      close-button
+      close-button-position="top-right"
+      :duration="3600"
+      :gap="8"
+      :visible-toasts="4"
+      :offset="12"
+      :mobile-offset="12"
+      :swipe-directions="['right']"
+      :toast-options="toastOptions"
+    />
   </div>
 </template>

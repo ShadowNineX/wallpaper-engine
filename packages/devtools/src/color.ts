@@ -2,10 +2,10 @@
 export function weColorToHex(s: string): string {
   const parts = s.split(" ");
   const ch = (i: number): string => {
-    const v = Math.max(
-      0,
-      Math.min(255, Math.ceil(Number.parseFloat(parts[i] ?? "0") * 255)),
-    );
+    const parsed = Number.parseFloat(parts[i] ?? "0");
+    const v = Number.isFinite(parsed)
+      ? Math.max(0, Math.min(255, Math.round(parsed * 255)))
+      : 0;
     return v.toString(16).padStart(2, "0");
   };
   return "#" + ch(0) + ch(1) + ch(2);

@@ -1,132 +1,226 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
-import { propDefs } from "../config";
+import Plus from "~icons/ph/plus";
+import RefreshCw from "~icons/ph/arrows-clockwise";
+import Shuffle from "~icons/ph/shuffle";
+import Trash2 from "~icons/ph/trash";
+import type { WallpaperDirectoryProperty } from "../../../wallpaper-engine/src/types/project";
 import { toast } from "vue-sonner";
+import { propDefs, tr } from "../config";
 import { listenerFns, useDevtoolsStore } from "../store";
-
-const store = useDevtoolsStore();
-const directoryFiles = store.directoryFiles;
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 
-const directories = computed(() =>
-  Object.entries(propDefs).filter(([, d]) => d.type === "directory"),
+const store = useDevtoolsStore();
+const directories = computed<Array<[string, WallpaperDirectoryProperty]>>(() =>
+  Object.entries(propDefs).filter(
+    (entry): entry is [string, WallpaperDirectoryProperty] =>
+      entry[1].type === "directory",
+  ),
 );
+const selected = ref(directories.value[0]?.[0] ?? "");
+const newFile = ref("");
+const selectedDefinition = computed(
+  () => directories.value.find(([key]) => key === selected.value)?.[1],
+);
+const files = computed(() => store.directoryFiles[selected.value] ?? []);
 
-const selected = ref<string>(directories.value[0]?.[0] ?? "");
-const newFile = ref<string>("");
+function notifyChanged(key: string, paths: string[]): boolean {
+  const listener = listenerFns.property?.userDirectoryFilesAddedOrChanged;
+  if (!listener) return false;
+  listener(key, paths);
+  return true;
+}
 
-function getList(key: string): string[] {
-  return directoryFiles[key] ?? [];
+function notifyRemoved(key: string, paths: string[]): boolean {
+  const listener = listenerFns.property?.userDirectoryFilesRemoved;
+  if (!listener) return false;
+  listener(key, paths);
+  return true;
 }
 
 function addFile(): void {
-  if (!selected.value || !newFile.value) return;
-  const list = directoryFiles[selected.value] ?? [];
-  list.push(newFile.value);
-  directoryFiles[selected.value] = list;
+  const key = selected.value;
+  const path = newFile.value.trim();
+  const definition = selectedDefinition.value;
+  if (!key || !path || !definition) return;
+
+  const list = store.directoryFiles[key] ?? [];
+  if (list.includes(path)) {
+    toast("That file is already in the simulated directory.");
+    return;
+  }
+  list.push(path);
+  store.directoryFiles[key] = list;
   newFile.value = "";
+
+  if (definition.mode === "fetchall") {
+    const delivered = notifyChanged(key, [path]);
+    toast(
+      delivered
+        ? "File added and change callback sent."
+        : "File added; no directory change listener is registered.",
+    );
+  } else {
+    toast("File added to the on-demand random pool.");
+  }
 }
 
-function fireAdded(key: string, file: string): void {
-  const l = listenerFns.property;
-  if (!l?.userDirectoryFilesAddedOrChanged) {
-    toast("No userDirectoryFilesAddedOrChanged listener");
-    return;
+function removeFile(path: string): void {
+  const key = selected.value;
+  const definition = selectedDefinition.value;
+  if (!key || !definition) return;
+  const list = store.directoryFiles[key] ?? [];
+  const index = list.indexOf(path);
+  if (index >= 0) list.splice(index, 1);
+
+  if (definition.mode === "fetchall") {
+    const delivered = notifyRemoved(key, [path]);
+    toast(
+      delivered
+        ? "File removed and removal callback sent."
+        : "File removed; no directory removal listener is registered.",
+    );
+  } else {
+    toast("File removed from the on-demand random pool.");
   }
-  l.userDirectoryFilesAddedOrChanged(key, [file]);
-  toast(`Added → ${file}`);
 }
 
-function fireRemoved(key: string, file: string): void {
-  const l = listenerFns.property;
-  if (!l?.userDirectoryFilesRemoved) {
-    toast("No userDirectoryFilesRemoved listener");
+function resendChanged(path: string): void {
+  if (!notifyChanged(selected.value, [path])) {
+    toast("No userDirectoryFilesAddedOrChanged listener registered.");
     return;
   }
-  l.userDirectoryFilesRemoved(key, [file]);
-  const list = directoryFiles[key] ?? [];
-  const i = list.indexOf(file);
-  if (i >= 0) list.splice(i, 1);
-  toast(`Removed → ${file}`);
+  toast("File change callback sent.");
+}
+
+function requestRandom(): void {
+  if (files.value.length === 0) {
+    toast("Add at least one file to the random pool first.");
+    return;
+  }
+  window.wallpaperRequestRandomFileForProperty(selected.value, (_key, path) => {
+    toast(`Random file: ${path}`);
+  });
 }
 </script>
 
 <template>
-  <div v-if="directories.length === 0" class="text-[11px] italic text-we-faint">
-    No directory-type properties.
+  <div
+    v-if="directories.length === 0"
+    class="rounded-lg border border-dashed border-we-border p-5 text-center text-[11px] text-we-faint"
+  >
+    No directory properties are configured for this wallpaper.
   </div>
 
   <div v-else class="space-y-3">
-    <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-      <span class="text-[11px] text-we-muted">Property</span>
-      <Select v-model="selected">
-        <SelectTrigger class="h-7 w-full text-xs">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem v-for="[k] in directories" :key="k" :value="k">{{
-            k
-          }}</SelectItem>
-        </SelectContent>
-      </Select>
-    </div>
+    <section class="we-card">
+      <div class="we-card-header">
+        <div>
+          <h2 class="we-card-title">Directory property</h2>
+          <p class="we-card-description">Choose which configured directory to simulate.</p>
+        </div>
+        <span
+          v-if="selectedDefinition"
+          class="rounded-full border border-we-border bg-we-panel px-2 py-1 font-mono text-[10px] text-we-muted"
+        >
+          {{ selectedDefinition.mode }}
+        </span>
+      </div>
+      <NativeSelect id="directory-property" v-model="selected" class="h-8 w-full text-xs">
+        <NativeSelectOption
+          v-for="[key, definition] in directories"
+          :key="key"
+          :value="key"
+        >
+          {{ tr(definition.text || key) }} · {{ definition.mode }}
+        </NativeSelectOption>
+      </NativeSelect>
 
-    <div class="flex items-center gap-1.5">
-      <Input
-        v-model="newFile"
-        type="text"
-        placeholder="path/to/file.jpg"
-        class="h-7 flex-1 text-xs"
-        @keydown.enter="addFile"
-      />
-      <Button size="sm" variant="outline" @click="addFile">Add</Button>
-    </div>
-
-    <div
-      v-for="[key] in directories"
-      :key="key"
-      class="space-y-1.5 rounded-md border border-we-border bg-we-section p-2.5"
-    >
-      <h3
-        class="text-[11px] font-semibold uppercase tracking-wide text-we-heading"
-      >
-        {{ key }}
-      </h3>
-      <p
-        v-if="getList(key).length === 0"
-        class="text-[11px] italic text-we-faint"
-      >
-        No files.
-      </p>
       <div
-        v-for="(f, i) in getList(key)"
-        :key="i"
-        class="flex items-center gap-1"
+        v-if="selectedDefinition"
+        class="mt-3 rounded-md border border-we-border bg-we-panel/60 px-3 py-2 text-[10px] leading-relaxed text-we-faint"
       >
-        <span class="flex-1 truncate font-mono text-[11px]">{{ f }}</span>
+        <template v-if="selectedDefinition.mode === 'ondemand'">
+          Wallpaper Engine returns one random path when the wallpaper calls
+          <code class="text-we-muted">wallpaperRequestRandomFileForProperty</code>.
+        </template>
+        <template v-else>
+          Wallpaper Engine pushes add/change and removal callbacks as directory contents change.
+        </template>
+      </div>
+    </section>
+
+    <section class="we-card">
+      <div class="we-card-header">
+        <div>
+          <h2 class="we-card-title">Simulated files</h2>
+          <p class="we-card-description">Use host-style absolute file paths.</p>
+        </div>
         <Button
+          v-if="selectedDefinition?.mode === 'ondemand'"
           size="sm"
           variant="outline"
-          class="h-6 px-1.5 text-[10px]"
-          @click="fireAdded(key, f)"
-          >added</Button
+          class="h-8 gap-1.5 px-2.5 text-[10px]"
+          @click="requestRandom"
         >
-        <Button
-          size="sm"
-          variant="destructive"
-          class="h-6 px-1.5 text-[10px]"
-          @click="fireRemoved(key, f)"
-          >removed</Button
-        >
+          <Shuffle class="size-3" />
+          Request random
+        </Button>
       </div>
-    </div>
+
+      <div class="flex items-center gap-2">
+        <Input
+          v-model="newFile"
+          type="text"
+          placeholder="C:/Wallpapers/image.jpg"
+          class="h-8 min-w-0 flex-1 font-mono text-[11px]"
+          @keydown.enter="addFile"
+        />
+        <Button size="sm" class="h-8 gap-1.5 px-3 text-[11px]" @click="addFile">
+          <Plus class="size-3" />
+          Add
+        </Button>
+      </div>
+
+      <div
+        v-if="files.length === 0"
+        class="mt-3 rounded-md border border-dashed border-we-border py-5 text-center text-[11px] text-we-faint"
+      >
+        No files in this simulated directory.
+      </div>
+
+      <div v-else class="mt-3 space-y-1.5">
+        <div
+          v-for="path in files"
+          :key="path"
+          class="flex items-center gap-2 rounded-md border border-we-border bg-we-panel/60 px-2.5 py-2"
+        >
+          <span class="min-w-0 flex-1 truncate font-mono text-[10px] text-we-muted" :title="path">
+            {{ path }}
+          </span>
+          <button
+            v-if="selectedDefinition?.mode === 'fetchall'"
+            type="button"
+            class="we-icon-button size-6"
+            title="Send added or changed callback"
+            aria-label="Send file changed callback"
+            @click="resendChanged(path)"
+          >
+            <RefreshCw class="size-3" />
+          </button>
+          <button
+            type="button"
+            class="we-icon-button size-6 hover:border-destructive hover:text-destructive"
+            title="Remove file"
+            aria-label="Remove file"
+            @click="removeFile(path)"
+          >
+            <Trash2 class="size-3" />
+          </button>
+        </div>
+      </div>
+    </section>
   </div>
 </template>

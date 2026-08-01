@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { ref, shallowRef } from "vue";
+import { computed, shallowRef } from "vue";
 import { storeToRefs } from "pinia";
+import Image from "~icons/ph/image-duotone";
+import Music2 from "~icons/ph/music-notes-duotone";
+import Radio from "~icons/ph/broadcast-duotone";
+import Upload from "~icons/ph/upload-simple";
 import { FastAverageColor } from "fast-average-color";
-import type { WallpaperMediaPlaybackState } from "../../../wallpaper-engine/src/types/listeners";
+import type {
+  WallpaperMediaPlaybackState,
+  WallpaperMediaThumbnailEvent,
+} from "../../../wallpaper-engine/src/types/listeners";
 import { toast } from "vue-sonner";
 import { listenerFns, useDevtoolsStore } from "../store";
 import { Button } from "@/components/ui/button";
@@ -16,424 +23,384 @@ import {
   NumberFieldIncrement,
   NumberFieldInput,
 } from "@/components/ui/number-field";
+import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 
 const store = useDevtoolsStore();
 const {
+  listenerCounts,
   mediaActive,
   lastPlaybackState,
   mediaProps,
   mediaTimeline,
   mediaThumb,
 } = storeToRefs(store);
-const { fanout, deliverAllMedia } = store;
-
-// alias for template clarity
 const timeline = mediaTimeline;
 const thumb = mediaThumb;
+const thumbnailInput = shallowRef<HTMLInputElement | null>(null);
+const averageColor = new FastAverageColor();
 
-const fac = new FastAverageColor();
-const thumbFileInput = shallowRef<HTMLInputElement | null>(null);
-const thumbIsVideo = ref(false);
+const mediaListenerCount = computed(
+  () =>
+    listenerCounts.value.mediaStatus +
+    listenerCounts.value.mediaProps +
+    listenerCounts.value.mediaThumb +
+    listenerCounts.value.mediaPlayback +
+    listenerCounts.value.mediaTimeline,
+);
 
-function pickThumbFile(): void {
-  thumbFileInput.value?.click();
+const playbackStates: Array<{
+  state: WallpaperMediaPlaybackState;
+  label: string;
+}> = [
+  { state: 0, label: "Playing" },
+  { state: 1, label: "Paused" },
+  { state: 2, label: "Stopped" },
+];
+
+const paletteFields: Array<{
+  key: Exclude<keyof WallpaperMediaThumbnailEvent, "thumbnail">;
+  label: string;
+}> = [
+  { key: "primaryColor", label: "Primary" },
+  { key: "secondaryColor", label: "Secondary" },
+  { key: "tertiaryColor", label: "Tertiary" },
+  { key: "textColor", label: "Text" },
+  { key: "highContrastColor", label: "High contrast" },
+];
+
+function requireMedia(): boolean {
+  if (mediaActive.value) return true;
+  toast("Enable media integration before sending media events.");
+  return false;
 }
 
-async function onThumbFile(e: Event): Promise<void> {
-  const file = (e.target as HTMLInputElement).files?.[0];
-  if (!file) return;
-  thumbIsVideo.value = file.type.startsWith("video/");
+function setMediaEnabled(enabled: boolean): void {
+  mediaActive.value = enabled;
+  store.deliverAllMedia();
+  toast(enabled ? "Media integration enabled." : "Media integration disabled.");
+}
 
-  const dataUrl = await new Promise<string>((resolve) => {
+function sendProperties(): void {
+  if (!requireMedia()) return;
+  store.fanout(listenerFns.mediaProps, { ...mediaProps.value }, "media properties");
+}
+
+function setContentType(event: Event): void {
+  const value = (event.target as HTMLSelectElement).value;
+  if (value === "music" || value === "video" || value === "image") {
+    mediaProps.value.contentType = value;
+  }
+}
+
+function sendPlayback(state: WallpaperMediaPlaybackState): void {
+  if (!requireMedia()) return;
+  lastPlaybackState.value = state;
+  store.fanout(listenerFns.mediaPlayback, { state }, "media playback");
+}
+
+function setPosition(value: number): void {
+  timeline.value.position = Math.min(
+    Math.max(0, value),
+    Math.max(0, timeline.value.duration),
+  );
+}
+
+function setDuration(value: number): void {
+  timeline.value.duration = Math.max(0, value);
+  timeline.value.position = Math.min(
+    timeline.value.position,
+    timeline.value.duration,
+  );
+}
+
+function sendTimeline(): void {
+  if (!requireMedia()) return;
+  setPosition(timeline.value.position);
+  store.fanout(
+    listenerFns.mediaTimeline,
+    { ...timeline.value },
+    "media timeline",
+  );
+}
+
+function pickThumbnail(): void {
+  thumbnailInput.value?.click();
+}
+
+async function onThumbnailFile(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  if (file.type !== "image/png") {
+    toast("Wallpaper Engine thumbnails must be PNG images.");
+    input.value = "";
+    return;
+  }
+
+  const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
   thumb.value.thumbnail = dataUrl;
 
-  if (!thumbIsVideo.value) {
-    try {
-      const img = new Image();
-      img.src = dataUrl;
-      await new Promise<void>((resolve) => {
-        img.onload = () => resolve();
-      });
-      const w = img.naturalWidth;
-      const h = img.naturalHeight;
-      const [full, topLeft, bottomRight] = await Promise.all([
-        fac.getColorAsync(img),
-        fac.getColorAsync(img, {
-          left: 0,
-          top: 0,
-          width: Math.floor(w / 2),
-          height: Math.floor(h / 2),
-        }),
-        fac.getColorAsync(img, {
-          left: Math.floor(w / 2),
-          top: Math.floor(h / 2),
-          width: Math.floor(w / 2),
-          height: Math.floor(h / 2),
-        }),
-      ]);
-      thumb.value.primaryColor = full.hex;
-      thumb.value.secondaryColor = topLeft.hex;
-      thumb.value.tertiaryColor = bottomRight.hex;
-      thumb.value.textColor = full.isDark ? "#ffffff" : "#000000";
-      thumb.value.highContrastColor = full.isDark ? "#ffffff" : "#000000";
-    } catch {
-      // silently keep existing colors
-    }
+  try {
+    const image = new globalThis.Image();
+    image.src = dataUrl;
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Unable to decode PNG"));
+    });
+    const width = image.naturalWidth;
+    const height = image.naturalHeight;
+    const [full, topLeft, bottomRight] = await Promise.all([
+      averageColor.getColorAsync(image),
+      averageColor.getColorAsync(image, {
+        left: 0,
+        top: 0,
+        width: Math.max(1, Math.floor(width / 2)),
+        height: Math.max(1, Math.floor(height / 2)),
+      }),
+      averageColor.getColorAsync(image, {
+        left: Math.floor(width / 2),
+        top: Math.floor(height / 2),
+        width: Math.max(1, Math.ceil(width / 2)),
+        height: Math.max(1, Math.ceil(height / 2)),
+      }),
+    ]);
+    thumb.value.primaryColor = full.hex;
+    thumb.value.secondaryColor = topLeft.hex;
+    thumb.value.tertiaryColor = bottomRight.hex;
+    thumb.value.textColor = full.isDark ? "#ffffff" : "#000000";
+    thumb.value.highContrastColor = full.isDark ? "#ffffff" : "#000000";
+  } catch (error) {
+    console.warn("[WE Dev] Unable to extract thumbnail colors", error);
+    toast("PNG loaded, but its palette could not be extracted.");
   }
+  input.value = "";
 }
 
-const playbackButtons: Array<{
-  state: WallpaperMediaPlaybackState;
-  label: string;
-}> = [
-  { state: 0, label: "PLAYING" },
-  { state: 1, label: "PAUSED" },
-  { state: 2, label: "STOPPED" },
-];
-
-function fireStatus(enabled: boolean): void {
-  mediaActive.value = enabled;
-  deliverAllMedia();
-}
-function fireProps(): void {
-  fanout(listenerFns.mediaProps, { ...mediaProps.value }, "media properties");
-}
-function fireThumb(): void {
-  fanout(listenerFns.mediaThumb, { ...thumb.value }, "media thumbnail");
-}
-function firePlayback(state: WallpaperMediaPlaybackState): void {
-  lastPlaybackState.value = state;
-  fanout(listenerFns.mediaPlayback, { state }, "media playback");
-}
-function fireTimeline(): void {
-  fanout(listenerFns.mediaTimeline, { ...timeline.value }, "media timeline");
-}
-
-function firePluginLoaded(name: string): void {
-  const l = listenerFns.plugin;
-  if (!l?.onPluginLoaded) {
-    toast("No plugin listener");
+function sendThumbnail(): void {
+  if (!requireMedia()) return;
+  if (!thumb.value.thumbnail.startsWith("data:image/png;base64,")) {
+    toast("Choose a PNG thumbnail before sending.");
     return;
   }
-  l.onPluginLoaded(name, "0.0.0-dev");
-  toast(`Fired onPluginLoaded(${name})`);
+  store.fanout(
+    listenerFns.mediaThumb,
+    { ...thumb.value },
+    "media thumbnail",
+  );
 }
 </script>
 
 <template>
   <div class="space-y-3">
-    <section
-      class="space-y-2 rounded-md border border-we-border bg-we-section p-2.5"
-    >
-      <div class="flex items-center justify-between">
-        <h3
-          class="text-[11px] font-semibold uppercase tracking-wide text-we-heading"
+    <section class="we-card">
+      <div class="we-card-header">
+        <div>
+          <h2 class="we-card-title">Media integration</h2>
+          <p class="we-card-description">
+            Enabling sends the complete current media state; disabling sends status only.
+          </p>
+        </div>
+        <div
+          class="flex size-8 items-center justify-center rounded-lg"
+          :class="
+            mediaActive
+              ? 'bg-emerald-400/15 text-emerald-300'
+              : 'bg-we-panel text-we-faint'
+          "
         >
-          Media status
-        </h3>
-        <span v-if="mediaActive !== null" class="flex items-center gap-1.5">
-          <span
-            class="inline-block size-1.5 rounded-full transition-colors"
-            :class="mediaActive ? 'bg-emerald-400' : 'bg-zinc-500'"
-          />
-          <span class="text-[10px] text-we-faint">{{
-            mediaActive ? "active" : "inactive"
-          }}</span>
-        </span>
+          <Radio class="size-4" />
+        </div>
       </div>
-      <div class="grid grid-cols-2 gap-1.5">
+      <div class="grid grid-cols-2 gap-2">
         <Button
           size="sm"
-          :variant="mediaActive === true ? 'default' : 'outline'"
-          class="w-full"
-          @click="fireStatus(true)"
-          >Enabled</Button
+          :variant="mediaActive ? 'default' : 'outline'"
+          class="h-8 text-[11px]"
+          @click="setMediaEnabled(true)"
         >
+          Enabled
+        </Button>
         <Button
           size="sm"
-          :variant="mediaActive === false ? 'default' : 'outline'"
-          class="w-full"
-          @click="fireStatus(false)"
-          >Disabled</Button
+          :variant="!mediaActive ? 'secondary' : 'outline'"
+          class="h-8 text-[11px]"
+          @click="setMediaEnabled(false)"
         >
+          Disabled
+        </Button>
+      </div>
+      <div class="mt-2 flex items-center justify-between text-[10px] text-we-faint">
+        <span>{{ mediaListenerCount }} registered callbacks</span>
+        <span>Status · Metadata · Artwork · Playback · Timeline</span>
       </div>
     </section>
 
-    <section
-      class="space-y-2 rounded-md border border-we-border bg-we-section p-2.5"
-    >
-      <h3
-        class="text-[11px] font-semibold uppercase tracking-wide text-we-heading"
-      >
-        Media properties
-      </h3>
-      <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-        <Label for="media-title" class="text-[11px] text-we-muted">Title</Label>
-        <Input
-          id="media-title"
-          v-model="mediaProps.title"
-          type="text"
-          class="h-7 text-xs"
-        />
+    <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
+      <div class="we-card-header">
+        <div>
+          <h2 class="we-card-title">Now playing</h2>
+          <p class="we-card-description">Track metadata exposed by the host media session.</p>
+        </div>
+        <Music2 class="size-4 text-we-faint" />
       </div>
-      <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-        <Label for="media-artist" class="text-[11px] text-we-muted"
-          >Artist</Label
-        >
-        <Input
-          id="media-artist"
-          v-model="mediaProps.artist"
-          type="text"
-          class="h-7 text-xs"
-        />
+      <div class="space-y-2.5">
+        <div class="we-field">
+          <Label for="media-title" class="we-field-label">Title</Label>
+          <Input id="media-title" v-model="mediaProps.title" class="h-8 text-xs" />
+        </div>
+        <div class="we-field">
+          <Label for="media-artist" class="we-field-label">Artist</Label>
+          <Input id="media-artist" v-model="mediaProps.artist" class="h-8 text-xs" />
+        </div>
+        <div class="we-field">
+          <Label for="media-album" class="we-field-label">Album</Label>
+          <Input id="media-album" v-model="mediaProps.albumTitle" class="h-8 text-xs" />
+        </div>
+        <div class="we-field">
+          <Label for="media-content-type" class="we-field-label">Content type</Label>
+          <NativeSelect
+            id="media-content-type"
+            :model-value="mediaProps.contentType"
+            class="h-8 text-xs"
+            @change="setContentType"
+          >
+            <NativeSelectOption value="music">Music</NativeSelectOption>
+            <NativeSelectOption value="video">Video</NativeSelectOption>
+            <NativeSelectOption value="image">Image</NativeSelectOption>
+          </NativeSelect>
+        </div>
       </div>
-      <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-        <Label for="media-album" class="text-[11px] text-we-muted">Album</Label>
-        <Input
-          id="media-album"
-          v-model="mediaProps.albumTitle"
-          type="text"
-          class="h-7 text-xs"
-        />
+      <div class="mt-3 flex justify-end">
+        <Button size="sm" class="h-8 px-3 text-[11px]" :disabled="!mediaActive" @click="sendProperties">
+          Send metadata
+        </Button>
       </div>
-      <Button size="sm" class="w-full" @click="fireProps"
-        >Fire properties</Button
-      >
     </section>
 
-    <section
-      class="space-y-2 rounded-md border border-we-border bg-we-section p-2.5"
-    >
-      <h3
-        class="text-[11px] font-semibold uppercase tracking-wide text-we-heading"
-      >
-        Media playback
-      </h3>
+    <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
+      <div class="we-card-header">
+        <div>
+          <h2 class="we-card-title">Playback</h2>
+          <p class="we-card-description">Transport state and timeline use separate callbacks.</p>
+        </div>
+      </div>
       <ToggleGroup
         type="single"
-        :model-value="
-          lastPlaybackState !== null ? String(lastPlaybackState) : undefined
-        "
-        size="sm"
-        class="flex flex-wrap justify-start gap-1.5"
+        :model-value="String(lastPlaybackState)"
+        class="mb-3 grid grid-cols-3 gap-1"
         @update:model-value="
-          (v) => {
-            if (v !== undefined)
-              firePlayback(Number(v) as WallpaperMediaPlaybackState);
+          (value) => {
+            if (value) sendPlayback(Number(value) as WallpaperMediaPlaybackState);
           }
         "
       >
         <ToggleGroupItem
-          v-for="pb in playbackButtons"
-          :key="pb.state"
-          :value="String(pb.state)"
-          class="h-7 text-xs"
+          v-for="playback in playbackStates"
+          :key="playback.state"
+          :value="String(playback.state)"
+          :disabled="!mediaActive"
+          class="h-8 text-[11px]"
         >
-          {{ pb.label }}
+          {{ playback.label }}
         </ToggleGroupItem>
       </ToggleGroup>
+
+      <div class="grid grid-cols-2 gap-2">
+        <NumberField
+          id="media-position"
+          :model-value="timeline.position"
+          :min="0"
+          :max="timeline.duration"
+          @update:model-value="(value) => value !== undefined && setPosition(value)"
+        >
+          <Label for="media-position" class="mb-1 block text-[10px] text-we-faint">Position (s)</Label>
+          <NumberFieldContent>
+            <NumberFieldDecrement />
+            <NumberFieldInput />
+            <NumberFieldIncrement />
+          </NumberFieldContent>
+        </NumberField>
+        <NumberField
+          id="media-duration"
+          :model-value="timeline.duration"
+          :min="0"
+          @update:model-value="(value) => value !== undefined && setDuration(value)"
+        >
+          <Label for="media-duration" class="mb-1 block text-[10px] text-we-faint">Duration (s)</Label>
+          <NumberFieldContent>
+            <NumberFieldDecrement />
+            <NumberFieldInput />
+            <NumberFieldIncrement />
+          </NumberFieldContent>
+        </NumberField>
+      </div>
+      <div class="mt-3 flex justify-end">
+        <Button size="sm" variant="outline" class="h-8 px-3 text-[11px]" :disabled="!mediaActive" @click="sendTimeline">
+          Send timeline
+        </Button>
+      </div>
     </section>
 
-    <section
-      class="space-y-2 rounded-md border border-we-border bg-we-section p-2.5"
-    >
-      <h3
-        class="text-[11px] font-semibold uppercase tracking-wide text-we-heading"
-      >
-        Media timeline
-      </h3>
-      <NumberField
-        id="media-position"
-        :model-value="timeline.position"
-        :min="0"
-        @update:model-value="
-          (v) => {
-            if (v !== undefined) timeline.position = v;
-          }
-        "
-      >
-        <Label for="media-position" class="text-[11px] text-we-muted"
-          >position</Label
-        >
-        <NumberFieldContent>
-          <NumberFieldDecrement />
-          <NumberFieldInput />
-          <NumberFieldIncrement />
-        </NumberFieldContent>
-      </NumberField>
-      <NumberField
-        id="media-duration"
-        :model-value="timeline.duration"
-        :min="0"
-        @update:model-value="
-          (v) => {
-            if (v !== undefined) timeline.duration = v;
-          }
-        "
-      >
-        <Label for="media-duration" class="text-[11px] text-we-muted"
-          >duration</Label
-        >
-        <NumberFieldContent>
-          <NumberFieldDecrement />
-          <NumberFieldInput />
-          <NumberFieldIncrement />
-        </NumberFieldContent>
-      </NumberField>
-      <Button size="sm" class="w-full" @click="fireTimeline"
-        >Fire timeline</Button
-      >
-    </section>
-
-    <section
-      class="space-y-2 rounded-md border border-we-border bg-we-section p-2.5"
-    >
-      <h3
-        class="text-[11px] font-semibold uppercase tracking-wide text-we-heading"
-      >
-        Media thumbnail
-      </h3>
+    <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
+      <div class="we-card-header">
+        <div>
+          <h2 class="we-card-title">Artwork</h2>
+          <p class="we-card-description">Wallpaper Engine provides album art as a base64 PNG.</p>
+        </div>
+        <Image class="size-4 text-we-faint" />
+      </div>
 
       <input
-        ref="thumbFileInput"
+        ref="thumbnailInput"
         type="file"
-        accept="image/*,video/*"
+        accept="image/png"
         class="hidden"
-        @change="onThumbFile"
+        @change="onThumbnailFile"
       />
 
-      <div class="flex items-center gap-2">
-        <div
-          class="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded border border-we-border bg-we-panel"
-        >
-          <video
-            v-if="thumb.thumbnail && thumbIsVideo"
-            :src="thumb.thumbnail"
-            autoplay
-            muted
-            loop
-            aria-label="Thumbnail preview"
-            class="h-full w-full object-cover"
-          >
-            <track kind="captions" />
-          </video>
-          <img
-            v-else-if="thumb.thumbnail"
-            :src="thumb.thumbnail"
-            alt=""
-            class="h-full w-full object-cover"
-          />
-          <span v-else class="text-[10px] text-we-faint">none</span>
+      <div class="flex items-center gap-3">
+        <div class="size-18 shrink-0 overflow-hidden rounded-lg border border-we-border bg-we-panel">
+          <img :src="thumb.thumbnail" alt="Media artwork preview" class="size-full object-cover" />
         </div>
-        <Button size="sm" variant="outline" @click="pickThumbFile"
-          >Pick file…</Button
-        >
-      </div>
-
-      <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-        <Label for="thumb-primary" class="text-[11px] text-we-muted"
-          >primary</Label
-        >
-        <div class="flex gap-1.5">
-          <input
-            id="thumb-primary"
-            type="color"
-            v-model="thumb.primaryColor"
-            class="h-7 w-7 shrink-0 cursor-pointer rounded border border-we-border bg-transparent p-0"
-          />
-          <Input v-model="thumb.primaryColor" type="text" class="h-7 text-xs" />
-        </div>
-      </div>
-      <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-        <Label for="thumb-secondary" class="text-[11px] text-we-muted"
-          >secondary</Label
-        >
-        <div class="flex gap-1.5">
-          <input
-            id="thumb-secondary"
-            type="color"
-            v-model="thumb.secondaryColor"
-            class="h-7 w-7 shrink-0 cursor-pointer rounded border border-we-border bg-transparent p-0"
-          />
-          <Input
-            v-model="thumb.secondaryColor"
-            type="text"
-            class="h-7 text-xs"
-          />
-        </div>
-      </div>
-      <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-        <Label for="thumb-tertiary" class="text-[11px] text-we-muted"
-          >tertiary</Label
-        >
-        <div class="flex gap-1.5">
-          <input
-            id="thumb-tertiary"
-            type="color"
-            v-model="thumb.tertiaryColor"
-            class="h-7 w-7 shrink-0 cursor-pointer rounded border border-we-border bg-transparent p-0"
-          />
-          <Input
-            v-model="thumb.tertiaryColor"
-            type="text"
-            class="h-7 text-xs"
-          />
-        </div>
-      </div>
-      <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-        <Label for="thumb-text" class="text-[11px] text-we-muted">text</Label>
-        <div class="flex gap-1.5">
-          <input
-            id="thumb-text"
-            type="color"
-            v-model="thumb.textColor"
-            class="h-7 w-7 shrink-0 cursor-pointer rounded border border-we-border bg-transparent p-0"
-          />
-          <Input v-model="thumb.textColor" type="text" class="h-7 text-xs" />
-        </div>
-      </div>
-      <div class="grid grid-cols-[110px_1fr] items-center gap-2">
-        <Label for="thumb-high-contrast" class="text-[11px] text-we-muted"
-          >high contrast</Label
-        >
-        <div class="flex gap-1.5">
-          <input
-            id="thumb-high-contrast"
-            type="color"
-            v-model="thumb.highContrastColor"
-            class="h-7 w-7 shrink-0 cursor-pointer rounded border border-we-border bg-transparent p-0"
-          />
-          <Input
-            v-model="thumb.highContrastColor"
-            type="text"
-            class="h-7 text-xs"
-          />
+        <div class="min-w-0 flex-1">
+          <Button size="sm" variant="outline" class="h-8 gap-1.5 text-[11px]" @click="pickThumbnail">
+            <Upload class="size-3" />
+            Choose PNG
+          </Button>
+          <p class="mt-2 text-[10px] leading-relaxed text-we-faint">
+            Selecting an image also extracts the five host palette colors.
+          </p>
         </div>
       </div>
 
-      <Button size="sm" class="w-full" @click="fireThumb"
-        >Fire thumbnail</Button
-      >
-    </section>
+      <details class="mt-3 rounded-md border border-we-border bg-we-panel/50">
+        <summary class="cursor-pointer px-3 py-2 text-[11px] font-medium text-we-muted">
+          Adjust extracted palette
+        </summary>
+        <div class="space-y-2 border-t border-we-border p-3">
+          <div v-for="field in paletteFields" :key="field.key" class="we-field">
+            <Label :for="`thumb-${field.key}`" class="we-field-label">{{ field.label }}</Label>
+            <div class="flex gap-2">
+              <input
+                :id="`thumb-${field.key}`"
+                v-model="thumb[field.key]"
+                type="color"
+                class="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-we-border bg-we-btn p-1"
+              />
+              <Input v-model="thumb[field.key]" class="h-8 font-mono text-[11px]" />
+            </div>
+          </div>
+        </div>
+      </details>
 
-    <section
-      class="space-y-2 rounded-md border border-we-border bg-we-section p-2.5"
-    >
-      <h3
-        class="text-[11px] font-semibold uppercase tracking-wide text-we-heading"
-      >
-        Plugins
-      </h3>
-      <div class="flex flex-wrap gap-1.5">
-        <Button size="sm" variant="outline" @click="firePluginLoaded('led')">
-          onPluginLoaded("led")
-        </Button>
-        <Button size="sm" variant="outline" @click="firePluginLoaded('cue')">
-          onPluginLoaded("cue")
+      <div class="mt-3 flex justify-end">
+        <Button size="sm" class="h-8 px-3 text-[11px]" :disabled="!mediaActive" @click="sendThumbnail">
+          Send artwork
         </Button>
       </div>
     </section>

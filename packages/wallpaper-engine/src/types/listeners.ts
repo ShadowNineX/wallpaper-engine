@@ -121,6 +121,11 @@ export interface WallpaperPropertyListener {
    */
   applyGeneralProperties?: (properties: WallpaperGeneralProperties) => void;
   /**
+   * Called when Wallpaper Engine pauses or resumes the wallpaper.
+   * Stop animation frames, timers, and other expensive work while paused.
+   */
+  setPaused?: (isPaused: boolean) => void;
+  /**
    * Called for `directory` properties in `fetchall` mode when files are
    * added or modified in the selected directory. Prepend `"file:///"` to
    * each path before using it as a URL.
