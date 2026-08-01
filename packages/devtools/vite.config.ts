@@ -1,35 +1,39 @@
-import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { fileURLToPath, URL } from "node:url";
-import { defineConfig, type Plugin } from "vite";
-import vue from "@vitejs/plugin-vue";
-import tailwindcss from "@tailwindcss/vite";
-import Icons from "unplugin-icons/vite";
-import Unfonts from "unplugin-fonts/vite";
+import type { Plugin } from 'vite';
+import { Buffer } from 'node:buffer';
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import process from 'node:process';
+import { fileURLToPath, URL } from 'node:url';
+import tailwindcss from '@tailwindcss/vite';
+import vue from '@vitejs/plugin-vue';
+import Unfonts from 'unplugin-fonts/vite';
+import Icons from 'unplugin-icons/vite';
+import { defineConfig } from 'vite';
 
 // The client is bundled into the published package, so report that version
 // instead of the private devtools workspace's placeholder version.
-const REPOSITORY_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PUBLISHED_PACKAGE_JSON = fileURLToPath(
-  new URL("../wallpaper-engine/package.json", import.meta.url),
+  new URL('../wallpaper-engine/package.json', import.meta.url),
 );
 const { version: DEVTOOLS_VERSION } = JSON.parse(
-  readFileSync(PUBLISHED_PACKAGE_JSON, "utf8"),
+  readFileSync(PUBLISHED_PACKAGE_JSON, 'utf8'),
 ) as { version: string };
 
 function getGitVersion(): string {
   try {
     return execFileSync(
-      "git",
-      ["describe", "--always", "--dirty", "--abbrev=7"],
+      'git',
+      ['describe', '--always', '--dirty', '--abbrev=7'],
       {
         cwd: REPOSITORY_ROOT,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "ignore"],
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
       },
     ).trim();
-  } catch {
-    return process.env.GITHUB_SHA?.slice(0, 7) ?? "unknown";
+  }
+  catch {
+    return process.env.GITHUB_SHA?.slice(0, 7) ?? 'unknown';
   }
 }
 
@@ -42,25 +46,26 @@ const DEVTOOLS_GIT_VERSION = getGitVersion();
  */
 function inlineCss(): Plugin {
   return {
-    name: "we-inline-css",
-    enforce: "post",
-    apply: "build",
+    name: 'we-inline-css',
+    enforce: 'post',
+    apply: 'build',
     generateBundle(_, bundle) {
-      let css = "";
+      let css = '';
       for (const [name, asset] of Object.entries(bundle)) {
-        if (asset.type === "asset" && name.endsWith(".css")) {
-          css +=
-            typeof asset.source === "string"
+        if (asset.type === 'asset' && name.endsWith('.css')) {
+          css
+            += typeof asset.source === 'string'
               ? asset.source
-              : Buffer.from(asset.source).toString("utf8");
+              : Buffer.from(asset.source).toString('utf8');
           delete bundle[name];
         }
       }
-      if (!css) return;
-      const prelude =
-        "globalThis.__WE_DEVTOOLS_CSS__=" + JSON.stringify(css) + ";\n";
+      if (!css)
+        return;
+      const prelude
+        = `globalThis.__WE_DEVTOOLS_CSS__=${JSON.stringify(css)};\n`;
       for (const chunk of Object.values(bundle)) {
-        if (chunk.type === "chunk" && chunk.isEntry) {
+        if (chunk.type === 'chunk' && chunk.isEntry) {
           chunk.code = prelude + chunk.code;
         }
       }
@@ -76,16 +81,16 @@ function inlineCss(): Plugin {
  */
 function copyToPluginDist(): Plugin {
   return {
-    name: "we-copy-to-plugin-dist",
-    apply: "build",
+    name: 'we-copy-to-plugin-dist',
+    apply: 'build',
     async closeBundle() {
-      const { cp, mkdir } = await import("node:fs/promises");
-      const src = fileURLToPath(new URL("./dist/client.js", import.meta.url));
+      const { cp, mkdir } = await import('node:fs/promises');
+      const src = fileURLToPath(new URL('./dist/client.js', import.meta.url));
       const destDir = fileURLToPath(
-        new URL("../wallpaper-engine/dist/plugin/devtools", import.meta.url),
+        new URL('../wallpaper-engine/dist/plugin/devtools', import.meta.url),
       );
       await mkdir(destDir, { recursive: true });
-      await cp(src, destDir + "/client.js");
+      await cp(src, `${destDir}/client.js`);
     },
   };
 }
@@ -102,18 +107,18 @@ export default defineConfig(({ command }) => ({
   plugins: [
     vue(),
     Icons({
-      compiler: "vue3",
-      defaultClass: "we-icon",
+      compiler: 'vue3',
+      defaultClass: 'we-icon',
     }),
     Unfonts({
       fontsource: {
         families: [
           {
-            name: "Space Grotesk Variable",
+            name: 'Space Grotesk Variable',
             variable: { wght: true },
           },
           {
-            name: "JetBrains Mono Variable",
+            name: 'JetBrains Mono Variable',
             variable: { wght: true },
           },
         ],
@@ -125,31 +130,31 @@ export default defineConfig(({ command }) => ({
   ],
   resolve: {
     alias: {
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
     },
   },
   define: {
     __WE_DEVTOOLS_VERSION__: JSON.stringify(DEVTOOLS_VERSION),
     __WE_DEVTOOLS_GIT_VERSION__: JSON.stringify(DEVTOOLS_GIT_VERSION),
-    ...(command === "build"
+    ...(command === 'build'
       ? {
-          "process.env.NODE_ENV": JSON.stringify("production"),
-          __VUE_OPTIONS_API__: "false",
-          __VUE_PROD_DEVTOOLS__: "false",
-          __VUE_PROD_HYDRATION_MISMATCH_DETAILS__: "false",
+          'process.env.NODE_ENV': JSON.stringify('production'),
+          '__VUE_OPTIONS_API__': 'false',
+          '__VUE_PROD_DEVTOOLS__': 'false',
+          '__VUE_PROD_HYDRATION_MISMATCH_DETAILS__': 'false',
         }
       : {}),
   },
   build: {
-    outDir: fileURLToPath(new URL("./dist", import.meta.url)),
+    outDir: fileURLToPath(new URL('./dist', import.meta.url)),
     emptyOutDir: true,
     minify: true,
     sourcemap: false,
     cssCodeSplit: false,
     lib: {
-      entry: fileURLToPath(new URL("./src/main.ts", import.meta.url)),
-      formats: ["es"],
-      fileName: () => "client.js",
+      entry: fileURLToPath(new URL('./src/main.ts', import.meta.url)),
+      formats: ['es'],
+      fileName: () => 'client.js',
     },
   },
 }));

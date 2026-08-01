@@ -1,15 +1,16 @@
-import { ColorSpace, parse, spaces, to } from "colorjs.io/fn";
+import { ColorSpace, parse, spaces, to } from 'colorjs.io/fn';
 
 const NUMBER_PATTERN = String.raw`[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?`;
 const WALLPAPER_COLOR_PATTERN = new RegExp(
   String.raw`^\s*(${NUMBER_PATTERN})\s+(${NUMBER_PATTERN})\s+(${NUMBER_PATTERN})\s*$`,
-  "i",
+  'i',
 );
 const CHANNEL_PRECISION = 1_000_000;
 let colorSpacesRegistered = false;
 
 function ensureColorSpacesRegistered(): void {
-  if (colorSpacesRegistered) return;
+  if (colorSpacesRegistered)
+    return;
   for (const space of Object.values(spaces)) {
     ColorSpace.register(space);
   }
@@ -23,15 +24,16 @@ function formatChannel(channel: number): string {
 
 function normalizeWallpaperChannels(value: string): string | undefined {
   const match = WALLPAPER_COLOR_PATTERN.exec(value);
-  if (!match) return;
+  if (!match)
+    return;
 
   const channels = match.slice(1).map(Number);
-  if (channels.some((channel) => channel < 0 || channel > 1)) {
+  if (channels.some(channel => channel < 0 || channel > 1)) {
     throw new RangeError(
       `Wallpaper Engine color channels must be between 0 and 1: "${value}"`,
     );
   }
-  return channels.map(formatChannel).join(" ");
+  return channels.map(formatChannel).join(' ');
 }
 
 /**
@@ -52,15 +54,16 @@ function normalizeWallpaperChannels(value: string): string | undefined {
  */
 export function colorToWallpaperColor(value: string): string {
   const normalized = normalizeWallpaperChannels(value);
-  if (normalized !== undefined) return normalized;
+  if (normalized !== undefined)
+    return normalized;
 
   ensureColorSpacesRegistered();
-  const color = to(parse(value), "srgb", { inGamut: true });
+  const color = to(parse(value), 'srgb', { inGamut: true });
   const channels = color.coords.map((channel) => {
     if (channel === null || !Number.isFinite(channel)) {
       throw new TypeError(`Color cannot be converted to sRGB: "${value}"`);
     }
     return formatChannel(channel);
   });
-  return channels.join(" ");
+  return channels.join(' ');
 }

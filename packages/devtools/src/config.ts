@@ -1,7 +1,7 @@
 import type {
   WallpaperLocalization,
   WallpaperPropertyDefinition,
-} from "../../wallpaper-engine/src/types/project";
+} from '../../wallpaper-engine/src/types/project';
 
 export interface DevtoolsConfig {
   title?: string;
@@ -24,10 +24,12 @@ export const propDefs = cfg.properties;
 
 /** Translate a `ui_*` key via the first available locale, else return as-is. */
 export function tr(text: string): string {
-  if (!text.startsWith("ui_")) return text;
+  if (!text.startsWith('ui_'))
+    return text;
   for (const locale of Object.values(cfg.localization)) {
     const v = locale[text];
-    if (v) return v;
+    if (v)
+      return v;
   }
   return text;
 }

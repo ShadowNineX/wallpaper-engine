@@ -9,7 +9,7 @@ import type {
   WallpaperMediaTimelineEvent,
   WallpaperPluginListener,
   WallpaperPropertyListener,
-} from "./listeners";
+} from './listeners';
 
 declare global {
   interface Window {

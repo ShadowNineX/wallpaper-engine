@@ -1,5 +1,5 @@
 /** File type accepted by file/directory properties */
-export type WallpaperFileType = "image" | "video";
+export type WallpaperFileType = 'image' | 'video';
 
 /**
  * Localization map inside `project.json`'s `general.localization`.
@@ -38,7 +38,7 @@ interface WallpaperPropertyBase {
  * and normalizes it to this representation.
  */
 export interface WallpaperColorProperty extends WallpaperPropertyBase {
-  type: "color";
+  type: 'color';
   /** Normalized sRGB default as `"R G B"` with channels in the 0–1 range. */
   value: string;
 }
@@ -49,7 +49,7 @@ export interface WallpaperColorProperty extends WallpaperPropertyBase {
  * displayed value and the effective `step`.
  */
 export interface WallpaperSliderProperty extends WallpaperPropertyBase {
-  type: "slider";
+  type: 'slider';
   /** Default value — should be within `[min, max]`. */
   value: number;
   min: number;
@@ -71,7 +71,7 @@ export interface WallpaperSliderProperty extends WallpaperPropertyBase {
 
 /** Checkbox (on/off toggle) property. */
 export interface WallpaperBoolProperty extends WallpaperPropertyBase {
-  type: "bool";
+  type: 'bool';
   /** Default checked state. */
   value: boolean;
 }
@@ -84,7 +84,7 @@ export interface WallpaperComboOption {
 }
 
 export interface WallpaperComboProperty extends WallpaperPropertyBase {
-  type: "combo";
+  type: 'combo';
   /** Key of the default selected option */
   value: string;
   options: WallpaperComboOption[];
@@ -92,7 +92,7 @@ export interface WallpaperComboProperty extends WallpaperPropertyBase {
 
 /** Free-text input property. */
 export interface WallpaperTextInputProperty extends WallpaperPropertyBase {
-  type: "textinput";
+  type: 'textinput';
   /** Default text value. */
   value: string;
 }
@@ -102,7 +102,7 @@ export interface WallpaperTextInputProperty extends WallpaperPropertyBase {
  * The runtime `value` path must be prefixed with `"file:///"` before use as a URL.
  */
 export interface WallpaperFileProperty extends WallpaperPropertyBase {
-  type: "file";
+  type: 'file';
   /** Default file path (empty string = no file selected). */
   value: string;
   fileType?: WallpaperFileType;
@@ -115,7 +115,7 @@ export interface WallpaperFileProperty extends WallpaperPropertyBase {
  * surfaced via `userDirectoryFilesAddedOrChanged` / `userDirectoryFilesRemoved`).
  */
 export interface WallpaperDirectoryProperty extends WallpaperPropertyBase {
-  type: "directory";
+  type: 'directory';
   /** Default directory path (empty string = no directory selected). */
   value: string;
   fileType?: WallpaperFileType;
@@ -123,7 +123,7 @@ export interface WallpaperDirectoryProperty extends WallpaperPropertyBase {
    * - `"ondemand"` — call `wallpaperRequestRandomFileForProperty` to get a file.
    * - `"fetchall"` — all files are surfaced via `userDirectoryFilesAddedOrChanged`.
    */
-  mode: "ondemand" | "fetchall";
+  mode: 'ondemand' | 'fetchall';
 }
 
 /**
@@ -140,20 +140,20 @@ export interface WallpaperDirectoryProperty extends WallpaperPropertyBase {
  * }
  */
 export interface WallpaperGroupProperty extends WallpaperPropertyBase {
-  type: "group";
-  value: "";
+  type: 'group';
+  value: '';
 }
 
 /** Union of all property definition types stored in `project.json`. */
-export type WallpaperPropertyDefinition =
-  | WallpaperColorProperty
-  | WallpaperSliderProperty
-  | WallpaperBoolProperty
-  | WallpaperComboProperty
-  | WallpaperTextInputProperty
-  | WallpaperFileProperty
-  | WallpaperGroupProperty
-  | WallpaperDirectoryProperty;
+export type WallpaperPropertyDefinition
+  = | WallpaperColorProperty
+    | WallpaperSliderProperty
+    | WallpaperBoolProperty
+    | WallpaperComboProperty
+    | WallpaperTextInputProperty
+    | WallpaperFileProperty
+    | WallpaperGroupProperty
+    | WallpaperDirectoryProperty;
 
 // ---------------------------------------------------------------------------
 // project.json structure
@@ -176,6 +176,6 @@ export interface WallpaperProject {
   file: string;
   /** Wallpaper title shown in the Wallpaper Engine UI */
   title: string;
-  type: "web";
+  type: 'web';
   general?: WallpaperProjectGeneral;
 }

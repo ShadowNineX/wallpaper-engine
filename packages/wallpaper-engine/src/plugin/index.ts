@@ -1,4 +1,4 @@
-import type { Plugin } from "vite";
+import type { Plugin } from 'vite';
 import type {
   WallpaperBoolValue,
   WallpaperColorValue,
@@ -7,7 +7,7 @@ import type {
   WallpaperFileValue,
   WallpaperSliderValue,
   WallpaperTextValue,
-} from "../types/listeners";
+} from '../types/listeners';
 import type {
   WallpaperBoolProperty,
   WallpaperColorProperty,
@@ -21,8 +21,8 @@ import type {
   WallpaperPropertyDefinition,
   WallpaperSliderProperty,
   WallpaperTextInputProperty,
-} from "../types/project";
-import { colorToWallpaperColor } from "../color";
+} from '../types/project';
+import { colorToWallpaperColor } from '../color';
 
 export type {
   WallpaperBoolProperty,
@@ -38,7 +38,7 @@ export type {
   WallpaperSliderProperty,
   WallpaperTextInputProperty,
 };
-export type { WallpaperComboOption, WallpaperFileType } from "../types/project";
+export type { WallpaperComboOption, WallpaperFileType } from '../types/project';
 
 // ---------------------------------------------------------------------------
 // Property builder helpers
@@ -58,10 +58,10 @@ type Without<T, K extends keyof T> = Omit<T, K>;
  * // → { type: "color", text: "Accent", value: "0 1 0" }
  */
 export function colorProperty(
-  opts: Without<WallpaperColorProperty, "type">,
+  opts: Without<WallpaperColorProperty, 'type'>,
 ): WallpaperColorProperty {
   return {
-    type: "color",
+    type: 'color',
     ...opts,
     value: colorToWallpaperColor(opts.value),
   };
@@ -87,9 +87,9 @@ export function colorProperty(
  * }); // step: 0.001
  */
 export function sliderProperty(
-  opts: Without<WallpaperSliderProperty, "type">,
+  opts: Without<WallpaperSliderProperty, 'type'>,
 ): WallpaperSliderProperty {
-  const property: WallpaperSliderProperty = { type: "slider", ...opts };
+  const property: WallpaperSliderProperty = { type: 'slider', ...opts };
   if (property.step === undefined && property.precision !== undefined) {
     property.step = 10 ** -property.precision;
   }
@@ -98,37 +98,37 @@ export function sliderProperty(
 
 /** Define a boolean checkbox property */
 export function boolProperty(
-  opts: Without<WallpaperBoolProperty, "type">,
+  opts: Without<WallpaperBoolProperty, 'type'>,
 ): WallpaperBoolProperty {
-  return { type: "bool", ...opts };
+  return { type: 'bool', ...opts };
 }
 
 /** Define a dropdown (combo) property */
 export function comboProperty(
-  opts: Without<WallpaperComboProperty, "type">,
+  opts: Without<WallpaperComboProperty, 'type'>,
 ): WallpaperComboProperty {
-  return { type: "combo", ...opts };
+  return { type: 'combo', ...opts };
 }
 
 /** Define a text input property */
 export function textInputProperty(
-  opts: Without<WallpaperTextInputProperty, "type">,
+  opts: Without<WallpaperTextInputProperty, 'type'>,
 ): WallpaperTextInputProperty {
-  return { type: "textinput", ...opts };
+  return { type: 'textinput', ...opts };
 }
 
 /** Define a file picker property */
 export function fileProperty(
-  opts: Without<WallpaperFileProperty, "type">,
+  opts: Without<WallpaperFileProperty, 'type'>,
 ): WallpaperFileProperty {
-  return { type: "file", ...opts };
+  return { type: 'file', ...opts };
 }
 
 /** Define a directory picker property */
 export function directoryProperty(
-  opts: Without<WallpaperDirectoryProperty, "type">,
+  opts: Without<WallpaperDirectoryProperty, 'type'>,
 ): WallpaperDirectoryProperty {
-  return { type: "directory", ...opts };
+  return { type: 'directory', ...opts };
 }
 
 /**
@@ -144,9 +144,9 @@ export function directoryProperty(
  * };
  */
 export function groupProperty(
-  opts: Without<WallpaperGroupProperty, "type" | "value">,
+  opts: Without<WallpaperGroupProperty, 'type' | 'value'>,
 ): WallpaperGroupProperty {
-  return { ...opts, type: "group", value: "" };
+  return { ...opts, type: 'group', value: '' };
 }
 
 // ---------------------------------------------------------------------------
@@ -162,20 +162,20 @@ export function groupProperty(
  * type T = PropertyDefinitionToValue<WallpaperColorProperty>;
  * // → WallpaperColorValue
  */
-export type PropertyDefinitionToValue<T extends WallpaperPropertyDefinition> =
-  T extends { type: "color" }
+export type PropertyDefinitionToValue<T extends WallpaperPropertyDefinition>
+  = T extends { type: 'color' }
     ? WallpaperColorValue
-    : T extends { type: "slider" }
+    : T extends { type: 'slider' }
       ? WallpaperSliderValue
-      : T extends { type: "bool" }
+      : T extends { type: 'bool' }
         ? WallpaperBoolValue
-        : T extends { type: "combo" }
+        : T extends { type: 'combo' }
           ? WallpaperComboValue
-          : T extends { type: "textinput" }
+          : T extends { type: 'textinput' }
             ? WallpaperTextValue
-            : T extends { type: "file" }
+            : T extends { type: 'file' }
               ? WallpaperFileValue
-              : T extends { type: "directory" }
+              : T extends { type: 'directory' }
                 ? WallpaperDirectoryValue
                 : never;
 
@@ -219,7 +219,7 @@ export type PropertyDefinitionToValue<T extends WallpaperPropertyDefinition> =
 export type WallpaperUserPropertiesOf<
   T extends Record<string, WallpaperPropertyDefinition>,
 > = {
-  readonly [K in keyof T as T[K] extends { type: "group" }
+  readonly [K in keyof T as T[K] extends { type: 'group' }
     ? never
     : K]: PropertyDefinitionToValue<T[K]>;
 };
@@ -312,8 +312,8 @@ export function wallpaperEnginePlugin(
   options: WallpaperEnginePluginOptions,
 ): Plugin {
   const devtoolsEnabled = options.devtools !== false;
-  const VIRTUAL_ID = "virtual:wallpaper-engine/devtools";
-  const RESOLVED_ID = "\0" + VIRTUAL_ID;
+  const VIRTUAL_ID = 'virtual:wallpaper-engine/devtools';
+  const RESOLVED_ID = `\0${VIRTUAL_ID}`;
   let isServe = false;
   let cachedClientCode: Promise<string> | undefined;
   const loadClientCode = (): Promise<string> => {
@@ -321,30 +321,31 @@ export function wallpaperEnginePlugin(
       // Reads the bundled Vue UI asynchronously. Dynamic imports keep this
       // entry browser-safe when consumers import only its property builders.
       const [{ readFile }, { fileURLToPath }] = await Promise.all([
-        import(/* @vite-ignore */ "node:fs/promises"),
-        import(/* @vite-ignore */ "node:url"),
+        import(/* @vite-ignore */ 'node:fs/promises'),
+        import(/* @vite-ignore */ 'node:url'),
       ]);
-      const url = new URL("./devtools/client.js", import.meta.url);
-      return readFile(fileURLToPath(url), "utf8");
+      const url = new URL('./devtools/client.js', import.meta.url);
+      return readFile(fileURLToPath(url), 'utf8');
     })();
     return cachedClientCode;
   };
 
   return {
-    name: "wallpaper-engine",
+    name: 'wallpaper-engine',
 
     configResolved(config) {
-      isServe = config.command === "serve";
+      isServe = config.command === 'serve';
     },
 
     async configureServer(server) {
-      if (!devtoolsEnabled) return;
+      if (!devtoolsEnabled)
+        return;
       const [fs, { fileURLToPath }] = await Promise.all([
-        import(/* @vite-ignore */ "node:fs"),
-        import(/* @vite-ignore */ "node:url"),
+        import(/* @vite-ignore */ 'node:fs'),
+        import(/* @vite-ignore */ 'node:url'),
       ]);
       const clientPath = fileURLToPath(
-        new URL("./devtools/client.js", import.meta.url),
+        new URL('./devtools/client.js', import.meta.url),
       );
       // Use stat-polling watchFile instead of chokidar: avoids Windows
       // path-normalisation mismatches (forward vs back slashes) and works
@@ -352,21 +353,24 @@ export function wallpaperEnginePlugin(
       fs.watchFile(clientPath, { interval: 500 }, () => {
         cachedClientCode = undefined;
         const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
-        if (mod) server.moduleGraph.invalidateModule(mod);
-        server.ws.send({ type: "full-reload" });
+        if (mod)
+          server.moduleGraph.invalidateModule(mod);
+        server.ws.send({ type: 'full-reload' });
       });
-      server.httpServer?.once("close", () => {
+      server.httpServer?.once('close', () => {
         fs.unwatchFile(clientPath);
       });
     },
 
     resolveId(id) {
-      if (id === VIRTUAL_ID) return RESOLVED_ID;
+      if (id === VIRTUAL_ID)
+        return RESOLVED_ID;
       return null;
     },
 
     async load(id) {
-      if (id !== RESOLVED_ID) return null;
+      if (id !== RESOLVED_ID)
+        return null;
       const properties = options.properties
         ? assignIndices(options.properties)
         : {};
@@ -376,20 +380,21 @@ export function wallpaperEnginePlugin(
         localization: options.localization ?? {},
       };
       return (
-        "window.__WE_DEVTOOLS_CONFIG__ = " +
-        JSON.stringify(cfg) +
-        ";\n" +
-        (await loadClientCode())
+        `window.__WE_DEVTOOLS_CONFIG__ = ${
+          JSON.stringify(cfg)
+        };\n${
+          await loadClientCode()}`
       );
     },
 
     transformIndexHtml() {
-      if (!isServe || !devtoolsEnabled) return;
+      if (!isServe || !devtoolsEnabled)
+        return;
       return [
         {
-          tag: "script",
-          attrs: { type: "module", src: "/@id/" + VIRTUAL_ID },
-          injectTo: "head-prepend",
+          tag: 'script',
+          attrs: { type: 'module', src: `/@id/${VIRTUAL_ID}` },
+          injectTo: 'head-prepend',
         },
       ];
     },
@@ -400,19 +405,21 @@ export function wallpaperEnginePlugin(
         : undefined;
 
       const general: WallpaperProjectGeneral = {};
-      if (properties) general.properties = properties;
-      if (options.localization) general.localization = options.localization;
+      if (properties)
+        general.properties = properties;
+      if (options.localization)
+        general.localization = options.localization;
       if (
-        options.supportsAudioProcessing ??
-        Object.values(bundle).some(bundleOutputRegistersAudioListener)
+        options.supportsAudioProcessing
+        ?? Object.values(bundle).some(bundleOutputRegistersAudioListener)
       ) {
         general.supportsaudioprocessing = true;
       }
 
       const project: WallpaperProject = {
-        file: options.file ?? "index.html",
+        file: options.file ?? 'index.html',
         title: options.title,
-        type: "web",
+        type: 'web',
       };
 
       if (Object.keys(general).length > 0) {
@@ -420,12 +427,12 @@ export function wallpaperEnginePlugin(
       }
 
       this.emitFile({
-        type: "asset",
-        fileName: "project.json",
+        type: 'asset',
+        fileName: 'project.json',
         source:
           (options.minify ?? !isServe)
             ? JSON.stringify(project)
-            : JSON.stringify(project, null, "\t"),
+            : JSON.stringify(project, null, '\t'),
       });
     },
   };
@@ -435,26 +442,27 @@ export function wallpaperEnginePlugin(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-type BundleOutput =
-  | { type: "chunk"; code: string }
-  | { type: "asset"; fileName: string; source: string | Uint8Array };
+type BundleOutput
+  = | { type: 'chunk'; code: string }
+    | { type: 'asset'; fileName: string; source: string | Uint8Array };
 
 const AUDIO_LISTENER_CALLS = [
-  /\bwallpaperRegisterAudioListener\s*(?:\?\.)?\s*\(/,
-  /\b(?:window|globalThis)\s*\[\s*["']wallpaperRegisterAudioListener["']\s*\]\s*(?:\?\.)?\s*\(/,
+  /\bwallpaperRegisterAudioListener\s*(?:\?\.\s*)?\(/,
+  /\b(?:window|globalThis)\s*\[\s*["']wallpaperRegisterAudioListener["']\s*\]\s*(?:\?\.\s*)?\(/,
 ] as const;
 
 function bundleOutputRegistersAudioListener(output: BundleOutput): boolean {
-  if (output.type === "chunk") {
-    return AUDIO_LISTENER_CALLS.some((pattern) => pattern.test(output.code));
+  if (output.type === 'chunk') {
+    return AUDIO_LISTENER_CALLS.some(pattern => pattern.test(output.code));
   }
 
-  if (!/\.(?:[cm]?js|html?)$/i.test(output.fileName)) return false;
-  const source =
-    typeof output.source === "string"
+  if (!/\.(?:[cm]?js|html?)$/i.test(output.fileName))
+    return false;
+  const source
+    = typeof output.source === 'string'
       ? output.source
       : new TextDecoder().decode(output.source);
-  return AUDIO_LISTENER_CALLS.some((pattern) => pattern.test(source));
+  return AUDIO_LISTENER_CALLS.some(pattern => pattern.test(source));
 }
 
 /**

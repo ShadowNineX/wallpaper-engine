@@ -1,16 +1,10 @@
 {
   "name": "wallpaper-engine",
+  "type": "module",
   "version": "1.1.1",
   "description": "TypeScript types, Vite plugin, and runtime helpers for Wallpaper Engine web wallpapers",
-  "keywords": [
-    "wallpaper-engine",
-    "wallpaper engine",
-    "web wallpaper",
-    "vite plugin",
-    "typescript"
-  ],
-  "license": "MIT",
   "author": "ShadowNineX",
+  "license": "MIT",
   "homepage": "https://github.com/ShadowNineX/wallpaper-engine#readme",
   "repository": {
     "type": "git",
@@ -19,10 +13,13 @@
   "bugs": {
     "url": "https://github.com/ShadowNineX/wallpaper-engine/issues"
   },
-  "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "keywords": [
+    "wallpaper-engine",
+    "wallpaper engine",
+    "web wallpaper",
+    "vite plugin",
+    "typescript"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -39,15 +36,20 @@
       "require": "./dist/helpers.cjs"
     }
   },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
-    "dist",
+    "LICENSE",
     "README.md",
-    "LICENSE"
+    "dist"
   ],
   "scripts": {
     "build": "tsdown",
     "build:lib": "tsdown",
     "dev": "tsdown --watch",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",

@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { WallpaperComboValue } from "../../../wallpaper-engine/src/types/listeners";
-import type { WallpaperComboProperty } from "../../../wallpaper-engine/src/types/project";
-import { tr } from "../config";
-import { useDevtoolsStore } from "../store";
+import type { WallpaperComboValue } from '../../../wallpaper-engine/src/types/listeners';
+import type { WallpaperComboProperty } from '../../../wallpaper-engine/src/types/project';
+import { computed } from 'vue';
 import {
   NativeSelect,
   NativeSelectOption,
-} from "@/components/ui/native-select";
+} from '@/components/ui/native-select';
+import { tr } from '../config';
+import { useDevtoolsStore } from '../store';
 
 const props = defineProps<{
   propKey: string;
@@ -22,8 +22,9 @@ const runtimeValue = computed(
 function onCombo(event: Event): void {
   const selected = (event.target as HTMLSelectElement).value;
   const current = runtimeValue.value;
-  if (!current) return;
-  const option = props.def.options.find((item) => item.value === selected);
+  if (!current)
+    return;
+  const option = props.def.options.find(item => item.value === selected);
   current.value = selected;
   current.text = option ? tr(option.label) : selected;
   store.deliverProperty(props.propKey);

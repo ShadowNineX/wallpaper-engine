@@ -5,19 +5,19 @@ import type {
   WallpaperComboProperty,
   WallpaperSliderProperty,
   WallpaperTextInputProperty,
-} from "../../../wallpaper-engine/src/types/project";
-import BoolPropertyControl from "./BoolPropertyControl.vue";
-import ColorPropertyControl from "./ColorPropertyControl.vue";
-import ComboPropertyControl from "./ComboPropertyControl.vue";
-import SliderPropertyControl from "./SliderPropertyControl.vue";
-import TextPropertyControl from "./TextPropertyControl.vue";
+} from '../../../wallpaper-engine/src/types/project';
+import BoolPropertyControl from './BoolPropertyControl.vue';
+import ColorPropertyControl from './ColorPropertyControl.vue';
+import ComboPropertyControl from './ComboPropertyControl.vue';
+import SliderPropertyControl from './SliderPropertyControl.vue';
+import TextPropertyControl from './TextPropertyControl.vue';
 
-type ValuePropertyDefinition =
-  | WallpaperBoolProperty
-  | WallpaperColorProperty
-  | WallpaperComboProperty
-  | WallpaperSliderProperty
-  | WallpaperTextInputProperty;
+type ValuePropertyDefinition
+  = | WallpaperBoolProperty
+    | WallpaperColorProperty
+    | WallpaperComboProperty
+    | WallpaperSliderProperty
+    | WallpaperTextInputProperty;
 
 defineProps<{
   propKey: string;

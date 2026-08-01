@@ -1,19 +1,18 @@
-
 export const WALLPAPER_IMAGE_EXTENSIONS = [
-  ".jpeg",
-  ".jpg",
-  ".png",
-  ".pnga",
-  ".bmp",
-  ".gif",
-  ".svg",
-  ".webp",
+  '.jpeg',
+  '.jpg',
+  '.png',
+  '.pnga',
+  '.bmp',
+  '.gif',
+  '.svg',
+  '.webp',
 ] as const;
 
 export const WALLPAPER_VIDEO_EXTENSIONS = [
-  ".webm",
-  ".ogg",
-  ".ogv",
+  '.webm',
+  '.ogg',
+  '.ogv',
 ] as const;
 
 export interface DevFileEntry {
@@ -31,4 +30,3 @@ export interface DevDirectorySelection {
   path: string;
   files: DevFileEntry[];
 }
-

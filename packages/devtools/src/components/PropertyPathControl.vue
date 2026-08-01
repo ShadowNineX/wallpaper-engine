@@ -1,27 +1,27 @@
 <script setup lang="ts">
-import { ref } from "vue";
-import { toast } from "vue-sonner";
-import FolderOpen from "~icons/ph/folder-open";
-import RefreshCw from "~icons/ph/arrows-clockwise";
-import X from "~icons/ph/x";
 import type {
   WallpaperDirectoryProperty,
   WallpaperFileProperty,
-} from "../../../wallpaper-engine/src/types/project";
+} from '../../../wallpaper-engine/src/types/project';
+import { ref } from 'vue';
+import { toast } from 'vue-sonner';
+import RefreshCw from '~icons/ph/arrows-clockwise';
+import FolderOpen from '~icons/ph/folder-open';
+import X from '~icons/ph/x';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   devFilePickerAvailable,
   pickDevDirectory,
   pickDevFile,
   releaseDevDirectory,
   releaseDevFile,
-} from "../dev-files";
-import { useDevtoolsStore } from "../store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+} from '../dev-files';
+import { useDevtoolsStore } from '../store';
 
-type PathPropertyDefinition =
-  | WallpaperDirectoryProperty
-  | WallpaperFileProperty;
+type PathPropertyDefinition
+  = | WallpaperDirectoryProperty
+    | WallpaperFileProperty;
 
 const props = defineProps<{
   propKey: string;
@@ -35,12 +35,13 @@ const browsing = ref(false);
 async function browsePath(): Promise<void> {
   browsing.value = true;
   try {
-    if (props.def.type === "file") {
+    if (props.def.type === 'file') {
       const previousUrl = store.currentValues[props.propKey]?.value;
       const selection = await pickDevFile(props.def.fileType);
       if (selection) {
         store.setFileSelection(props.propKey, selection);
-        if (typeof previousUrl === "string") releaseDevFile(previousUrl);
+        if (typeof previousUrl === 'string')
+          releaseDevFile(previousUrl);
       }
       return;
     }
@@ -49,27 +50,32 @@ async function browsePath(): Promise<void> {
       props.def.fileType,
       store.directorySelections[props.propKey]?.id,
     );
-    if (selection) store.setDirectorySelection(props.propKey, selection);
-  } catch (error) {
+    if (selection)
+      store.setDirectorySelection(props.propKey, selection);
+  }
+  catch (error) {
     toast(
-      error instanceof Error ? error.message : "Unable to browse local files.",
+      error instanceof Error ? error.message : 'Unable to browse local files.',
     );
-  } finally {
+  }
+  finally {
     browsing.value = false;
   }
 }
 
 function clearPath(): void {
-  if (props.def.type === "file") {
+  if (props.def.type === 'file') {
     const previousUrl = store.currentValues[props.propKey]?.value;
     store.clearFileSelection(props.propKey);
-    if (typeof previousUrl === "string") releaseDevFile(previousUrl);
+    if (typeof previousUrl === 'string')
+      releaseDevFile(previousUrl);
     return;
   }
 
   const directoryId = store.directorySelections[props.propKey]?.id;
   store.clearDirectorySelection(props.propKey);
-  if (directoryId) releaseDevDirectory(directoryId);
+  if (directoryId)
+    releaseDevDirectory(directoryId);
 }
 </script>
 

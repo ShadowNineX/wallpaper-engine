@@ -13,13 +13,17 @@
     "dev": "bun run --filter=@wallpaper-engine/devtools dev",
     "dev:devtools": "bun run --filter=@wallpaper-engine/devtools dev:ui",
     "dev:demo": "bun run --filter=demo dev",
+    "lint": "bun run --filter=@wallpaper-engine/devtools lint && bun run --filter=wallpaper-engine lint",
+    "lint:fix": "bun run --filter=@wallpaper-engine/devtools lint:fix && bun run --filter=wallpaper-engine lint:fix",
     "typecheck": "bun run --filter=@wallpaper-engine/devtools typecheck && bun run --filter=wallpaper-engine typecheck && bun run --filter=demo typecheck",
     "test": "bun run --filter='*' test",
     "test:run": "bun run --filter=@wallpaper-engine/devtools test:run && bun run --filter=wallpaper-engine test:run",
     "test:coverage": "bun run --filter=@wallpaper-engine/devtools test:coverage && bun run --filter=wallpaper-engine test:coverage"
   },
   "devDependencies": {
+    "@antfu/eslint-config": "^9.2.0",
     "@types/bun": "^1.3.14",
+    "eslint": "^10.8.0",
     "typescript": "^6.0.3"
   },
   "overrides": {

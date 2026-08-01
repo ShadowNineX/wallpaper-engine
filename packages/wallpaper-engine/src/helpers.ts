@@ -7,14 +7,14 @@
  * import { colorToWallpaperColor, getAverageColor, wallpaperColorToRgb, toFileUrl } from 'wallpaper-engine/helpers';
  */
 
-export { colorToWallpaperColor } from "./color";
-export { createAverageColorExtractor, getAverageColor } from "./image-color";
+export { colorToWallpaperColor } from './color';
+export { createAverageColorExtractor, getAverageColor } from './image-color';
 export type {
   AverageColorExtractor,
   AverageColorOptions,
   AverageColorResult,
   AverageColorSource,
-} from "./image-color";
+} from './image-color';
 
 // ---------------------------------------------------------------------------
 // Color helpers
@@ -37,8 +37,8 @@ export function parseWallpaperColor(value: string): {
 } {
   const channels = value.trim().split(/\s+/).map(Number);
   if (
-    channels.length !== 3 ||
-    channels.some((channel) => !Number.isFinite(channel))
+    channels.length !== 3
+    || channels.some(channel => !Number.isFinite(channel))
   ) {
     throw new TypeError(
       `Wallpaper Engine colors must contain three finite channels: "${value}"`,
@@ -71,7 +71,7 @@ export function wallpaperColorToRgb(value: string): string {
  */
 export function wallpaperColorToHex(value: string): string {
   const { r, g, b } = parseWallpaperColor(value);
-  return "#" + [r, g, b].map((c) => c.toString(16).padStart(2, "0")).join("");
+  return `#${[r, g, b].map(c => c.toString(16).padStart(2, '0')).join('')}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,9 +91,11 @@ export function wallpaperColorToHex(value: string): string {
  * // Vite devtools: "blob:http://localhost/..." → unchanged
  */
 export function toFileUrl(path: string): string {
-  if (!path) return "";
-  if (/^(?:\/|https?:|data:|blob:|file:)/i.test(path)) return path;
-  return "file:///" + path;
+  if (!path)
+    return '';
+  if (/^(?:\/|https?:|data:|blob:|file:)/i.test(path))
+    return path;
+  return `file:///${path}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,7 +115,7 @@ export function toFileUrl(path: string): string {
  * });
  */
 export function clampAudio(audioArray: number[]): number[] {
-  return audioArray.map((value) =>
+  return audioArray.map(value =>
     Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0,
   );
 }
@@ -155,11 +157,13 @@ export function rightChannel(audioArray: number[]): number[] {
  */
 export function getMediaPlaybackStatus(
   state: number,
-): "playing" | "paused" | "stopped" {
+): 'playing' | 'paused' | 'stopped' {
   const integration = globalThis.wallpaperMediaIntegration;
-  if (state === integration.PLAYBACK_PLAYING) return "playing";
-  if (state === integration.PLAYBACK_PAUSED) return "paused";
-  return "stopped";
+  if (state === integration.PLAYBACK_PLAYING)
+    return 'playing';
+  if (state === integration.PLAYBACK_PAUSED)
+    return 'paused';
+  return 'stopped';
 }
 
 // ---------------------------------------------------------------------------
@@ -180,10 +184,11 @@ export function getMediaPlaybackStatus(
  * window.wpPlugins.led.setAllDevicesByImageData(encoded, canvas.width, canvas.height);
  */
 export function encodeCanvasForLed(canvas: HTMLCanvasElement): string {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("Could not get 2D context from canvas");
+  const ctx = canvas.getContext('2d');
+  if (!ctx)
+    throw new Error('Could not get 2D context from canvas');
   const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  let result = "";
+  let result = '';
   for (let i = 0; i < data.length; i += 4) {
     result += String.fromCodePoint(data[i]!, data[i + 1]!, data[i + 2]!);
   }
@@ -215,14 +220,14 @@ export function encodeCanvasForLed(canvas: HTMLCanvasElement): string {
  */
 export function createFpsLimiter(draw: (dt: number) => void): {
   /** Start (or restart) the animation loop. */
-  start(): void;
+  start: () => void;
   /** Stop the animation loop. */
-  stop(): void;
+  stop: () => void;
   /**
    * Set the FPS cap. Pass `0` for unlimited.
    * Safe to call at any time — takes effect on the next frame.
    */
-  setLimit(fps: number): void;
+  setLimit: (fps: number) => void;
 } {
   let limit = 0;
   let lastTick = 0;
@@ -240,7 +245,8 @@ export function createFpsLimiter(draw: (dt: number) => void): {
       const frameDuration = 1 / limit;
       const epsilon = frameDuration * 1e-9;
       threshold += tickDelta;
-      if (threshold + epsilon < frameDuration) return;
+      if (threshold + epsilon < frameDuration)
+        return;
 
       const remainder = threshold % frameDuration;
       threshold = remainder + epsilon >= frameDuration ? 0 : remainder;
@@ -253,7 +259,8 @@ export function createFpsLimiter(draw: (dt: number) => void): {
 
   return {
     start() {
-      if (rafId !== null) cancelAnimationFrame(rafId);
+      if (rafId !== null)
+        cancelAnimationFrame(rafId);
       lastTick = performance.now() / 1000;
       lastDraw = lastTick;
       threshold = 0;
@@ -266,7 +273,8 @@ export function createFpsLimiter(draw: (dt: number) => void): {
       }
     },
     setLimit(fps: number) {
-      if (limit !== fps) threshold = 0;
+      if (limit !== fps)
+        threshold = 0;
       limit = fps;
     },
   };

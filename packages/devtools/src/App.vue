@@ -1,43 +1,43 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, shallowRef } from "vue";
-import { storeToRefs } from "pinia";
+import type { ToasterProps } from 'vue-sonner';
 import {
   useDebounceFn,
   useDraggable,
   useEventListener,
   useResizeObserver,
   useWindowSize,
-} from "@vueuse/core";
-import AudioLines from "~icons/ph/waveform-duotone";
-import Maximize2 from "~icons/ph/arrows-out-simple";
-import Minus from "~icons/ph/minus";
-import Music2 from "~icons/ph/music-notes-duotone";
-import Settings2 from "~icons/ph/gear-six-duotone";
-import SlidersHorizontal from "~icons/ph/sliders-horizontal-duotone";
-import "vue-sonner/style.css";
-import type { ToasterProps } from "vue-sonner";
-import { cfg } from "./config";
-import { AUDIO_MODE_LABELS, audioState } from "./audio";
-import { useDevtoolsStore } from "./store";
+} from '@vueuse/core';
+import { storeToRefs } from 'pinia';
+import { computed, nextTick, ref, shallowRef } from 'vue';
+import Maximize2 from '~icons/ph/arrows-out-simple';
+import Settings2 from '~icons/ph/gear-six-duotone';
+import Minus from '~icons/ph/minus';
+import Music2 from '~icons/ph/music-notes-duotone';
+import SlidersHorizontal from '~icons/ph/sliders-horizontal-duotone';
+import AudioLines from '~icons/ph/waveform-duotone';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Toaster } from '@/components/ui/sonner';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AUDIO_MODE_LABELS, audioState } from './audio';
 
-import PropertiesTab from "./tabs/PropertiesTab.vue";
-import GeneralTab from "./tabs/GeneralTab.vue";
-import AudioTab from "./tabs/AudioTab.vue";
-import MediaTab from "./tabs/MediaTab.vue";
-import { Toaster } from "@/components/ui/sonner";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { cfg } from './config';
+import { useDevtoolsStore } from './store';
+import AudioTab from './tabs/AudioTab.vue';
+import GeneralTab from './tabs/GeneralTab.vue';
+import MediaTab from './tabs/MediaTab.vue';
+import PropertiesTab from './tabs/PropertiesTab.vue';
+import 'vue-sonner/style.css';
 
-type TabId = "properties" | "general" | "audio" | "media";
+type TabId = 'properties' | 'general' | 'audio' | 'media';
 
 const devtoolsBuildLabel = `v${__WE_DEVTOOLS_VERSION__} · ${__WE_DEVTOOLS_GIT_VERSION__}`;
 const devtoolsBuildTitle = `Devtools ${__WE_DEVTOOLS_VERSION__} (git ${__WE_DEVTOOLS_GIT_VERSION__})`;
 
 const tabs = [
-  { id: "properties", label: "Properties", icon: SlidersHorizontal },
-  { id: "general", label: "Runtime", icon: Settings2 },
-  { id: "audio", label: "Audio", icon: AudioLines },
-  { id: "media", label: "Media", icon: Music2 },
+  { id: 'properties', label: 'Properties', icon: SlidersHorizontal },
+  { id: 'general', label: 'Runtime', icon: Settings2 },
+  { id: 'audio', label: 'Audio', icon: AudioLines },
+  { id: 'media', label: 'Media', icon: Music2 },
 ] as const;
 
 const tabComponents = {
@@ -47,7 +47,7 @@ const tabComponents = {
   media: MediaTab,
 } as const;
 
-type TabStatusTone = "positive" | "neutral" | "warning";
+type TabStatusTone = 'positive' | 'neutral' | 'warning';
 interface TabStatus {
   label: string;
   tone: TabStatusTone;
@@ -55,16 +55,16 @@ interface TabStatus {
 
 const statusToneClasses = {
   positive: {
-    dot: "bg-emerald-400",
-    text: "text-emerald-300/90",
+    dot: 'bg-emerald-400',
+    text: 'text-emerald-300/90',
   },
   neutral: {
-    dot: "bg-we-border-strong",
-    text: "text-we-faint",
+    dot: 'bg-we-border-strong',
+    text: 'text-we-faint',
   },
   warning: {
-    dot: "bg-amber-400",
-    text: "text-amber-300/90",
+    dot: 'bg-amber-400',
+    text: 'text-amber-300/90',
   },
 } as const satisfies Record<TabStatusTone, { dot: string; text: string }>;
 
@@ -72,41 +72,41 @@ const store = useDevtoolsStore();
 const { listenerCounts, mediaActive } = storeToRefs(store);
 const tabStatuses = computed<Record<TabId, TabStatus>>(() => ({
   properties: listenerCounts.value.property
-    ? { label: "Ready", tone: "positive" }
-    : { label: "No listener", tone: "warning" },
+    ? { label: 'Ready', tone: 'positive' }
+    : { label: 'No listener', tone: 'warning' },
   general: store.general.paused
-    ? { label: "Paused", tone: "warning" }
-    : { label: "Running", tone: "positive" },
+    ? { label: 'Paused', tone: 'warning' }
+    : { label: 'Running', tone: 'positive' },
   audio: {
     label: AUDIO_MODE_LABELS[audioState.mode],
-    tone: audioState.mode === "off" ? "neutral" : "positive",
+    tone: audioState.mode === 'off' ? 'neutral' : 'positive',
   },
   media: mediaActive.value
-    ? { label: "Enabled", tone: "positive" }
-    : { label: "Disabled", tone: "neutral" },
+    ? { label: 'Enabled', tone: 'positive' }
+    : { label: 'Disabled', tone: 'neutral' },
 }));
 
 const toastOptions = {
   unstyled: true,
   classes: {
-    toast: "we-toast",
-    content: "we-toast-content",
-    title: "we-toast-title",
-    description: "we-toast-description",
-    icon: "we-toast-icon",
-    closeButton: "we-toast-close",
-    actionButton: "we-toast-action",
-    cancelButton: "we-toast-cancel",
-    default: "we-toast-default",
-    success: "we-toast-success",
-    error: "we-toast-error",
-    info: "we-toast-info",
-    warning: "we-toast-warning",
-    loading: "we-toast-loading",
+    toast: 'we-toast',
+    content: 'we-toast-content',
+    title: 'we-toast-title',
+    description: 'we-toast-description',
+    icon: 'we-toast-icon',
+    closeButton: 'we-toast-close',
+    actionButton: 'we-toast-action',
+    cancelButton: 'we-toast-cancel',
+    default: 'we-toast-default',
+    success: 'we-toast-success',
+    error: 'we-toast-error',
+    info: 'we-toast-info',
+    warning: 'we-toast-warning',
+    loading: 'we-toast-loading',
   },
-} satisfies NonNullable<ToasterProps["toastOptions"]>;
+} satisfies NonNullable<ToasterProps['toastOptions']>;
 
-const active = ref<TabId>("properties");
+const active = ref<TabId>('properties');
 const collapsed = ref(false);
 const panel = shallowRef<HTMLElement | null>(null);
 const header = shallowRef<HTMLElement | null>(null);
@@ -133,11 +133,11 @@ const {
 
 const { width: viewportWidth } = useWindowSize();
 const isViewportResizing = ref(false);
-const toastPosition = computed<NonNullable<ToasterProps["position"]>>(() => {
+const toastPosition = computed<NonNullable<ToasterProps['position']>>(() => {
   const width = panel.value?.offsetWidth ?? panelWidth;
   return panelX.value + width / 2 > viewportWidth.value / 2
-    ? "bottom-left"
-    : "bottom-right";
+    ? 'bottom-left'
+    : 'bottom-right';
 });
 
 let panelSizeAnimation: Animation | undefined;
@@ -154,10 +154,10 @@ function cancelPanelSizeAnimation(): void {
 function animatePanelHeight(fromHeight: number): void {
   const element = panel.value;
   if (
-    !element ||
-    collapsed.value ||
-    typeof element.animate !== "function" ||
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    !element
+    || collapsed.value
+    || typeof element.animate !== 'function'
+    || window.matchMedia('(prefers-reduced-motion: reduce)').matches
   ) {
     constrainPanelToViewport();
     return;
@@ -173,14 +173,15 @@ function animatePanelHeight(fromHeight: number): void {
     [{ height: `${fromHeight}px` }, { height: `${toHeight}px` }],
     {
       duration: 260,
-      easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+      easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
     },
   );
   panelSizeAnimation = animation;
   animation.addEventListener(
-    "finish",
+    'finish',
     () => {
-      if (panelSizeAnimation !== animation) return;
+      if (panelSizeAnimation !== animation)
+        return;
       panelSizeAnimation = undefined;
       constrainPanelToViewport();
     },
@@ -190,9 +191,9 @@ function animatePanelHeight(fromHeight: number): void {
 
 function changeTab(value: unknown): void {
   if (
-    typeof value !== "string" ||
-    !Object.hasOwn(tabComponents, value) ||
-    value === active.value
+    typeof value !== 'string'
+    || !Object.hasOwn(tabComponents, value)
+    || value === active.value
   ) {
     return;
   }
@@ -205,7 +206,8 @@ function changeTab(value: unknown): void {
 function onTabEnter(): void {
   const fromHeight = pendingPanelHeight;
   pendingPanelHeight = undefined;
-  if (fromHeight !== undefined) animatePanelHeight(fromHeight);
+  if (fromHeight !== undefined)
+    animatePanelHeight(fromHeight);
 }
 
 function clampPanelAxis(
@@ -222,7 +224,8 @@ function clampPanelAxis(
 
 function constrainPanelToViewport(): void {
   const element = panel.value;
-  if (!element) return;
+  if (!element)
+    return;
 
   const width = element.offsetWidth;
   const reachedWidthTarget = Math.abs(width - panelWidthTarget) < 1;
@@ -241,7 +244,7 @@ const finishViewportResize = useDebounceFn(() => {
   isViewportResizing.value = false;
 }, 120);
 
-useEventListener(window, "resize", () => {
+useEventListener(window, 'resize', () => {
   cancelPanelSizeAnimation();
   isViewportResizing.value = true;
   void nextTick(constrainPanelToViewport);
@@ -253,15 +256,15 @@ function toggleCollapsed(): void {
   cancelPanelSizeAnimation();
   const viewportWidth = window.innerWidth;
   const maxPanelWidth = Math.max(0, viewportWidth - VIEWPORT_MARGIN * 2);
-  const currentWidth =
-    panel.value?.offsetWidth ||
-    Math.min(
-      collapsed.value ? COLLAPSED_PANEL_WIDTH : EXPANDED_PANEL_WIDTH,
-      maxPanelWidth,
-    );
+  const currentWidth
+    = panel.value?.offsetWidth
+      || Math.min(
+        collapsed.value ? COLLAPSED_PANEL_WIDTH : EXPANDED_PANEL_WIDTH,
+        maxPanelWidth,
+      );
   const renderedRightEdge = panel.value?.getBoundingClientRect().right;
-  const rightEdge =
-    renderedRightEdge !== undefined && renderedRightEdge > 0
+  const rightEdge
+    = renderedRightEdge !== undefined && renderedRightEdge > 0
       ? renderedRightEdge
       : panelX.value + currentWidth;
 

@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { WallpaperBoolValue } from "../../../wallpaper-engine/src/types/listeners";
-import type { WallpaperBoolProperty } from "../../../wallpaper-engine/src/types/project";
-import { useDevtoolsStore } from "../store";
-import { Checkbox } from "@/components/ui/checkbox";
+import type { WallpaperBoolValue } from '../../../wallpaper-engine/src/types/listeners';
+import type { WallpaperBoolProperty } from '../../../wallpaper-engine/src/types/project';
+import { computed } from 'vue';
+import { Checkbox } from '@/components/ui/checkbox';
+import { useDevtoolsStore } from '../store';
 
 const props = defineProps<{
   propKey: string;
@@ -17,7 +17,8 @@ const runtimeValue = computed(
 
 function onBool(checked: unknown): void {
   const current = runtimeValue.value;
-  if (!current) return;
+  if (!current)
+    return;
   current.value = checked === true;
   store.deliverProperty(props.propKey);
 }

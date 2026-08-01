@@ -1,17 +1,17 @@
-import { createPinia, setActivePinia } from "pinia";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { createPinia, setActivePinia } from 'pinia';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => {
   vi.resetModules();
   setActivePinia(createPinia());
   window.__WE_DEVTOOLS_CONFIG__ = {
     properties: {
-      speed: { type: "slider", text: "Speed", value: 2, min: 0, max: 5 },
+      speed: { type: 'slider', text: 'Speed', value: 2, min: 0, max: 5 },
       gallery: {
-        type: "directory",
-        text: "Gallery",
-        value: "C:/gallery",
-        mode: "fetchall",
+        type: 'directory',
+        text: 'Gallery',
+        value: 'C:/gallery',
+        mode: 'fetchall',
       },
     },
     localization: {},
@@ -26,15 +26,15 @@ afterEach(() => {
 // is intentional test coverage of listener registration and initial delivery.
 async function installFreshGlobals() {
   const [{ installGlobals }, storeModule] = await Promise.all([
-    import("../src/globals"),
-    import("../src/store"),
+    import('../src/globals'),
+    import('../src/store'),
   ]);
   installGlobals();
   return storeModule;
 }
 
-describe("Wallpaper Engine host globals", () => {
-  it("captures a property listener and replays documented initial state", async () => {
+describe('wallpaper Engine host globals', () => {
+  it('captures a property listener and replays documented initial state', async () => {
     const { useDevtoolsStore } = await installFreshGlobals();
     const applyUserProperties = vi.fn();
     const applyGeneralProperties = vi.fn();
@@ -54,7 +54,7 @@ describe("Wallpaper Engine host globals", () => {
     expect(setPaused).toHaveBeenCalledWith(false);
   });
 
-  it("tracks property and plugin listener replacement", async () => {
+  it('tracks property and plugin listener replacement', async () => {
     const { listenerFns, useDevtoolsStore } = await installFreshGlobals();
     const propertyListener = { applyUserProperties: vi.fn() };
     const pluginListener = { onPluginLoaded: vi.fn() };
@@ -78,7 +78,7 @@ describe("Wallpaper Engine host globals", () => {
     });
   });
 
-  it("registers every audio and media listener and reports counts", async () => {
+  it('registers every audio and media listener and reports counts', async () => {
     const { useDevtoolsStore } = await installFreshGlobals();
     const audio = vi.fn();
     const status = vi.fn();
@@ -110,12 +110,12 @@ describe("Wallpaper Engine host globals", () => {
     expect(timeline).not.toHaveBeenCalled();
   });
 
-  it("delivers the current media snapshot to listeners registered while active", async () => {
+  it('delivers the current media snapshot to listeners registered while active', async () => {
     const { useDevtoolsStore } = await installFreshGlobals();
     const store = useDevtoolsStore();
     store.mediaActive = true;
     store.lastPlaybackState = 1;
-    store.mediaProps.title = "Current track";
+    store.mediaProps.title = 'Current track';
     store.mediaTimeline.position = 75;
     const properties = vi.fn();
     const thumbnail = vi.fn();
@@ -129,7 +129,7 @@ describe("Wallpaper Engine host globals", () => {
     await Promise.resolve();
 
     expect(properties).toHaveBeenCalledWith(
-      expect.objectContaining({ title: "Current track" }),
+      expect.objectContaining({ title: 'Current track' }),
     );
     expect(thumbnail).toHaveBeenCalledWith(
       expect.objectContaining({ thumbnail: expect.stringMatching(/^data:image\//) }),
@@ -138,29 +138,29 @@ describe("Wallpaper Engine host globals", () => {
     expect(timeline).toHaveBeenCalledWith({ position: 75, duration: 180 });
   });
 
-  it("returns a deterministic random file from an on-demand directory", async () => {
+  it('returns a deterministic random file from an on-demand directory', async () => {
     const { useDevtoolsStore } = await installFreshGlobals();
-    useDevtoolsStore().directoryFiles.random = ["C:/one.jpg", "C:/two.jpg"];
-    vi.spyOn(Math, "random").mockReturnValue(0.75);
+    useDevtoolsStore().directoryFiles.random = ['C:/one.jpg', 'C:/two.jpg'];
+    vi.spyOn(Math, 'random').mockReturnValue(0.75);
     const callback = vi.fn();
 
-    window.wallpaperRequestRandomFileForProperty("random", callback);
+    window.wallpaperRequestRandomFileForProperty('random', callback);
 
-    expect(callback).toHaveBeenCalledWith("random", "C:/two.jpg");
+    expect(callback).toHaveBeenCalledWith('random', 'C:/two.jpg');
   });
 
-  it("warns instead of calling back when an on-demand directory is empty", async () => {
+  it('warns instead of calling back when an on-demand directory is empty', async () => {
     await installFreshGlobals();
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const callback = vi.fn();
 
-    window.wallpaperRequestRandomFileForProperty("empty", callback);
+    window.wallpaperRequestRandomFileForProperty('empty', callback);
 
     expect(callback).not.toHaveBeenCalled();
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining("no files configured"));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('no files configured'));
   });
 
-  it("exposes documented media constants and safe LED/iCUE stubs", async () => {
+  it('exposes documented media constants and safe LED/iCUE stubs', async () => {
     await installFreshGlobals();
     const protocol = vi.fn();
     const count = vi.fn();
@@ -173,7 +173,7 @@ describe("Wallpaper Engine host globals", () => {
       PLAYBACK_STOPPED: 2,
     });
     expect(() =>
-      window.wpPlugins.led.setAllDevicesByImageData("data", 1, 1),
+      window.wpPlugins.led.setAllDevicesByImageData('data', 1, 1),
     ).not.toThrow();
     window.cue.getProtocolDetails(protocol);
     window.cue.getDeviceCount(count);
@@ -184,14 +184,14 @@ describe("Wallpaper Engine host globals", () => {
       window.cue.setAllLedsColorsAsync([], { ledId: 0, r: 0, g: 0, b: 0 }),
     ).not.toThrow();
     expect(() =>
-      window.cue.setLedColorsByImageData([], "data", 1, 1),
+      window.cue.setLedColorsByImageData([], 'data', 1, 1),
     ).not.toThrow();
 
     expect(protocol).toHaveBeenCalledWith(
-      expect.objectContaining({ sdkVersion: "0.0.0-dev", breakingChanges: false }),
+      expect.objectContaining({ sdkVersion: '0.0.0-dev', breakingChanges: false }),
     );
     expect(count).toHaveBeenCalledWith(0);
-    expect(info).toHaveBeenCalledWith(expect.objectContaining({ model: "dev" }));
+    expect(info).toHaveBeenCalledWith(expect.objectContaining({ model: 'dev' }));
     expect(positions).toHaveBeenCalledWith([]);
   });
 });

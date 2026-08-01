@@ -1,22 +1,9 @@
-// Types for project.json structure
-export type {
-  WallpaperBoolProperty,
-  WallpaperColorProperty,
-  WallpaperComboOption,
-  WallpaperComboProperty,
-  WallpaperDirectoryProperty,
-  WallpaperFileProperty,
-  WallpaperGroupProperty,
-  WallpaperFileType,
-  WallpaperLocalization,
-  WallpaperProject,
-  WallpaperProjectGeneral,
-  WallpaperPropertyDefinition,
-  WallpaperSliderProperty,
-  WallpaperTextInputProperty,
-} from "./types/project";
-
 // Runtime listener / event types
+// Window global augmentation — import this file (or the package root) in your
+// wallpaper entry file to get typed access to window.wallpaperPropertyListener,
+// window.wallpaperRegisterAudioListener, etc.
+import './types/window';
+
 export type {
   CueDeviceInfo,
   CueLedColor,
@@ -42,9 +29,22 @@ export type {
   WallpaperSliderValue,
   WallpaperTextValue,
   WallpaperUserProperties,
-} from "./types/listeners";
+} from './types/listeners';
 
-// Window global augmentation — import this file (or the package root) in your
-// wallpaper entry file to get typed access to window.wallpaperPropertyListener,
-// window.wallpaperRegisterAudioListener, etc.
-import "./types/window";
+// Types for project.json structure
+export type {
+  WallpaperBoolProperty,
+  WallpaperColorProperty,
+  WallpaperComboOption,
+  WallpaperComboProperty,
+  WallpaperDirectoryProperty,
+  WallpaperFileProperty,
+  WallpaperFileType,
+  WallpaperGroupProperty,
+  WallpaperLocalization,
+  WallpaperProject,
+  WallpaperProjectGeneral,
+  WallpaperPropertyDefinition,
+  WallpaperSliderProperty,
+  WallpaperTextInputProperty,
+} from './types/project';

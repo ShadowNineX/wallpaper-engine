@@ -1,20 +1,20 @@
 <script setup lang="ts">
-import { storeToRefs } from "pinia";
-import Pause from "~icons/ph/pause-duotone";
-import Play from "~icons/ph/play-duotone";
-import PlugZap from "~icons/ph/plug-duotone";
-import { toast } from "vue-sonner";
-import { listenerFns, useDevtoolsStore } from "../store";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { storeToRefs } from 'pinia';
+import { toast } from 'vue-sonner';
+import Pause from '~icons/ph/pause-duotone';
+import Play from '~icons/ph/play-duotone';
+import PlugZap from '~icons/ph/plug-duotone';
+import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import {
   NumberField,
   NumberFieldContent,
   NumberFieldDecrement,
   NumberFieldIncrement,
   NumberFieldInput,
-} from "@/components/ui/number-field";
+} from '@/components/ui/number-field';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { listenerFns, useDevtoolsStore } from '../store';
 
 const store = useDevtoolsStore();
 const general = store.general;
@@ -23,32 +23,32 @@ const { listenerCounts } = storeToRefs(store);
 function applyFps(): void {
   const listener = listenerFns.property;
   if (!listener?.applyGeneralProperties) {
-    toast("No applyGeneralProperties listener registered.");
+    toast('No applyGeneralProperties listener registered.');
     return;
   }
   listener.applyGeneralProperties({ fps: general.fps });
-  toast(`FPS limit sent: ${general.fps === 0 ? "unlimited" : general.fps}`);
+  toast(`FPS limit sent: ${general.fps === 0 ? 'unlimited' : general.fps}`);
 }
 
 function applyPaused(paused: boolean): void {
   general.paused = paused;
   const listener = listenerFns.property;
   if (!listener?.setPaused) {
-    toast("No setPaused listener registered.");
+    toast('No setPaused listener registered.');
     return;
   }
   listener.setPaused(paused);
-  toast(paused ? "Wallpaper paused." : "Wallpaper resumed.");
+  toast(paused ? 'Wallpaper paused.' : 'Wallpaper resumed.');
 }
 
-function firePluginLoaded(name: "led" | "cue"): void {
+function firePluginLoaded(name: 'led' | 'cue'): void {
   const listener = listenerFns.plugin;
   if (!listener?.onPluginLoaded) {
-    toast("No onPluginLoaded listener registered.");
+    toast('No onPluginLoaded listener registered.');
     return;
   }
-  listener.onPluginLoaded(name, "0.0.0-dev");
-  toast(`${name === "led" ? "LED" : "iCUE"} plugin loaded.`);
+  listener.onPluginLoaded(name, '0.0.0-dev');
+  toast(`${name === 'led' ? 'LED' : 'iCUE'} plugin loaded.`);
 }
 </script>
 
@@ -57,7 +57,9 @@ function firePluginLoaded(name: "led" | "cue"): void {
     <section class="we-card">
       <div class="we-card-header">
         <div>
-          <h2 class="we-card-title">Wallpaper runtime</h2>
+          <h2 class="we-card-title">
+            Wallpaper runtime
+          </h2>
           <p class="we-card-description">
             Simulate app-level settings and Wallpaper Engine pause events.
           </p>
@@ -82,7 +84,9 @@ function firePluginLoaded(name: "led" | "cue"): void {
         <div class="we-field">
           <div>
             <Label for="general-fps" class="we-field-label">FPS limit</Label>
-            <div class="mt-0.5 text-[10px] text-we-faint">0 is unlimited</div>
+            <div class="mt-0.5 text-[10px] text-we-faint">
+              0 is unlimited
+            </div>
           </div>
           <div class="flex items-center gap-2">
             <NumberField
@@ -111,8 +115,12 @@ function firePluginLoaded(name: "led" | "cue"): void {
 
         <div class="we-field">
           <div>
-            <div class="we-field-label">Run state</div>
-            <div class="mt-0.5 text-[10px] text-we-faint">setPaused(boolean)</div>
+            <div class="we-field-label">
+              Run state
+            </div>
+            <div class="mt-0.5 text-[10px] text-we-faint">
+              setPaused(boolean)
+            </div>
           </div>
           <ToggleGroup
             type="single"
@@ -140,7 +148,9 @@ function firePluginLoaded(name: "led" | "cue"): void {
     <section class="we-card">
       <div class="we-card-header">
         <div>
-          <h2 class="we-card-title">RGB plugins</h2>
+          <h2 class="we-card-title">
+            RGB plugins
+          </h2>
           <p class="we-card-description">
             Fire the plugin-ready events exposed by Wallpaper Engine.
           </p>

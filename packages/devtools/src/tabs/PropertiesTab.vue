@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { computed, reactive } from "vue";
-import { storeToRefs } from "pinia";
-import CaretRight from "~icons/ph/caret-right";
-import RefreshCw from "~icons/ph/arrows-clockwise";
 import type {
   WallpaperGroupProperty,
   WallpaperPropertyDefinition,
-} from "../../../wallpaper-engine/src/types/project";
-import { propDefs, tr } from "../config";
-import { useDevtoolsStore } from "../store";
-import PropertyRow from "../components/PropertyRow.vue";
-import { Button } from "@/components/ui/button";
+} from '../../../wallpaper-engine/src/types/project';
+import { storeToRefs } from 'pinia';
+import { computed, reactive } from 'vue';
+import RefreshCw from '~icons/ph/arrows-clockwise';
+import CaretRight from '~icons/ph/caret-right';
+import { Button } from '@/components/ui/button';
+import PropertyRow from '../components/PropertyRow.vue';
+import { propDefs, tr } from '../config';
+import { useDevtoolsStore } from '../store';
 
 type RuntimePropertyDefinition = Exclude<
   WallpaperPropertyDefinition,
@@ -31,7 +31,8 @@ const openGroups = reactive(new Set<string>());
 function toggleGroup(key: string): void {
   if (openGroups.has(key)) {
     openGroups.delete(key);
-  } else {
+  }
+  else {
     openGroups.add(key);
   }
 }
@@ -44,12 +45,14 @@ const layout = computed(() => {
   let currentGroup: PropertyGroup | undefined;
 
   for (const [key, definition] of sorted) {
-    if (definition.type === "group") {
+    if (definition.type === 'group') {
       currentGroup = { key, label: tr(definition.text), entries: [] };
       groups.push(currentGroup);
-    } else if (currentGroup) {
+    }
+    else if (currentGroup) {
       currentGroup.entries.push([key, definition]);
-    } else {
+    }
+    else {
       ungrouped.push([key, definition]);
     }
   }
@@ -62,7 +65,9 @@ const layout = computed(() => {
   <div class="space-y-2.5">
     <div class="flex items-center justify-between gap-3 px-0.5">
       <div>
-        <h2 class="text-[11px] font-semibold text-we-text">User properties</h2>
+        <h2 class="text-[11px] font-semibold text-we-text">
+          User properties
+        </h2>
         <p
           class="mt-0.5 text-[11px]"
           :class="

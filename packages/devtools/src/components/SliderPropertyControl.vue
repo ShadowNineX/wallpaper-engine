@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { WallpaperSliderValue } from "../../../wallpaper-engine/src/types/listeners";
-import type { WallpaperSliderProperty } from "../../../wallpaper-engine/src/types/project";
-import { useDevtoolsStore } from "../store";
-import { Slider } from "@/components/ui/slider";
+import type { WallpaperSliderValue } from '../../../wallpaper-engine/src/types/listeners';
+import type { WallpaperSliderProperty } from '../../../wallpaper-engine/src/types/project';
+import { computed } from 'vue';
+import { Slider } from '@/components/ui/slider';
+import { useDevtoolsStore } from '../store';
 
 const props = defineProps<{
   propKey: string;
@@ -16,14 +16,15 @@ const runtimeValue = computed(
 );
 const step = computed(
   () =>
-    props.def.step ??
-    (props.def.fraction ? 10 ** -(props.def.precision ?? 1) : 1),
+    props.def.step
+    ?? (props.def.fraction ? 10 ** -(props.def.precision ?? 1) : 1),
 );
 
 function onSlider(values: number[] | undefined): void {
   const next = values?.[0];
   const current = runtimeValue.value;
-  if (next === undefined || !current) return;
+  if (next === undefined || !current)
+    return;
   current.value = next;
   store.deliverProperty(props.propKey);
 }

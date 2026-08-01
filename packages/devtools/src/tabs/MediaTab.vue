@@ -1,29 +1,29 @@
 <script setup lang="ts">
-import { computed, shallowRef } from "vue";
-import { storeToRefs } from "pinia";
-import Image from "~icons/ph/image-duotone";
-import Music2 from "~icons/ph/music-notes-duotone";
-import Radio from "~icons/ph/broadcast-duotone";
-import Upload from "~icons/ph/upload-simple";
-import { createAverageColorExtractor } from "../../../wallpaper-engine/src/helpers";
 import type {
   WallpaperMediaPlaybackState,
   WallpaperMediaThumbnailEvent,
-} from "../../../wallpaper-engine/src/types/listeners";
-import { toast } from "vue-sonner";
-import { listenerFns, useDevtoolsStore } from "../store";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+} from '../../../wallpaper-engine/src/types/listeners';
+import { storeToRefs } from 'pinia';
+import { computed, shallowRef } from 'vue';
+import { toast } from 'vue-sonner';
+import Radio from '~icons/ph/broadcast-duotone';
+import Image from '~icons/ph/image-duotone';
+import Music2 from '~icons/ph/music-notes-duotone';
+import Upload from '~icons/ph/upload-simple';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
 import {
   NumberField,
   NumberFieldContent,
   NumberFieldDecrement,
   NumberFieldIncrement,
   NumberFieldInput,
-} from "@/components/ui/number-field";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+} from '@/components/ui/number-field';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { createAverageColorExtractor } from '../../../wallpaper-engine/src/helpers';
+import { listenerFns, useDevtoolsStore } from '../store';
 
 const store = useDevtoolsStore();
 const {
@@ -40,61 +40,64 @@ const thumbnailInput = shallowRef<HTMLInputElement | null>(null);
 
 const mediaListenerCount = computed(
   () =>
-    listenerCounts.value.mediaStatus +
-    listenerCounts.value.mediaProps +
-    listenerCounts.value.mediaThumb +
-    listenerCounts.value.mediaPlayback +
-    listenerCounts.value.mediaTimeline,
+    listenerCounts.value.mediaStatus
+    + listenerCounts.value.mediaProps
+    + listenerCounts.value.mediaThumb
+    + listenerCounts.value.mediaPlayback
+    + listenerCounts.value.mediaTimeline,
 );
 
 const playbackStates: Array<{
   state: WallpaperMediaPlaybackState;
   label: string;
 }> = [
-  { state: 0, label: "Playing" },
-  { state: 1, label: "Paused" },
-  { state: 2, label: "Stopped" },
+  { state: 0, label: 'Playing' },
+  { state: 1, label: 'Paused' },
+  { state: 2, label: 'Stopped' },
 ];
 
 const paletteFields: Array<{
-  key: Exclude<keyof WallpaperMediaThumbnailEvent, "thumbnail">;
+  key: Exclude<keyof WallpaperMediaThumbnailEvent, 'thumbnail'>;
   label: string;
 }> = [
-  { key: "primaryColor", label: "Primary" },
-  { key: "secondaryColor", label: "Secondary" },
-  { key: "tertiaryColor", label: "Tertiary" },
-  { key: "textColor", label: "Text" },
-  { key: "highContrastColor", label: "High contrast" },
+  { key: 'primaryColor', label: 'Primary' },
+  { key: 'secondaryColor', label: 'Secondary' },
+  { key: 'tertiaryColor', label: 'Tertiary' },
+  { key: 'textColor', label: 'Text' },
+  { key: 'highContrastColor', label: 'High contrast' },
 ];
 
 function requireMedia(): boolean {
-  if (mediaActive.value) return true;
-  toast("Enable media integration before sending media events.");
+  if (mediaActive.value)
+    return true;
+  toast('Enable media integration before sending media events.');
   return false;
 }
 
 function setMediaEnabled(enabled: boolean): void {
   mediaActive.value = enabled;
   store.deliverAllMedia();
-  toast(enabled ? "Media integration enabled." : "Media integration disabled.");
+  toast(enabled ? 'Media integration enabled.' : 'Media integration disabled.');
 }
 
 function sendProperties(): void {
-  if (!requireMedia()) return;
-  store.fanout(listenerFns.mediaProps, { ...mediaProps.value }, "media properties");
+  if (!requireMedia())
+    return;
+  store.fanout(listenerFns.mediaProps, { ...mediaProps.value }, 'media properties');
 }
 
 function setContentType(event: Event): void {
   const value = (event.target as HTMLSelectElement).value;
-  if (value === "music" || value === "video" || value === "image") {
+  if (value === 'music' || value === 'video' || value === 'image') {
     mediaProps.value.contentType = value;
   }
 }
 
 function sendPlayback(state: WallpaperMediaPlaybackState): void {
-  if (!requireMedia()) return;
+  if (!requireMedia())
+    return;
   lastPlaybackState.value = state;
-  store.fanout(listenerFns.mediaPlayback, { state }, "media playback");
+  store.fanout(listenerFns.mediaPlayback, { state }, 'media playback');
 }
 
 function setPosition(value: number): void {
@@ -113,12 +116,13 @@ function setDuration(value: number): void {
 }
 
 function sendTimeline(): void {
-  if (!requireMedia()) return;
+  if (!requireMedia())
+    return;
   setPosition(timeline.value.position);
   store.fanout(
     listenerFns.mediaTimeline,
     { ...timeline.value },
-    "media timeline",
+    'media timeline',
   );
 }
 
@@ -129,31 +133,34 @@ function pickThumbnail(): void {
 async function onThumbnailFile(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file) return;
+  if (!file)
+    return;
 
   const sourceUrl = URL.createObjectURL(file);
   try {
     const image = new globalThis.Image();
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
-      image.onerror = () => reject(new Error("Unable to decode artwork"));
+      image.onerror = () => reject(new Error('Unable to decode artwork'));
       image.src = sourceUrl;
     });
 
     const width = image.naturalWidth;
     const height = image.naturalHeight;
-    if (width < 1 || height < 1) throw new Error("Artwork has no pixels");
+    if (width < 1 || height < 1)
+      throw new Error('Artwork has no pixels');
 
-    const canvas = document.createElement("canvas");
+    const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Canvas is unavailable");
+    const context = canvas.getContext('2d');
+    if (!context)
+      throw new Error('Canvas is unavailable');
     context.drawImage(image, 0, 0, width, height);
 
-    const pngDataUrl = canvas.toDataURL("image/png");
-    if (!pngDataUrl.startsWith("data:image/png;base64,")) {
-      throw new Error("Unable to encode artwork as PNG");
+    const pngDataUrl = canvas.toDataURL('image/png');
+    if (!pngDataUrl.startsWith('data:image/png;base64,')) {
+      throw new Error('Unable to encode artwork as PNG');
     }
     thumb.value.thumbnail = pngDataUrl;
 
@@ -177,35 +184,40 @@ async function onThumbnailFile(event: Event): Promise<void> {
       thumb.value.primaryColor = full.hex;
       thumb.value.secondaryColor = topLeft.hex;
       thumb.value.tertiaryColor = bottomRight.hex;
-      thumb.value.textColor = full.isDark ? "#ffffff" : "#000000";
-      thumb.value.highContrastColor = full.isDark ? "#ffffff" : "#000000";
-    } catch (error) {
-      console.warn("[WE Dev] Unable to extract thumbnail colors", error);
-      toast("Artwork converted to PNG, but its palette could not be extracted.");
-    } finally {
+      thumb.value.textColor = full.isDark ? '#ffffff' : '#000000';
+      thumb.value.highContrastColor = full.isDark ? '#ffffff' : '#000000';
+    }
+    catch (error) {
+      console.warn('[WE Dev] Unable to extract thumbnail colors', error);
+      toast('Artwork converted to PNG, but its palette could not be extracted.');
+    }
+    finally {
       averageColor.destroy();
     }
-  } catch (error) {
-    console.warn("[WE Dev] Unable to prepare thumbnail", error);
+  }
+  catch (error) {
+    console.warn('[WE Dev] Unable to prepare thumbnail', error);
     toast(
-      "Unable to decode or convert that image. Choose a format supported by this browser.",
+      'Unable to decode or convert that image. Choose a format supported by this browser.',
     );
-  } finally {
+  }
+  finally {
     URL.revokeObjectURL(sourceUrl);
-    input.value = "";
+    input.value = '';
   }
 }
 
 function sendThumbnail(): void {
-  if (!requireMedia()) return;
-  if (!thumb.value.thumbnail.startsWith("data:image/png;base64,")) {
-    toast("Choose a PNG thumbnail before sending.");
+  if (!requireMedia())
+    return;
+  if (!thumb.value.thumbnail.startsWith('data:image/png;base64,')) {
+    toast('Choose a PNG thumbnail before sending.');
     return;
   }
   store.fanout(
     listenerFns.mediaThumb,
     { ...thumb.value },
-    "media thumbnail",
+    'media thumbnail',
   );
 }
 </script>
@@ -215,7 +227,9 @@ function sendThumbnail(): void {
     <section class="we-card">
       <div class="we-card-header">
         <div>
-          <h2 class="we-card-title">Media integration</h2>
+          <h2 class="we-card-title">
+            Media integration
+          </h2>
           <p class="we-card-description">
             Enabling sends the complete current media state; disabling sends status only.
           </p>
@@ -258,8 +272,12 @@ function sendThumbnail(): void {
     <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
       <div class="we-card-header">
         <div>
-          <h2 class="we-card-title">Now playing</h2>
-          <p class="we-card-description">Track metadata exposed by the host media session.</p>
+          <h2 class="we-card-title">
+            Now playing
+          </h2>
+          <p class="we-card-description">
+            Track metadata exposed by the host media session.
+          </p>
         </div>
         <Music2 class="size-4 text-we-faint" />
       </div>
@@ -284,9 +302,15 @@ function sendThumbnail(): void {
             class="h-8 text-xs"
             @change="setContentType"
           >
-            <NativeSelectOption value="music">Music</NativeSelectOption>
-            <NativeSelectOption value="video">Video</NativeSelectOption>
-            <NativeSelectOption value="image">Image</NativeSelectOption>
+            <NativeSelectOption value="music">
+              Music
+            </NativeSelectOption>
+            <NativeSelectOption value="video">
+              Video
+            </NativeSelectOption>
+            <NativeSelectOption value="image">
+              Image
+            </NativeSelectOption>
           </NativeSelect>
         </div>
       </div>
@@ -300,8 +324,12 @@ function sendThumbnail(): void {
     <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
       <div class="we-card-header">
         <div>
-          <h2 class="we-card-title">Playback</h2>
-          <p class="we-card-description">Transport state and timeline use separate callbacks.</p>
+          <h2 class="we-card-title">
+            Playback
+          </h2>
+          <p class="we-card-description">
+            Transport state and timeline use separate callbacks.
+          </p>
         </div>
       </div>
       <ToggleGroup
@@ -364,7 +392,9 @@ function sendThumbnail(): void {
     <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
       <div class="we-card-header">
         <div>
-          <h2 class="we-card-title">Artwork</h2>
+          <h2 class="we-card-title">
+            Artwork
+          </h2>
           <p class="we-card-description">
             Wallpaper Engine emits album art callbacks as base64 PNG.
           </p>
@@ -374,17 +404,17 @@ function sendThumbnail(): void {
 
       <label for="media-thumbnail-input" class="sr-only">Artwork image</label>
       <input
-        ref="thumbnailInput"
         id="media-thumbnail-input"
+        ref="thumbnailInput"
         type="file"
         accept="image/*"
         class="hidden"
         @change="onThumbnailFile"
-      />
+      >
 
       <div class="flex items-center gap-3">
         <div class="size-18 shrink-0 overflow-hidden rounded-lg border border-we-border bg-we-panel">
-          <img :src="thumb.thumbnail" alt="Media artwork preview" class="size-full object-cover" />
+          <img :src="thumb.thumbnail" alt="Media artwork preview" class="size-full object-cover">
         </div>
         <div class="min-w-0 flex-1">
           <Button size="sm" variant="outline" class="h-8 gap-1.5 text-[11px]" @click="pickThumbnail">
@@ -411,7 +441,7 @@ function sendThumbnail(): void {
                 v-model="thumb[field.key]"
                 type="color"
                 class="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-we-border bg-we-btn p-1"
-              />
+              >
               <label :for="`thumb-${field.key}-value`" class="sr-only">
                 {{ field.label }} color value
               </label>

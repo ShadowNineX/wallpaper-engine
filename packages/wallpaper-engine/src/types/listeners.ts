@@ -66,14 +66,14 @@ export interface WallpaperDirectoryValue {
 }
 
 /** Union of all possible runtime property values delivered by `applyUserProperties`. */
-export type WallpaperPropertyRuntimeValue =
-  | WallpaperColorValue
-  | WallpaperSliderValue
-  | WallpaperBoolValue
-  | WallpaperComboValue
-  | WallpaperTextValue
-  | WallpaperFileValue
-  | WallpaperDirectoryValue;
+export type WallpaperPropertyRuntimeValue
+  = | WallpaperColorValue
+    | WallpaperSliderValue
+    | WallpaperBoolValue
+    | WallpaperComboValue
+    | WallpaperTextValue
+    | WallpaperFileValue
+    | WallpaperDirectoryValue;
 
 /**
  * Map of property key → current runtime value passed to
@@ -203,7 +203,7 @@ export interface WallpaperMediaPropertiesEvent {
   /** Optional comma-separated list of genres. */
   genres?: string;
   /** Media type: `"music"`, `"video"`, or `"image"`. */
-  contentType: "music" | "video" | "image";
+  contentType: 'music' | 'video' | 'image';
 }
 
 /**
@@ -338,37 +338,37 @@ export interface CueLedColor {
  */
 export interface WallpaperCuePlugin {
   /** Returns current iCUE SDK status and version info */
-  getProtocolDetails(
+  getProtocolDetails: (
     callback: (protocolDetails: CueProtocolDetails) => void,
-  ): void;
+  ) => void;
   /** Returns the number of recognised iCUE-compatible devices */
-  getDeviceCount(callback: (deviceCount: number) => void): void;
+  getDeviceCount: (callback: (deviceCount: number) => void) => void;
   /** Returns hardware details for a specific device by index */
-  getDeviceInfo(
+  getDeviceInfo: (
     deviceIndex: number,
     callback: (deviceInfo: CueDeviceInfo) => void,
-  ): void;
+  ) => void;
   /** Returns all LED positions for a specific device */
-  getLedPositionsByDeviceIndex(
+  getLedPositionsByDeviceIndex: (
     callback: (arrayOfLEDs: CueLedPosition[]) => void,
-  ): void;
+  ) => void;
   /** Update specific LEDs by supplying an array of `CueLedColor` objects */
-  setLedsColorsAsync(arrayOfLEDColors: CueLedColor[]): void;
+  setLedsColorsAsync: (arrayOfLEDColors: CueLedColor[]) => void;
   /** Set all LEDs on one or more devices to a single color */
-  setAllLedsColorsAsync(
+  setAllLedsColorsAsync: (
     deviceIndexOrArray: number | number[],
     LEDColor: CueLedColor,
-  ): void;
+  ) => void;
   /**
    * Update device LEDs from an RGB bitmap string (same format as
    * `wpPlugins.led.setAllDevicesByImageData`, but targets specific devices).
    */
-  setLedColorsByImageData(
+  setLedColorsByImageData: (
     deviceIndexOrArray: number | number[],
     encodedImageData: string,
     width: number,
     height: number,
-  ): void;
+  ) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -381,9 +381,9 @@ export interface WallpaperLedPlugin {
    * Use a small canvas (e.g. 100×20) and convert it with `getImageData` for
    * best performance.
    */
-  setAllDevicesByImageData(
+  setAllDevicesByImageData: (
     encodedImageData: string,
     width: number,
     height: number,
-  ): void;
+  ) => void;
 }

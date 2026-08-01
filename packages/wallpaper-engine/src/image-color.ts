@@ -1,5 +1,5 @@
-import { FastAverageColor } from "fast-average-color";
-import type { FastAverageColorOptions } from "fast-average-color";
+import type { FastAverageColorOptions } from 'fast-average-color';
+import { FastAverageColor } from 'fast-average-color';
 
 type RgbaColor = [number, number, number, number];
 
@@ -12,14 +12,14 @@ type RgbaColor = [number, number, number, number];
  * @example
  * const source: AverageColorSource = document.querySelector('video')!;
  */
-export type AverageColorSource =
-  | string
-  | HTMLImageElement
-  | HTMLVideoElement
-  | HTMLCanvasElement
-  | OffscreenCanvas
-  | ImageBitmap
-  | VideoFrame;
+export type AverageColorSource
+  = | string
+    | HTMLImageElement
+    | HTMLVideoElement
+    | HTMLCanvasElement
+    | OffscreenCanvas
+    | ImageBitmap
+    | VideoFrame;
 
 /**
  * Controls image sampling and color calculation.
@@ -136,7 +136,8 @@ export async function getAverageColor(
   const extractor = createAverageColorExtractor();
   try {
     return await extractor.getColorAsync(source, options);
-  } finally {
+  }
+  finally {
     extractor.destroy();
   }
 }

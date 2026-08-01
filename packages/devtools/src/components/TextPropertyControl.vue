@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed } from "vue";
-import type { WallpaperTextValue } from "../../../wallpaper-engine/src/types/listeners";
-import type { WallpaperTextInputProperty } from "../../../wallpaper-engine/src/types/project";
-import { useDevtoolsStore } from "../store";
-import { Input } from "@/components/ui/input";
+import type { WallpaperTextValue } from '../../../wallpaper-engine/src/types/listeners';
+import type { WallpaperTextInputProperty } from '../../../wallpaper-engine/src/types/project';
+import { computed } from 'vue';
+import { Input } from '@/components/ui/input';
+import { useDevtoolsStore } from '../store';
 
 const props = defineProps<{
   propKey: string;
@@ -17,7 +17,8 @@ const runtimeValue = computed(
 
 function onText(next: string | number): void {
   const current = runtimeValue.value;
-  if (!current) return;
+  if (!current)
+    return;
   current.value = String(next);
   store.deliverProperty(props.propKey);
 }

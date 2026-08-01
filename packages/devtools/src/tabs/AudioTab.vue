@@ -1,21 +1,23 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, type Component } from "vue";
-import { storeToRefs } from "pinia";
-import ArrowsLeftRight from "~icons/ph/arrows-left-right-duotone";
-import AudioLines from "~icons/ph/waveform-duotone";
-import Heartbeat from "~icons/ph/heartbeat-duotone";
-import SpeakerSlash from "~icons/ph/speaker-slash-duotone";
-import WaveformSlash from "~icons/ph/waveform-slash-duotone";
-import WaveSine from "~icons/ph/wave-sine-duotone";
+import type { Component } from 'vue';
+import type { AudioMode } from '../audio';
+import { storeToRefs } from 'pinia';
+import { onBeforeUnmount, onMounted, shallowRef } from 'vue';
+import ArrowsLeftRight from '~icons/ph/arrows-left-right-duotone';
+import Heartbeat from '~icons/ph/heartbeat-duotone';
+import SpeakerSlash from '~icons/ph/speaker-slash-duotone';
+import WaveSine from '~icons/ph/wave-sine-duotone';
+import AudioLines from '~icons/ph/waveform-duotone';
+import WaveformSlash from '~icons/ph/waveform-slash-duotone';
+import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   AUDIO_MODE_LABELS,
-  type AudioMode,
+
   audioState,
   lastFrame,
   setAudioMode,
-} from "../audio";
-import { useDevtoolsStore } from "../store";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+} from '../audio';
+import { useDevtoolsStore } from '../store';
 
 const { listenerCounts } = storeToRefs(useDevtoolsStore());
 const modes: Array<{
@@ -24,33 +26,33 @@ const modes: Array<{
   icon: Component;
 }> = [
   {
-    value: "off",
-    description: "Stops callbacks",
+    value: 'off',
+    description: 'Stops callbacks',
     icon: SpeakerSlash,
   },
   {
-    value: "silence",
-    description: "Zeroed spectrum",
+    value: 'silence',
+    description: 'Zeroed spectrum',
     icon: WaveformSlash,
   },
   {
-    value: "random",
-    description: "Reactive spectrum",
+    value: 'random',
+    description: 'Reactive spectrum',
     icon: AudioLines,
   },
   {
-    value: "sine",
-    description: "Frequency sweep",
+    value: 'sine',
+    description: 'Frequency sweep',
     icon: WaveSine,
   },
   {
-    value: "bass",
-    description: "Low-end pulse",
+    value: 'bass',
+    description: 'Low-end pulse',
     icon: Heartbeat,
   },
   {
-    value: "stereo",
-    description: "Left-right motion",
+    value: 'stereo',
+    description: 'Left-right motion',
     icon: ArrowsLeftRight,
   },
 ];
@@ -68,15 +70,15 @@ interface ChannelStyle {
 const LEFT_CHANNEL_STYLE = {
   sampleOffset: 0,
   direction: -1,
-  nearColor: "rgba(44, 95, 208, 0.45)",
-  farColor: "rgba(96, 165, 250, 0.95)",
+  nearColor: 'rgba(44, 95, 208, 0.45)',
+  farColor: 'rgba(96, 165, 250, 0.95)',
 } satisfies ChannelStyle;
 
 const RIGHT_CHANNEL_STYLE = {
   sampleOffset: 64,
   direction: 1,
-  nearColor: "rgba(109, 72, 190, 0.45)",
-  farColor: "rgba(167, 139, 250, 0.95)",
+  nearColor: 'rgba(109, 72, 190, 0.45)',
+  farColor: 'rgba(167, 139, 250, 0.95)',
 } satisfies ChannelStyle;
 
 function drawChannel(
@@ -100,9 +102,10 @@ function drawChannel(
 
   for (let bin = 0; bin < 64; bin++) {
     const barHeight = (frame[style.sampleOffset + bin] ?? 0) * channelHeight;
-    if (barHeight <= 0) continue;
-    const barY =
-      style.direction === -1 ? centerY - barHeight : centerY + 1;
+    if (barHeight <= 0)
+      continue;
+    const barY
+      = style.direction === -1 ? centerY - barHeight : centerY + 1;
     context.fillRect(
       labelWidth + bin * barWidth + 0.5,
       barY,
@@ -119,11 +122,11 @@ function drawChannelLabels(
 ): void {
   const centerY = height / 2;
   context.font = '8px "JetBrains Mono Variable", monospace';
-  context.textBaseline = "middle";
-  context.fillStyle = active ? "#83a7ff" : "#6c6f78";
-  context.fillText("L", 1, centerY - 7);
-  context.fillStyle = active ? "#b49cff" : "#6c6f78";
-  context.fillText("R", 1, centerY + 8);
+  context.textBaseline = 'middle';
+  context.fillStyle = active ? '#83a7ff' : '#6c6f78';
+  context.fillText('L', 1, centerY - 7);
+  context.fillStyle = active ? '#b49cff' : '#6c6f78';
+  context.fillText('R', 1, centerY + 8);
 }
 
 function renderSpectrum(
@@ -136,7 +139,7 @@ function renderSpectrum(
   context.clearRect(0, 0, width, height);
   const centerY = height / 2;
   const labelWidth = 12;
-  context.fillStyle = "rgba(86, 93, 107, 0.55)";
+  context.fillStyle = 'rgba(86, 93, 107, 0.55)';
   context.fillRect(labelWidth, centerY - 0.5, width - labelWidth, 1);
 
   if (active) {
@@ -148,14 +151,14 @@ function renderSpectrum(
 
 function drawFrame(): void {
   const target = canvas.value;
-  const context = target?.getContext("2d");
+  const context = target?.getContext('2d');
   if (target && context) {
     renderSpectrum(
       context,
       target.width,
       target.height,
       lastFrame.value,
-      audioState.mode !== "off",
+      audioState.mode !== 'off',
     );
   }
   animationFrame = requestAnimationFrame(drawFrame);
@@ -170,7 +173,9 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
     <section class="we-card">
       <div class="we-card-header">
         <div>
-          <h2 class="we-card-title">Audio processing</h2>
+          <h2 class="we-card-title">
+            Audio processing
+          </h2>
           <p class="we-card-description text-pretty">
             Send 128-sample stereo spectrum frames at approximately 30 Hz.
           </p>
