@@ -235,23 +235,25 @@ export interface WallpaperMediaThumbnailEvent {
   highContrastColor: string;
 }
 
-/** Media is actively playing on the system. */
-export const PLAYBACK_PLAYING = 0 as const;
-/** Media was playing but has been temporarily paused by the user. */
-export const PLAYBACK_PAUSED = 1 as const;
-/** Media playback is completely stopped. */
-export const PLAYBACK_STOPPED = 2 as const;
-
 /**
  * Numeric playback state for {@link WallpaperMediaPlaybackEvent}.
- * Compare against `window.wallpaperMediaIntegration.PLAYBACK_PLAYING` etc.
- * or the module-level constants {@link PLAYBACK_PLAYING}, {@link PLAYBACK_PAUSED},
- * {@link PLAYBACK_STOPPED}.
+ *
+ * Wallpaper Engine defines the values at runtime. Compare this value against
+ * the matching constant on `window.wallpaperMediaIntegration`.
+ *
+ * @example
+ * ```ts
+ * window.wallpaperRegisterMediaPlaybackListener((event) => {
+ *   if (
+ *     event.state ===
+ *     window.wallpaperMediaIntegration.PLAYBACK_PLAYING
+ *   ) {
+ *     console.log("Playing");
+ *   }
+ * });
+ * ```
  */
-export type WallpaperMediaPlaybackState =
-  | typeof PLAYBACK_PLAYING
-  | typeof PLAYBACK_PAUSED
-  | typeof PLAYBACK_STOPPED;
+export type WallpaperMediaPlaybackState = number;
 
 /**
  * Event fired by `wallpaperRegisterMediaPlaybackListener` when playback
@@ -259,10 +261,9 @@ export type WallpaperMediaPlaybackState =
  */
 export interface WallpaperMediaPlaybackEvent {
   /**
-   * Current playback state. Compare against the `PLAYBACK_*` constants:
-   * - `PLAYBACK_PLAYING` (`0`) — actively playing
-   * - `PLAYBACK_PAUSED`  (`1`) — temporarily paused
-   * - `PLAYBACK_STOPPED` (`2`) — playback stopped
+   * Current playback state. Compare against the matching constant on
+   * `window.wallpaperMediaIntegration`; the numeric values are defined by
+   * Wallpaper Engine at runtime.
    */
   state: WallpaperMediaPlaybackState;
 }

@@ -473,7 +473,7 @@ window.cue.setLedsColorsAsync(deviceIndex, colors);
 | Media | Media status, properties, thumbnail, playback, and timeline event types |
 | Hardware | `WallpaperCuePlugin`, `WallpaperLedPlugin`, CUE device, LED color, position, and protocol types |
 
-Playback constants are also available from the main entry: `PLAYBACK_STOPPED`, `PLAYBACK_PLAYING`, and `PLAYBACK_PAUSED`.
+Playback state numbers are defined by Wallpaper Engine at runtime. Compare `event.state` against `window.wallpaperMediaIntegration.PLAYBACK_PLAYING`, `PLAYBACK_PAUSED`, or `PLAYBACK_STOPPED` rather than hard-coding numeric values.
 
 ## <a id="development"></a>🏗️ Development
 

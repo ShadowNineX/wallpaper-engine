@@ -21,9 +21,11 @@ import {
   Square,
   Waves,
 } from "lucide-vue-next";
+import type { WallpaperMediaPlaybackState } from "wallpaper-engine";
 import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
 import {
   createFpsLimiter,
+  getMediaPlaybackStatus,
   toFileUrl,
   wallpaperColorToHex,
 } from "wallpaper-engine/helpers";
@@ -40,7 +42,6 @@ type BackgroundSource =
   | "videogallery";
 type VisualStyle = "bars" | "wave" | "ring" | "off";
 type ClockFormat = "twelve" | "twentyfour";
-type PlaybackState = 0 | 1 | 2;
 
 interface Particle {
   x: number;
@@ -83,7 +84,7 @@ const imageGallery = ref<string[]>([]);
 const videoGallery = ref<string[]>([]);
 const galleryIndex = ref(0);
 
-const mediaEnabled = ref(false);
+const mediaEnabled = ref<boolean | null>(null);
 const mediaTitle = ref("");
 const mediaArtist = ref("");
 const mediaSubtitle = ref("");
@@ -97,7 +98,9 @@ const mediaSecondary = ref("");
 const mediaTertiary = ref("");
 const mediaText = ref("");
 const mediaHighContrast = ref("");
-const playbackState = ref<PlaybackState>(2);
+const playbackState = ref<WallpaperMediaPlaybackState>(
+  globalThis.wallpaperMediaIntegration.PLAYBACK_STOPPED,
+);
 const timelinePosition = ref(0);
 const timelineDuration = ref(0);
 
@@ -212,6 +215,7 @@ const timezoneText = Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll
 const hasMedia = computed(
   () => mediaTitle.value !== "" || mediaArtist.value !== "",
 );
+const mediaLinked = computed(() => mediaEnabled.value ?? hasMedia.value);
 const mediaHeading = computed(() => mediaTitle.value || "Awaiting playback");
 const mediaByline = computed(() => {
   if (mediaArtist.value && mediaAlbum.value) {
@@ -227,15 +231,13 @@ const progressPercent = computed(() =>
     ? Math.min(100, (timelinePosition.value / timelineDuration.value) * 100)
     : 0,
 );
-const playbackLabel = computed(() => {
-  if (!mediaEnabled.value) return "OFFLINE";
-  if (playbackState.value === 0) return "PLAYING";
-  if (playbackState.value === 1) return "PAUSED";
-  return "READY";
-});
+const playbackStatus = computed(() =>
+  getMediaPlaybackStatus(playbackState.value),
+);
+const playbackLabel = computed(() => playbackStatus.value.toUpperCase());
 const playbackIcon = computed(() => {
-  if (playbackState.value === 0) return Play;
-  if (playbackState.value === 1) return Pause;
+  if (playbackStatus.value === "playing") return Play;
+  if (playbackStatus.value === "paused") return Pause;
   return Square;
 });
 
@@ -696,7 +698,8 @@ globalThis.wallpaperRegisterMediaStatusListener((event) => {
   mediaHighContrast.value = "";
   timelinePosition.value = 0;
   timelineDuration.value = 0;
-  playbackState.value = 2;
+  playbackState.value =
+    globalThis.wallpaperMediaIntegration.PLAYBACK_STOPPED;
 });
 
 globalThis.wallpaperRegisterMediaPropertiesListener((event) => {
@@ -782,8 +785,8 @@ onBeforeUnmount(() => {
       </div>
       <div class="system-cluster">
         <span class="system-pill">
-          <span class="status-dot" :class="mediaEnabled ? 'is-live' : ''" />
-          MEDIA {{ mediaEnabled ? "LINKED" : "STANDBY" }}
+          <span class="status-dot" :class="mediaLinked ? 'is-live' : ''" />
+          MEDIA {{ mediaLinked ? "LINKED" : "STANDBY" }}
         </span>
         <span
           class="system-pill"

@@ -139,6 +139,30 @@ export function rightChannel(audioArray: number[]): number[] {
 }
 
 // ---------------------------------------------------------------------------
+// Media helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve a media playback state using the constants supplied by Wallpaper
+ * Engine at runtime.
+ *
+ * @example
+ * window.wallpaperRegisterMediaPlaybackListener((event) => {
+ *   if (getMediaPlaybackStatus(event.state) === "playing") {
+ *     console.log("Media is playing");
+ *   }
+ * });
+ */
+export function getMediaPlaybackStatus(
+  state: number,
+): "playing" | "paused" | "stopped" {
+  const integration = globalThis.wallpaperMediaIntegration;
+  if (state === integration.PLAYBACK_PLAYING) return "playing";
+  if (state === integration.PLAYBACK_PAUSED) return "paused";
+  return "stopped";
+}
+
+// ---------------------------------------------------------------------------
 // RGB / LED helpers
 // ---------------------------------------------------------------------------
 

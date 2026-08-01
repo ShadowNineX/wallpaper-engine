@@ -44,12 +44,6 @@ export type {
   WallpaperUserProperties,
 } from "./types/listeners";
 
-export {
-  PLAYBACK_PAUSED,
-  PLAYBACK_PLAYING,
-  PLAYBACK_STOPPED,
-} from "./types/listeners";
-
 // Window global augmentation — import this file (or the package root) in your
 // wallpaper entry file to get typed access to window.wallpaperPropertyListener,
 // window.wallpaperRegisterAudioListener, etc.

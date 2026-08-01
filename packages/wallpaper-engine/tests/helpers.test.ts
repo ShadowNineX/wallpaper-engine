@@ -6,6 +6,7 @@ import {
   createFpsLimiter,
   encodeCanvasForLed,
   getAverageColor,
+  getMediaPlaybackStatus,
   leftChannel,
   parseWallpaperColor,
   rightChannel,
@@ -336,6 +337,28 @@ describe("rightChannel", () => {
     expect(result).toHaveLength(64);
     expect(result[0]).toBe(64);
     expect(result[63]).toBe(127);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Media helpers
+// ---------------------------------------------------------------------------
+
+describe("getMediaPlaybackStatus", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the playback values supplied by the Wallpaper Engine host", () => {
+    vi.stubGlobal("wallpaperMediaIntegration", {
+      PLAYBACK_STOPPED: 0,
+      PLAYBACK_PLAYING: 1,
+      PLAYBACK_PAUSED: 2,
+    });
+
+    expect(getMediaPlaybackStatus(1)).toBe("playing");
+    expect(getMediaPlaybackStatus(2)).toBe("paused");
+    expect(getMediaPlaybackStatus(0)).toBe("stopped");
   });
 });
 
