@@ -221,9 +221,11 @@ export interface WallpaperEnginePluginOptions {
   /** Wallpaper title shown in the Wallpaper Engine UI */
   title: string;
   /**
-   * Enable audio data delivery to `wallpaperRegisterAudioListener`.
-   * Wallpaper Engine can auto-detect this, but you can set it explicitly.
-   * @default false
+   * Override automatic audio-listener detection.
+   *
+   * By default, production JavaScript and HTML are scanned for calls to
+   * `wallpaperRegisterAudioListener`. Set this to `true` to always enable
+   * audio processing or `false` to explicitly disable it.
    */
   supportsAudioProcessing?: boolean;
   /**
@@ -365,7 +367,7 @@ export function wallpaperEnginePlugin(
       ];
     },
 
-    generateBundle() {
+    generateBundle(_outputOptions, bundle) {
       const properties = options.properties
         ? assignIndices(options.properties)
         : undefined;
@@ -373,7 +375,10 @@ export function wallpaperEnginePlugin(
       const general: WallpaperProjectGeneral = {};
       if (properties) general.properties = properties;
       if (options.localization) general.localization = options.localization;
-      if (options.supportsAudioProcessing) {
+      if (
+        options.supportsAudioProcessing ??
+        Object.values(bundle).some(bundleOutputRegistersAudioListener)
+      ) {
         general.supportsaudioprocessing = true;
       }
 
@@ -400,6 +405,26 @@ export function wallpaperEnginePlugin(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+
+type BundleOutput =
+  | { type: "chunk"; code: string }
+  | { type: "asset"; fileName: string; source: string | Uint8Array };
+
+const AUDIO_LISTENER_CALL =
+  /(?:\b(?:window|globalThis)\s*(?:\.\s*wallpaperRegisterAudioListener|\[\s*["']wallpaperRegisterAudioListener["']\s*\])|\bwallpaperRegisterAudioListener)\s*(?:\?\.)?\s*\(/;
+
+function bundleOutputRegistersAudioListener(output: BundleOutput): boolean {
+  if (output.type === "chunk") {
+    return AUDIO_LISTENER_CALL.test(output.code);
+  }
+
+  if (!/\.(?:[cm]?js|html?)$/i.test(output.fileName)) return false;
+  const source =
+    typeof output.source === "string"
+      ? output.source
+      : new TextDecoder().decode(output.source);
+  return AUDIO_LISTENER_CALL.test(source);
+}
 
 /**
  * Auto-assigns `index` and `order` to any properties that don't already have

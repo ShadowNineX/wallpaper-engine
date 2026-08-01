@@ -10,7 +10,6 @@ export default defineConfig({
     vue(),
     wallpaperEnginePlugin({
       title: "Aether // Reactive Desktop",
-      supportsAudioProcessing: true,
       properties,
     }),
   ],

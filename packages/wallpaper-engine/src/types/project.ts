@@ -161,9 +161,8 @@ export interface WallpaperProjectGeneral {
   properties?: Record<string, WallpaperPropertyDefinition>;
   localization?: WallpaperLocalization;
   /**
-   * Set to `true` to enable audio data delivery.
-   * Wallpaper Engine auto-detects this from `wallpaperRegisterAudioListener`
-   * calls, but you can also set it manually.
+   * Set to `true` to enable audio data delivery. The Vite plugin detects
+   * direct `wallpaperRegisterAudioListener` calls automatically.
    */
   supportsaudioprocessing?: boolean;
 }

@@ -191,7 +191,20 @@ describe("groupProperty", () => {
 // Vite plugin — generateBundle output
 // ---------------------------------------------------------------------------
 
-function runGenerateBundle(plugin: ReturnType<typeof wallpaperEnginePlugin>) {
+interface GenerateBundlePlugin {
+  generateBundle?: unknown;
+}
+
+type TestOutputBundle = Record<
+  string,
+  | { type: "chunk"; fileName: string; code: string }
+  | { type: "asset"; fileName: string; source: string | Uint8Array }
+>;
+
+function runGenerateBundle(
+  plugin: GenerateBundlePlugin,
+  bundle: TestOutputBundle = {},
+) {
   let emitted: { fileName: string; source: string } | undefined;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (plugin.generateBundle as any).call(
@@ -201,7 +214,7 @@ function runGenerateBundle(plugin: ReturnType<typeof wallpaperEnginePlugin>) {
       },
     },
     {},
-    {},
+    bundle,
   );
   if (!emitted) throw new Error("emitFile was not called");
   return { fileName: emitted.fileName, project: JSON.parse(emitted.source) };
@@ -237,6 +250,70 @@ describe("wallpaperEnginePlugin", () => {
     );
     expect(project.general).toEqual({ supportsaudioprocessing: true });
     expect(project.supportsaudioprocessing).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "window property",
+      "window.wallpaperRegisterAudioListener(() => undefined);",
+    ],
+    [
+      "globalThis property",
+      "globalThis.wallpaperRegisterAudioListener(() => undefined);",
+    ],
+    ["bare global", "wallpaperRegisterAudioListener(() => undefined);"],
+    [
+      "computed window property",
+      'window["wallpaperRegisterAudioListener"](() => undefined);',
+    ],
+  ])("detects a %s call in an emitted chunk", (_name, code) => {
+    const { project } = runGenerateBundle(
+      wallpaperEnginePlugin({ title: "T" }),
+      {
+        "assets/index.js": {
+          type: "chunk",
+          fileName: "assets/index.js",
+          code,
+        },
+      },
+    );
+
+    expect(project.general).toEqual({ supportsaudioprocessing: true });
+  });
+
+  it("detects a listener call in an emitted script asset", () => {
+    const { project } = runGenerateBundle(
+      wallpaperEnginePlugin({ title: "T" }),
+      {
+        "audio.js": {
+          type: "asset",
+          fileName: "audio.js",
+          source: new TextEncoder().encode(
+            "window.wallpaperRegisterAudioListener(() => undefined);",
+          ),
+        },
+      },
+    );
+
+    expect(project.general).toEqual({ supportsaudioprocessing: true });
+  });
+
+  it("allows automatic audio processing detection to be disabled", () => {
+    const { project } = runGenerateBundle(
+      wallpaperEnginePlugin({
+        title: "T",
+        supportsAudioProcessing: false,
+      }),
+      {
+        "assets/index.js": {
+          type: "chunk",
+          fileName: "assets/index.js",
+          code: "window.wallpaperRegisterAudioListener(() => undefined);",
+        },
+      },
+    );
+
+    expect(project.general).toBeUndefined();
   });
 
   it("omits supportsaudioprocessing when not set", () => {

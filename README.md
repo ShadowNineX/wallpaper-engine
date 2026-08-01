@@ -63,7 +63,6 @@ export default defineConfig({
   plugins: [
     wallpaperEnginePlugin({
       title: 'My Wallpaper',
-      supportsAudioProcessing: true,
       properties: {
         bgcolor:   colorProperty({ text: 'Background Color', value: '1 1 1' }),
         speed:     sliderProperty({ text: 'Speed', value: 1, min: 0, max: 10 }),
@@ -81,7 +80,6 @@ This outputs a `project.json` alongside your build:
   "file": "index.html",
   "title": "My Wallpaper",
   "type": "web",
-  "supportsaudioprocessing": true,
   "general": {
     "properties": {
       "bgcolor":   { "type": "color",  "text": "Background Color", "value": "1 1 1",  "index": 0, "order": 0 },
@@ -261,10 +259,9 @@ window.wallpaperRegisterAudioListener((raw) => {
 ```
 
 > [!IMPORTANT]
-> **Always use `window.wallpaperRegisterAudioListener`, not `globalThis.`.**
-> Wallpaper Engine scans your compiled JS for this exact call to detect that the wallpaper uses audio and automatically sets `"supportsaudioprocessing": true` in its internal `project.json`. Without that flag, WE will **not** send audio data in live desktop mode (the editor preview always sends audio regardless, which can mask the problem).
+> The Vite plugin scans emitted JavaScript and HTML for `wallpaperRegisterAudioListener(...)` calls and automatically writes `"supportsaudioprocessing": true` under `"general"`. Calls through `window`, `globalThis`, and the bare global are detected.
 >
-> If audio works in the WE editor but not as a live wallpaper, open the wallpaper in the WE editor and click **Edit → Save** to force WE to write the updated `project.json`. After saving, re-apply the wallpaper as your desktop background.
+> Detection runs on production output. If the listener is registered through an alias or generated runtime code, set `supportsAudioProcessing: true` explicitly. Set it to `false` only when you need to suppress automatic detection.
 
 ### LED / RGB
 
