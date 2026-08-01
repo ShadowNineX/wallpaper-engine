@@ -8,27 +8,17 @@ import {
   watch,
   type CSSProperties,
 } from "vue";
-import {
-  CalendarDays,
-  ChevronRight,
-  Image as ImageIcon,
-  Music2,
-  Pause,
-  Play,
-  Radio,
-  RefreshCw,
-  Sparkles,
-  Square,
-  Waves,
-} from "lucide-vue-next";
 import type { WallpaperMediaPlaybackState } from "wallpaper-engine";
 import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
 import {
   createFpsLimiter,
-  getMediaPlaybackStatus,
   toFileUrl,
   wallpaperColorToHex,
 } from "wallpaper-engine/helpers";
+import ClockPanel from "./components/ClockPanel.vue";
+import MediaPanel from "./components/MediaPanel.vue";
+import SourceFooter from "./components/SourceFooter.vue";
+import SystemHeader from "./components/SystemHeader.vue";
 import { properties } from "./wallpaper";
 
 type UserProps = WallpaperUserPropertiesOf<typeof properties>;
@@ -51,6 +41,7 @@ interface Particle {
   drift: number;
   phase: number;
 }
+type RgbColor = [number, number, number];
 
 const backgroundColor = ref(
   wallpaperColorToHex(properties.backgroundcolor.value),
@@ -60,9 +51,13 @@ const glowColor = ref(wallpaperColorToHex(properties.glowcolor.value));
 const animationSpeed = ref(properties.animationspeed.value);
 const particleDensity = ref(properties.particledensity.value);
 const visualSensitivity = ref(properties.visualsensitivity.value);
-const visualStyle = ref<VisualStyle>(properties.visualstyle.value as VisualStyle);
+const visualStyle = ref<VisualStyle>(
+  properties.visualstyle.value as VisualStyle,
+);
 const showClock = ref(properties.showclock.value);
-const clockFormat = ref<ClockFormat>(properties.clockformat.value as ClockFormat);
+const clockFormat = ref<ClockFormat>(
+  properties.clockformat.value as ClockFormat,
+);
 const showSeconds = ref(properties.showseconds.value);
 const showMedia = ref(properties.showmedia.value);
 const useMediaColors = ref(properties.usemediacolors.value);
@@ -131,13 +126,6 @@ const effectiveGlow = computed(() =>
     : glowColor.value,
 );
 
-const fpsLimitLabel = computed(() =>
-  fpsLimit.value === 0 ? "∞" : String(fpsLimit.value),
-);
-const frameDeltaLabel = computed(() =>
-  (lastFrameDelta.value * 1_000).toFixed(1),
-);
-
 const activePath = computed(() => {
   switch (backgroundSource.value) {
     case "image":
@@ -148,13 +136,17 @@ const activePath = computed(() => {
       return randomImage.value;
     case "imagegallery": {
       const files = imageGallery.value;
-      return files.length > 0 ? (files[galleryIndex.value % files.length] ?? "") : "";
+      return files.length > 0
+        ? (files[galleryIndex.value % files.length] ?? "")
+        : "";
     }
     case "randomvideo":
       return randomVideo.value;
     case "videogallery": {
       const files = videoGallery.value;
-      return files.length > 0 ? (files[galleryIndex.value % files.length] ?? "") : "";
+      return files.length > 0
+        ? (files[galleryIndex.value % files.length] ?? "")
+        : "";
     }
     default:
       return "";
@@ -195,51 +187,10 @@ const sourceLabel = computed(() => {
   return labels[backgroundSource.value];
 });
 
-const timeText = computed(() =>
-  now.value.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: showSeconds.value ? "2-digit" : undefined,
-    hour12: clockFormat.value === "twelve",
-  }),
-);
-const dateText = computed(() =>
-  now.value.toLocaleDateString([], {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  }),
-);
-const yearText = computed(() => now.value.getFullYear());
-const timezoneText = Intl.DateTimeFormat().resolvedOptions().timeZone.replaceAll("_", " ");
 const hasMedia = computed(
   () => mediaTitle.value !== "" || mediaArtist.value !== "",
 );
 const mediaLinked = computed(() => mediaEnabled.value ?? hasMedia.value);
-const mediaHeading = computed(() => mediaTitle.value || "Awaiting playback");
-const mediaByline = computed(() => {
-  if (mediaArtist.value && mediaAlbum.value) {
-    return `${mediaArtist.value} · ${mediaAlbum.value}`;
-  }
-  return mediaArtist.value || mediaAlbum.value || "Media integration is standing by";
-});
-const mediaDetail = computed(
-  () => mediaSubtitle.value || mediaGenres.value || mediaAlbumArtist.value,
-);
-const progressPercent = computed(() =>
-  timelineDuration.value > 0
-    ? Math.min(100, (timelinePosition.value / timelineDuration.value) * 100)
-    : 0,
-);
-const playbackStatus = computed(() =>
-  getMediaPlaybackStatus(playbackState.value),
-);
-const playbackLabel = computed(() => playbackStatus.value.toUpperCase());
-const playbackIcon = computed(() => {
-  if (playbackStatus.value === "playing") return Play;
-  if (playbackStatus.value === "paused") return Pause;
-  return Square;
-});
 
 const wallpaperStyle = computed<CSSProperties>(() => ({
   "--wallpaper-bg": backgroundColor.value,
@@ -264,22 +215,16 @@ const mediaCardStyle = computed<CSSProperties>(() => ({
   "--card-contrast": mediaHighContrast.value || "#ffffff",
 }));
 
-
-function formatDuration(seconds: number): string {
-  const safe = Math.max(0, Math.floor(seconds));
-  const hours = Math.floor(safe / 3600);
-  const minutes = Math.floor((safe % 3600) / 60);
-  const remainder = safe % 60;
-  return hours > 0
-    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`
-    : `${minutes}:${String(remainder).padStart(2, "0")}`;
-}
-
-function requestRandomFile(propertyName?: "randomimages" | "randomvideos"): void {
-  const target =
-    propertyName ??
-    (backgroundSource.value === "randomvideo" ? "randomvideos" : "randomimages");
-  if (typeof globalThis.wallpaperRequestRandomFileForProperty !== "function") return;
+function requestRandomFile(
+  propertyName?: "randomimages" | "randomvideos",
+): void {
+  let target = propertyName;
+  if (!target) {
+    target = "randomimages";
+    if (backgroundSource.value === "randomvideo") target = "randomvideos";
+  }
+  if (typeof globalThis.wallpaperRequestRandomFileForProperty !== "function")
+    return;
   globalThis.wallpaperRequestRandomFileForProperty(target, (name, filePath) => {
     if (name === "randomimages") randomImage.value = filePath;
     if (name === "randomvideos") randomVideo.value = filePath;
@@ -291,20 +236,22 @@ function advanceGallery(): void {
     backgroundSource.value === "videogallery"
       ? videoGallery.value
       : imageGallery.value;
-  if (files.length > 1) galleryIndex.value = (galleryIndex.value + 1) % files.length;
+  if (files.length > 1)
+    galleryIndex.value = (galleryIndex.value + 1) % files.length;
   previousGalleryChange = performance.now();
+}
+
+function getDirectoryFilesTarget(propertyName: string) {
+  if (propertyName === "imagegallery") return imageGallery;
+  if (propertyName === "videogallery") return videoGallery;
+  return undefined;
 }
 
 function updateDirectoryFiles(
   propertyName: string,
   changedFiles: string[],
 ): void {
-  const target =
-    propertyName === "imagegallery"
-      ? imageGallery
-      : propertyName === "videogallery"
-        ? videoGallery
-        : undefined;
+  const target = getDirectoryFilesTarget(propertyName);
   if (!target) return;
   target.value = [...new Set([...target.value, ...changedFiles])].sort();
   galleryIndex.value %= Math.max(1, target.value.length);
@@ -314,28 +261,30 @@ function removeDirectoryFiles(
   propertyName: string,
   removedFiles: string[],
 ): void {
-  const target =
-    propertyName === "imagegallery"
-      ? imageGallery
-      : propertyName === "videogallery"
-        ? videoGallery
-        : undefined;
+  const target = getDirectoryFilesTarget(propertyName);
   if (!target) return;
   const removed = new Set(removedFiles);
   target.value = target.value.filter((path) => !removed.has(path));
   galleryIndex.value %= Math.max(1, target.value.length);
 }
 
+/**
+ * Particle placement is cosmetic and never used for security-sensitive work.
+ */
+function randomUnit(): number {
+  return Math.random(); // NOSONAR
+}
+
 function ensureParticles(): void {
   const target = Math.max(0, Math.round(particleDensity.value));
   while (particles.length < target) {
     particles.push({
-      x: Math.random(),
-      y: Math.random(),
-      radius: 0.45 + Math.random() * 1.8,
-      speed: 0.006 + Math.random() * 0.016,
-      drift: (Math.random() - 0.5) * 0.012,
-      phase: Math.random() * Math.PI * 2,
+      x: randomUnit(),
+      y: randomUnit(),
+      radius: 0.45 + randomUnit() * 1.8,
+      speed: 0.006 + randomUnit() * 0.016,
+      drift: (randomUnit() - 0.5) * 0.012,
+      phase: randomUnit() * Math.PI * 2,
     });
   }
   if (particles.length > target) particles.length = target;
@@ -358,66 +307,91 @@ function resizeCanvas(): void {
 }
 
 function sampleAudio(index: number, time: number): number {
-  const real = Math.min(1, (smoothedAudio[index] ?? 0) * visualSensitivity.value);
+  const real = Math.min(
+    1,
+    (smoothedAudio[index] ?? 0) * visualSensitivity.value,
+  );
   const idle = 0.018 + Math.sin(time * 0.0018 + index * 0.34) * 0.008;
   return Math.max(real, idle);
 }
 
-function drawVisualizer(
+function drawBarsVisualizer(
   context: CanvasRenderingContext2D,
   width: number,
   height: number,
   time: number,
-  accent: [number, number, number],
-  glow: [number, number, number],
+  accent: RgbColor,
+  glow: RgbColor,
 ): void {
-  if (visualStyle.value === "off") return;
+  const count = 56;
   const floor = height * 0.92;
-  context.lineCap = "round";
-  context.globalCompositeOperation = "lighter";
-
-  if (visualStyle.value === "bars") {
-    const count = 56;
-    const span = width * 0.72;
-    const start = (width - span) / 2;
-    const slot = span / count;
-    for (let index = 0; index < count; index++) {
-      const audioIndex = Math.round((index / (count - 1)) * 63);
-      const mirrorIndex = 127 - audioIndex;
-      const level = Math.sqrt(
-        (sampleAudio(audioIndex, time) + sampleAudio(mirrorIndex, time)) / 2,
-      );
-      const barHeight = 5 + level * height * 0.19;
-      const alpha = 0.2 + level * 0.75;
-      const [r, g, b] = index % 2 === 0 ? accent : glow;
-      context.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
-      context.fillRect(start + index * slot, floor - barHeight, Math.max(1, slot * 0.54), barHeight);
-    }
-    return;
+  const span = width * 0.72;
+  const start = (width - span) / 2;
+  const slot = span / count;
+  for (let index = 0; index < count; index++) {
+    const audioIndex = Math.round((index / (count - 1)) * 63);
+    const mirrorIndex = 127 - audioIndex;
+    const level = Math.sqrt(
+      (sampleAudio(audioIndex, time) + sampleAudio(mirrorIndex, time)) / 2,
+    );
+    const barHeight = 5 + level * height * 0.19;
+    const alpha = 0.2 + level * 0.75;
+    const [r, g, b] = index % 2 === 0 ? accent : glow;
+    context.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    context.fillRect(
+      start + index * slot,
+      floor - barHeight,
+      Math.max(1, slot * 0.54),
+      barHeight,
+    );
   }
+}
 
-  if (visualStyle.value === "wave") {
-    const gradient = context.createLinearGradient(width * 0.15, 0, width * 0.85, 0);
-    gradient.addColorStop(0, `rgba(${glow.join(",")}, 0)`);
-    gradient.addColorStop(0.28, `rgba(${glow.join(",")}, 0.75)`);
-    gradient.addColorStop(0.72, `rgba(${accent.join(",")}, 0.9)`);
-    gradient.addColorStop(1, `rgba(${accent.join(",")}, 0)`);
-    context.strokeStyle = gradient;
-    context.lineWidth = 2;
-    context.beginPath();
-    for (let index = 0; index <= 96; index++) {
-      const ratio = index / 96;
-      const audioIndex = Math.min(63, Math.floor(ratio * 64));
-      const level = sampleAudio(audioIndex, time);
-      const x = ratio * width;
-      const y = floor - Math.sin(ratio * Math.PI * 8 + time * 0.002) * (8 + level * height * 0.13);
-      if (index === 0) context.moveTo(x, y);
-      else context.lineTo(x, y);
-    }
-    context.stroke();
-    return;
+function drawWaveVisualizer(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  time: number,
+  accent: RgbColor,
+  glow: RgbColor,
+): void {
+  const floor = height * 0.92;
+  const gradient = context.createLinearGradient(
+    width * 0.15,
+    0,
+    width * 0.85,
+    0,
+  );
+  gradient.addColorStop(0, `rgba(${glow.join(",")}, 0)`);
+  gradient.addColorStop(0.28, `rgba(${glow.join(",")}, 0.75)`);
+  gradient.addColorStop(0.72, `rgba(${accent.join(",")}, 0.9)`);
+  gradient.addColorStop(1, `rgba(${accent.join(",")}, 0)`);
+  context.strokeStyle = gradient;
+  context.lineWidth = 2;
+  context.beginPath();
+  for (let index = 0; index <= 96; index++) {
+    const ratio = index / 96;
+    const audioIndex = Math.min(63, Math.floor(ratio * 64));
+    const level = sampleAudio(audioIndex, time);
+    const x = ratio * width;
+    const y =
+      floor -
+      Math.sin(ratio * Math.PI * 8 + time * 0.002) *
+        (8 + level * height * 0.13);
+    if (index === 0) context.moveTo(x, y);
+    else context.lineTo(x, y);
   }
+  context.stroke();
+}
 
+function drawRingVisualizer(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  time: number,
+  accent: RgbColor,
+  glow: RgbColor,
+): void {
   const centerX = width * 0.5;
   const centerY = height * 0.46;
   const radius = Math.min(width, height) * 0.2;
@@ -440,6 +414,28 @@ function drawVisualizer(
     );
     context.stroke();
   }
+}
+
+function drawVisualizer(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  time: number,
+  accent: RgbColor,
+  glow: RgbColor,
+): void {
+  if (visualStyle.value === "off") return;
+  context.lineCap = "round";
+  context.globalCompositeOperation = "lighter";
+  if (visualStyle.value === "bars") {
+    drawBarsVisualizer(context, width, height, time, accent, glow);
+    return;
+  }
+  if (visualStyle.value === "wave") {
+    drawWaveVisualizer(context, width, height, time, accent, glow);
+    return;
+  }
+  drawRingVisualizer(context, width, height, time, accent, glow);
 }
 
 function drawScene(time: number, deltaSeconds: number): void {
@@ -471,11 +467,12 @@ function drawScene(time: number, deltaSeconds: number): void {
       deltaSeconds;
     if (particle.y < -0.03) {
       particle.y = 1.03;
-      particle.x = Math.random();
+      particle.x = randomUnit();
     }
     if (particle.x < -0.03) particle.x = 1.03;
     if (particle.x > 1.03) particle.x = -0.03;
-    const pulse = 0.65 + Math.sin(time * 0.001 + particle.phase) * 0.2 + bass * 0.18;
+    const pulse =
+      0.65 + Math.sin(time * 0.001 + particle.phase) * 0.2 + bass * 0.18;
     const [r, g, b] = particle.phase > Math.PI ? accent : glow;
     context.fillStyle = `rgba(${r}, ${g}, ${b}, ${Math.max(0.08, pulse * 0.34)})`;
     context.beginPath();
@@ -561,7 +558,7 @@ function setWallpaperPaused(value: boolean): void {
   }
   startAnimation();
   startClock();
-  void backgroundVideo.value?.play().catch(() => undefined);
+  backgroundVideo.value?.play().catch(() => undefined);
 }
 
 function applyColorAndMotionProperties(values: Partial<UserProps>): void {
@@ -698,8 +695,7 @@ globalThis.wallpaperRegisterMediaStatusListener((event) => {
   mediaHighContrast.value = "";
   timelinePosition.value = 0;
   timelineDuration.value = 0;
-  playbackState.value =
-    globalThis.wallpaperMediaIntegration.PLAYBACK_STOPPED;
+  playbackState.value = globalThis.wallpaperMediaIntegration.PLAYBACK_STOPPED;
 });
 
 globalThis.wallpaperRegisterMediaPropertiesListener((event) => {
@@ -735,7 +731,7 @@ watch([activeUrl, isVideoBackground, paused], async () => {
   const video = backgroundVideo.value;
   if (!video) return;
   if (paused.value) video.pause();
-  else void video.play().catch(() => undefined);
+  else await video.play().catch(() => undefined);
 });
 
 watch(particleDensity, ensureParticles);
@@ -757,7 +753,11 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="wallpaper" :style="wallpaperStyle">
-    <div v-if="isImageBackground" class="source-layer source-image" :style="imageStyle" />
+    <div
+      v-if="isImageBackground"
+      class="source-layer source-image"
+      :style="imageStyle"
+    />
     <video
       v-if="isVideoBackground && activeUrl"
       ref="backgroundVideo"
@@ -773,119 +773,48 @@ onBeforeUnmount(() => {
     <div class="aurora aurora-a" />
     <div class="aurora aurora-b" />
     <div class="grain" />
-    <canvas ref="canvas" class="ambient-canvas" aria-hidden="true" />
+    <canvas ref="canvas" class="ambient-canvas">
+      Decorative audio visualization.
+    </canvas>
 
-    <header class="topbar">
-      <div class="brand-lockup">
-        <span class="brand-mark"><Sparkles :size="15" /></span>
-        <div>
-          <p class="eyebrow">{{ greeting }}</p>
-          <p class="brand-subtitle">Reactive desktop atmosphere</p>
-        </div>
-      </div>
-      <div class="system-cluster">
-        <span class="system-pill">
-          <span class="status-dot" :class="mediaLinked ? 'is-live' : ''" />
-          MEDIA {{ mediaLinked ? "LINKED" : "STANDBY" }}
-        </span>
-        <span
-          class="system-pill"
-          title="Configured limit · measured render rate · latest rendered-frame delta"
-        >
-          <Waves :size="13" />
-          LIMIT {{ fpsLimitLabel }} · ACTUAL {{ measuredFps }} · Δ
-          {{ frameDeltaLabel }} MS
-        </span>
-      </div>
-    </header>
+    <SystemHeader
+      :greeting="greeting"
+      :media-linked="mediaLinked"
+      :fps-limit="fpsLimit"
+      :measured-fps="measuredFps"
+      :last-frame-delta="lastFrameDelta"
+    />
 
     <main class="stage">
-      <Transition name="clock-shift">
-        <section v-if="showClock" class="clock-block">
-          <div class="clock-kicker">
-            <span>{{ timezoneText }}</span>
-            <span class="hairline" />
-            <span>{{ yearText }}</span>
-          </div>
-          <time class="clock-time">{{ timeText }}</time>
-          <div class="date-line">
-            <CalendarDays :size="17" />
-            <span>{{ dateText }}</span>
-          </div>
-        </section>
-      </Transition>
-
-      <Transition name="media-rise">
-        <section v-if="showMedia" class="media-card" :style="mediaCardStyle">
-          <div class="media-art-shell">
-            <img
-              v-if="mediaThumbnail"
-              class="media-art"
-              :src="mediaThumbnail"
-              alt="Current media artwork"
-            />
-            <div v-else class="media-art media-placeholder">
-              <Music2 v-if="mediaContentType === 'music'" :size="38" />
-              <ImageIcon v-else :size="38" />
-            </div>
-            <span class="playback-badge">
-              <component :is="playbackIcon" :size="12" fill="currentColor" />
-            </span>
-          </div>
-
-          <div class="media-copy">
-            <div class="media-meta-row">
-              <span><Radio :size="12" /> NOW {{ playbackLabel }}</span>
-              <span>{{ mediaContentType.toUpperCase() }}</span>
-            </div>
-            <h2 :class="{ 'is-placeholder': !hasMedia }">{{ mediaHeading }}</h2>
-            <p class="media-byline">{{ mediaByline }}</p>
-            <p v-if="mediaDetail" class="media-detail">{{ mediaDetail }}</p>
-
-            <div class="timeline-row">
-              <span>{{ formatDuration(timelinePosition) }}</span>
-              <div class="timeline-track">
-                <span :style="{ width: `${progressPercent}%` }" />
-              </div>
-              <span>{{ formatDuration(timelineDuration) }}</span>
-            </div>
-          </div>
-        </section>
-      </Transition>
+      <ClockPanel
+        :show="showClock"
+        :now="now"
+        :format="clockFormat"
+        :show-seconds="showSeconds"
+      />
+      <MediaPanel
+        :show="showMedia"
+        :card-style="mediaCardStyle"
+        :title="mediaTitle"
+        :artist="mediaArtist"
+        :subtitle="mediaSubtitle"
+        :album="mediaAlbum"
+        :album-artist="mediaAlbumArtist"
+        :genres="mediaGenres"
+        :content-type="mediaContentType"
+        :thumbnail="mediaThumbnail"
+        :playback-state="playbackState"
+        :timeline-position="timelinePosition"
+        :timeline-duration="timelineDuration"
+      />
     </main>
 
-    <footer class="footerbar">
-      <div class="source-readout">
-        <span class="source-icon"><ImageIcon :size="14" /></span>
-        <div>
-          <span class="micro-label">BACKGROUND SOURCE</span>
-          <strong>{{ sourceLabel }}</strong>
-        </div>
-      </div>
-      <button
-        v-if="isRandomSource"
-        class="source-action"
-        type="button"
-        title="Load another random file"
-        @click="requestRandomFile()"
-      >
-        <RefreshCw :size="14" />
-        SHUFFLE
-      </button>
-      <button
-        v-else-if="isGallerySource"
-        class="source-action"
-        type="button"
-        title="Advance gallery"
-        @click="advanceGallery"
-      >
-        NEXT
-        <ChevronRight :size="14" />
-      </button>
-      <div v-else class="audio-readout">
-        <span class="audio-bars"><i /><i /><i /><i /></span>
-        AUDIO REACTIVE
-      </div>
-    </footer>
+    <SourceFooter
+      :source-label="sourceLabel"
+      :random-source="isRandomSource"
+      :gallery-source="isGallerySource"
+      @shuffle="requestRandomFile()"
+      @advance="advanceGallery"
+    />
   </div>
 </template>
