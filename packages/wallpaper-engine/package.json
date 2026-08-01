@@ -64,6 +64,8 @@
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.1.6",
+    "colorjs.io": "^0.7.1",
+    "fast-average-color": "^9.5.2",
     "tsdown": "^0.22.14",
     "vite": "^8.0.13",
     "vitest": "^4.1.6"

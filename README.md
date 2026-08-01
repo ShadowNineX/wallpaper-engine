@@ -16,7 +16,7 @@ TypeScript type definitions, a Vite plugin, and runtime helpers for building [Wa
 - **Full type coverage** for the entire Wallpaper Engine Web API — property listeners, media integration, audio, iCUE/LED plugins, and `window` augmentation
 - **Vite plugin** that auto-generates `project.json` at build time with full IntelliSense on your property definitions
 - **Strong inference** — define your properties once and TypeScript automatically types every key in `applyUserProperties`
-- **Tree-shakeable helpers** for color conversion, audio processing, file URLs, LED encoding, and FPS-limited animation loops
+- **Tree-shakeable helpers** for color conversion and extraction, audio processing, file URLs, LED encoding, and FPS-limited animation loops
 
 ---
 
@@ -64,7 +64,7 @@ export default defineConfig({
     wallpaperEnginePlugin({
       title: 'My Wallpaper',
       properties: {
-        bgcolor:   colorProperty({ text: 'Background Color', value: '1 1 1' }),
+        bgcolor:   colorProperty({ text: 'Background Color', value: 'hsl(0 0% 100%)' }),
         speed:     sliderProperty({ text: 'Speed', value: 1, min: 0, max: 10 }),
         showClock: boolProperty({ text: 'Show Clock', value: true }),
       },
@@ -106,7 +106,7 @@ wallpaperEnginePlugin({
 
 | Builder | Property type | Runtime value |
 |---|---|---|
-| `colorProperty` | Color picker | `WallpaperColorValue` — `value: "R G B"` (0–1 per channel) |
+| `colorProperty` | Color picker | Accepts Color.js syntax; emits `WallpaperColorValue` as `"R G B"` (0–1 per channel) |
 | `sliderProperty` | Numeric slider | `WallpaperSliderValue` — `value: number` |
 | `boolProperty` | Checkbox | `WallpaperBoolValue` — `value: boolean` |
 | `comboProperty` | Dropdown | `WallpaperComboValue` — `value: string` (hidden key), `text: string` (label) |
@@ -114,6 +114,33 @@ wallpaperEnginePlugin({
 | `fileProperty` | File picker | `WallpaperFileValue` — `value: string` (path, prefix with `file:///`) |
 | `directoryProperty` | Directory picker | `WallpaperDirectoryValue` — `value: string` (path) |
 | `groupProperty` | Collapsible property section marker | No runtime value |
+
+#### Flexible color defaults
+
+`colorProperty` accepts every color string supported by
+[Color.js](https://colorjs.io): CSS named colors, hex, `rgb()`, `hsl()`,
+`hwb()`, Lab, LCH, OKLab, OKLCH, wide-gamut `color()` values, and more.
+Wallpaper Engine's native `"R G B"` format remains supported:
+
+```ts
+const properties = {
+  named: colorProperty({ text: 'Named', value: 'rebeccapurple' }),
+  hex: colorProperty({ text: 'Hex', value: '#ff8000' }),
+  rgb: colorProperty({ text: 'RGB', value: 'rgb(255 128 0 / 50%)' }),
+  hsl: colorProperty({ text: 'HSL', value: 'hsl(30 100% 50%)' }),
+  perceptual: colorProperty({ text: 'OKLCH', value: 'oklch(70% 0.2 40)' }),
+  wideGamut: colorProperty({
+    text: 'Display P3',
+    value: 'color(display-p3 0 1 0)',
+  }),
+  native: colorProperty({ text: 'Native', value: '1 0.5 0' }),
+};
+```
+
+Values are converted immediately to Wallpaper Engine's space-separated sRGB
+channels. Wide-gamut colors use Color.js's CSS gamut mapping. Alpha is
+discarded because Wallpaper Engine color properties do not support it.
+Color.js is bundled into the package; consumers do not install it separately.
 
 Fractional sliders use `precision` and `step` together. `precision` limits the
 number of decimal places Wallpaper Engine keeps, and Wallpaper Engine
@@ -220,7 +247,7 @@ Define your properties in a dedicated file, then import it in both `vite.config.
 import { colorProperty, sliderProperty, boolProperty } from 'wallpaper-engine/plugin';
 
 export const myProperties = {
-  bgcolor:   colorProperty({ text: 'Background Color', value: '0 0 0' }),
+  bgcolor:   colorProperty({ text: 'Background Color', value: '#000' }),
   speed:     sliderProperty({ text: 'Speed', value: 1, min: 0, max: 5 }),
   showClock: boolProperty({ text: 'Show Clock', value: true }),
 };
@@ -262,9 +289,12 @@ All helpers are side-effect-free and individually tree-shakeable.
 
 ```ts
 import {
+  colorToWallpaperColor,
   parseWallpaperColor,
   wallpaperColorToRgb,
   wallpaperColorToHex,
+  createAverageColorExtractor,
+  getAverageColor,
   toFileUrl,
   clampAudio,
   leftChannel,
@@ -277,6 +307,9 @@ import {
 ### Color
 
 ```ts
+// Any Color.js-supported string → Wallpaper Engine "R G B"
+colorToWallpaperColor('hsl(120 100% 50%)'); // → "0 1 0"
+
 // "R G B" string (0–1 per channel) → { r, g, b } (0–255)
 const { r, g, b } = parseWallpaperColor(props.bgcolor.value);
 
@@ -286,6 +319,61 @@ el.style.color = wallpaperColorToRgb(props.bgcolor.value);
 // → CSS "#ff8000"
 el.style.color = wallpaperColorToHex(props.bgcolor.value);
 ```
+
+#### Image and media color extraction
+
+`getAverageColor` accepts an image URL, data/blob URL, `HTMLImageElement`,
+`HTMLVideoElement`, canvas, `OffscreenCanvas`, `ImageBitmap`, or `VideoFrame`.
+It creates and disposes its extraction canvas automatically:
+
+```ts
+const color = await getAverageColor(image, {
+  algorithm: 'dominant',
+  mode: 'precision',
+  ignoredColor: [255, 255, 255, 255, 10],
+});
+
+document.body.style.backgroundColor = color.hex;
+```
+
+For multiple images, cropped regions, or live video frames, reuse one extractor:
+
+```ts
+const extractor = createAverageColorExtractor();
+
+const full = await extractor.getColorAsync(image);
+const corner = await extractor.getColorAsync(image, {
+  left: 0,
+  top: 0,
+  width: 200,
+  height: 200,
+});
+const currentFrame = extractor.getColor(video, { mode: 'speed' });
+const raw = extractor.getColorFromArray4(rgbaPixels, { algorithm: 'sqrt' });
+
+extractor.destroy();
+```
+
+All FastAverageColor options are supported and forwarded unchanged:
+
+| Option | Purpose |
+|---|---|
+| `defaultColor` | RGBA fallback when no usable pixels are available |
+| `ignoredColor` | One RGB/RGBA color, a color with a matching threshold, or a list of them |
+| `mode` | `'speed'` downsizes large sources; `'precision'` samples at source size |
+| `algorithm` | `'simple'`, `'sqrt'` (default), or `'dominant'` |
+| `step` | Samples every nth pixel |
+| `left` | Left edge of the sampled source region |
+| `top` | Top edge of the sampled source region |
+| `width` | Width of the sampled source region |
+| `height` | Height of the sampled source region |
+| `silent` | Suppresses synchronous extraction errors in the console |
+| `crossOrigin` | Sets `crossOrigin` when loading a string source |
+| `dominantDivider` | Controls RGB bucket size for the dominant algorithm |
+
+Results include `rgb`, `rgba`, `hex`, `hexa`, raw RGBA `value`, `isDark`, and
+`isLight`. The reusable extractor also accepts `number[]`, `Uint8Array`, and
+`Uint8ClampedArray` RGBA pixel data through `getColorFromArray4`.
 
 ### Files
 

@@ -22,6 +22,7 @@ import type {
   WallpaperSliderProperty,
   WallpaperTextInputProperty,
 } from "../types/project";
+import { colorToWallpaperColor } from "../color";
 
 export type {
   WallpaperBoolProperty,
@@ -45,11 +46,25 @@ export type { WallpaperComboOption, WallpaperFileType } from "../types/project";
 
 type Without<T, K extends keyof T> = Omit<T, K>;
 
-/** Define a color property (value: `"R G B"` in 0–1 range) */
+/**
+ * Define a color property from any color syntax supported by Color.js.
+ *
+ * CSS named colors, hex, `rgb()`, `hsl()`, `hwb()`, Lab, LCH, OKLab, OKLCH,
+ * wide-gamut `color()` values, and Wallpaper Engine's native `"R G B"` format
+ * are normalized to the 0–1 sRGB channels required by `project.json`.
+ *
+ * @example
+ * colorProperty({ text: "Accent", value: "hsl(120 100% 50%)" });
+ * // → { type: "color", text: "Accent", value: "0 1 0" }
+ */
 export function colorProperty(
   opts: Without<WallpaperColorProperty, "type">,
 ): WallpaperColorProperty {
-  return { type: "color", ...opts };
+  return {
+    type: "color",
+    ...opts,
+    value: colorToWallpaperColor(opts.value),
+  };
 }
 
 /**

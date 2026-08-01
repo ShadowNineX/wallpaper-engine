@@ -36,6 +36,22 @@ describe("colorProperty", () => {
     expect(prop.value).toBe("1 0 0");
   });
 
+  it.each([
+    ["red", "1 0 0"],
+    ["#00ff00", "0 1 0"],
+    ["rgb(0 0 255 / 25%)", "0 0 1"],
+    ["hsl(60 100% 50%)", "1 1 0"],
+    ["rebeccapurple", "0.4 0.2 0.6"],
+  ])('normalizes "%s" to "%s"', (input, expected) => {
+    expect(colorProperty({ text: "Color", value: input }).value).toBe(expected);
+  });
+
+  it("rejects invalid color defaults", () => {
+    expect(() =>
+      colorProperty({ text: "Color", value: "not a color" }),
+    ).toThrow();
+  });
+
   it("accepts optional fields", () => {
     const prop = colorProperty({
       text: "C",
@@ -390,6 +406,36 @@ describe("wallpaperEnginePlugin", () => {
     expect(project.general.properties.precise.step).toBe(0.001);
     expect(project.general.properties.precise.steps).toBeUndefined();
     expect(project.general.properties.stepped.step).toBe(0.05);
+  });
+
+  it("emits normalized Color.js values in project.json", () => {
+    const { project } = runGenerateBundle(
+      wallpaperEnginePlugin({
+        title: "T",
+        properties: {
+          hex: colorProperty({ text: "Hex", value: "#ff8000" }),
+          hsl: colorProperty({
+            text: "HSL",
+            value: "hsl(120 100% 50%)",
+          }),
+          wideGamut: colorProperty({
+            text: "P3",
+            value: "color(display-p3 0 1 0)",
+          }),
+        },
+      }),
+    );
+
+    expect(project.general.properties.hex.value).toBe("1 0.50196 0");
+    expect(project.general.properties.hsl.value).toBe("0 1 0");
+    const wideGamut = project.general.properties.wideGamut.value
+      .split(" ")
+      .map(Number);
+    expect(
+      wideGamut.every(
+        (channel: number) => channel >= 0 && channel <= 1,
+      ),
+    ).toBe(true);
   });
 
   it("emits native group markers in project.json", () => {

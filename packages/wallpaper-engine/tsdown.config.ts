@@ -15,6 +15,10 @@ export default defineConfig([
     dts: true,
     clean: true,
     sourcemap: true,
+    deps: {
+      alwaysBundle: ["colorjs.io", "fast-average-color"],
+      onlyBundle: false,
+    },
   },
   // The Vite plugin is ESM-only — it uses `import.meta.url` to locate the
   // bundled devtools client. Modern Vite loads plugins as ESM regardless.
@@ -25,6 +29,10 @@ export default defineConfig([
     dts: true,
     clean: false,
     sourcemap: true,
+    deps: {
+      alwaysBundle: ["colorjs.io"],
+      onlyBundle: false,
+    },
     hooks: {
       "build:done": async () => {
         try {

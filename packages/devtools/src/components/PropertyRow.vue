@@ -51,7 +51,9 @@ function onColor(event: Event): void {
 
 function onSlider(values: number[] | undefined): void {
   const next = values?.[0];
-  const value = currentValues[props.propKey] as WallpaperSliderValue | undefined;
+  const value = currentValues[props.propKey] as
+    | WallpaperSliderValue
+    | undefined;
   if (next === undefined || !value) return;
   value.value = next;
   store.deliverProperty(props.propKey);
@@ -75,10 +77,10 @@ function onCombo(event: Event): void {
   store.deliverProperty(props.propKey);
 }
 
-function onText(event: Event): void {
+function onText(next: string | number): void {
   const value = currentValues[props.propKey] as WallpaperTextValue | undefined;
   if (!value) return;
-  value.value = (event.target as HTMLInputElement).value;
+  value.value = String(next);
   store.deliverProperty(props.propKey);
 }
 
@@ -101,7 +103,9 @@ async function browsePath(): Promise<void> {
       if (selection) store.setDirectorySelection(props.propKey, selection);
     }
   } catch (error) {
-    toast(error instanceof Error ? error.message : "Unable to browse local files.");
+    toast(
+      error instanceof Error ? error.message : "Unable to browse local files.",
+    );
   } finally {
     browsing.value = false;
   }
@@ -121,7 +125,10 @@ function clearPath(): void {
 </script>
 
 <template>
-  <article class="rounded-lg border border-we-border/70 bg-[linear-gradient(135deg,rgba(32,35,43,0.94),rgba(24,26,32,0.94))] px-3 py-2.5 shadow-[inset_2px_0_0_rgba(91,134,237,0.18)] transition-colors hover:border-we-primary/35">
+  <article
+    class="rounded-lg border border-we-border/70 bg-[linear-gradient(135deg,rgba(32,35,43,0.94),rgba(24,26,32,0.94))] px-3 py-2.5 shadow-[inset_2px_0_0_rgba(91,134,237,0.18)] transition-colors hover:border-we-primary/35"
+    :class="{ 'select-none': def.type === 'bool' }"
+  >
     <div class="mb-2 flex items-start justify-between gap-3">
       <Label
         :for="propKey"
@@ -129,7 +136,10 @@ function clearPath(): void {
       >
         {{ label }}
       </Label>
-      <span class="shrink-0 font-mono text-[11px] text-we-faint" :title="propKey">
+      <span
+        class="shrink-0 font-mono text-[11px] text-we-faint"
+        :title="propKey"
+      >
         {{ propKey }} · {{ def.type }}
       </span>
     </div>
@@ -140,8 +150,8 @@ function clearPath(): void {
         type="color"
         :value="
           weColorToHex(
-            (currentValues[propKey] as WallpaperColorValue | undefined)?.value ??
-              '0 0 0',
+            (currentValues[propKey] as WallpaperColorValue | undefined)
+              ?.value ?? '0 0 0',
           )
         "
         class="h-8 w-12 shrink-0 cursor-pointer rounded-md border border-we-border bg-we-btn p-1"
@@ -172,7 +182,9 @@ function clearPath(): void {
       <span
         class="min-w-12 rounded-md border border-we-border bg-we-panel px-2 py-1 text-right text-[10px] tabular-nums text-we-muted"
       >
-        {{ (currentValues[propKey] as WallpaperSliderValue | undefined)?.value }}
+        {{
+          (currentValues[propKey] as WallpaperSliderValue | undefined)?.value
+        }}
       </span>
     </div>
 
@@ -201,11 +213,12 @@ function clearPath(): void {
 
     <div
       v-else-if="def.type === 'combo'"
-      class="[&>[data-slot=native-select-wrapper]]:w-full"
+      class="*:data-[slot=native-select-wrapper]:w-full"
     >
       <NativeSelect
         :model-value="
-          (currentValues[propKey] as WallpaperComboValue | undefined)?.value ?? ''
+          (currentValues[propKey] as WallpaperComboValue | undefined)?.value ??
+          ''
         "
         :id="propKey"
         class="h-8 w-full bg-we-btn text-xs text-we-text hover:bg-we-btn-hover"
@@ -229,7 +242,7 @@ function clearPath(): void {
         (currentValues[propKey] as WallpaperTextValue | undefined)?.value ?? ''
       "
       class="h-8 text-xs"
-      @change="onText"
+      @update:model-value="onText"
     />
 
     <div

@@ -93,6 +93,37 @@ describe("PropertyRow", () => {
     }
   });
 
+  it("prevents text selection throughout boolean property rows", async () => {
+    const { PropertyRow } = await loadPropertyRow();
+    const wrapper = mount(PropertyRow, {
+      props: { propKey: "enabled", def: definitions.enabled },
+    });
+
+    expect(wrapper.get("article").classes()).toContain("select-none");
+  });
+
+  it("delivers text properties on every input without waiting for blur", async () => {
+    const { PropertyRow, listenerFns } = await loadPropertyRow();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const wrapper = mount(PropertyRow, {
+      props: { propKey: "greeting", def: definitions.greeting },
+    });
+    const input = wrapper.get<HTMLInputElement>("input#greeting");
+
+    input.element.value = "A";
+    await input.trigger("input");
+    expect(applyUserProperties).toHaveBeenNthCalledWith(1, {
+      greeting: { value: "A" },
+    });
+
+    input.element.value = "Aether";
+    await input.trigger("input");
+    expect(applyUserProperties).toHaveBeenNthCalledWith(2, {
+      greeting: { value: "Aether" },
+    });
+  });
+
   it("uses an inline native select and sends combo value plus display text", async () => {
     const { PropertyRow, listenerFns } = await loadPropertyRow();
     const applyUserProperties = vi.fn();

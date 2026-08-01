@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive } from "vue";
+import { storeToRefs } from "pinia";
 import CaretRight from "~icons/ph/caret-right";
 import RefreshCw from "~icons/ph/arrows-clockwise";
 import type {
@@ -24,6 +25,7 @@ interface PropertyGroup {
 }
 
 const store = useDevtoolsStore();
+const { listenerCounts } = storeToRefs(store);
 const openGroups = reactive(new Set<string>());
 
 function toggleGroup(key: string): void {
@@ -61,8 +63,17 @@ const layout = computed(() => {
     <div class="flex items-center justify-between gap-3 px-0.5">
       <div>
         <h2 class="text-[11px] font-semibold text-we-text">User properties</h2>
-        <p class="mt-0.5 text-[11px] text-we-faint">
-          Changes send only the edited property, just like Wallpaper Engine.
+        <p
+          class="mt-0.5 text-[11px]"
+          :class="
+            listenerCounts.property ? 'text-we-faint' : 'text-amber-300/90'
+          "
+        >
+          {{
+            listenerCounts.property
+              ? "Changes send only the edited property, just like Wallpaper Engine."
+              : "No wallpaperPropertyListener registered; changes cannot be delivered."
+          }}
         </p>
       </div>
       <Button
@@ -112,7 +123,7 @@ const layout = computed(() => {
         @click="toggleGroup(group.key)"
       >
         <CaretRight
-          class="size-3 shrink-0 text-we-faint transition-transform duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+          class="size-3 shrink-0 text-we-faint transition-transform duration-260 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
           :class="{ 'rotate-90': openGroups.has(group.key) }"
         />
         <span>{{ group.label }}</span>
@@ -122,7 +133,7 @@ const layout = computed(() => {
         :data-property-group-content="group.key"
         :aria-hidden="!openGroups.has(group.key)"
         :inert="!openGroups.has(group.key)"
-        class="grid transition-[grid-template-rows,opacity] duration-[260ms] ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
+        class="grid transition-[grid-template-rows,opacity] duration-260 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
         :class="
           openGroups.has(group.key)
             ? 'grid-rows-[1fr] opacity-100'

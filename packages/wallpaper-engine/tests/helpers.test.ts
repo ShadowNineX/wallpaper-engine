@@ -1,19 +1,103 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clampAudio,
+  colorToWallpaperColor,
+  createAverageColorExtractor,
   createFpsLimiter,
   encodeCanvasForLed,
+  getAverageColor,
   leftChannel,
   parseWallpaperColor,
   rightChannel,
   toFileUrl,
   wallpaperColorToHex,
   wallpaperColorToRgb,
+  type AverageColorOptions,
+  type AverageColorResult,
+  type AverageColorSource,
 } from "../src/helpers";
+
+const fastAverageColorMocks = vi.hoisted(() => ({
+  getColor: vi.fn(),
+  getColorAsync: vi.fn(),
+  getColorFromArray4: vi.fn(),
+  destroy: vi.fn(),
+}));
+
+vi.mock("fast-average-color", () => ({
+  FastAverageColor: class {
+    getColor(source: unknown, options?: unknown) {
+      return fastAverageColorMocks.getColor(source, options);
+    }
+
+    getColorAsync(source: unknown, options?: unknown) {
+      return fastAverageColorMocks.getColorAsync(source, options);
+    }
+
+    getColorFromArray4(pixels: unknown, options?: unknown) {
+      return fastAverageColorMocks.getColorFromArray4(pixels, options);
+    }
+
+    destroy() {
+      fastAverageColorMocks.destroy();
+    }
+  },
+}));
+
+const averageColorResult: AverageColorResult = {
+  rgb: "rgb(10,20,30)",
+  rgba: "rgba(10,20,30,1)",
+  hex: "#0a141e",
+  hexa: "#0a141eff",
+  value: [10, 20, 30, 255],
+  isDark: true,
+  isLight: false,
+};
 
 // ---------------------------------------------------------------------------
 // Color helpers
 // ---------------------------------------------------------------------------
+
+describe("colorToWallpaperColor", () => {
+  it.each([
+    ["#ff8000", "1 0.50196 0"],
+    ["rgb(0 0 255 / 25%)", "0 0 1"],
+    ["hsl(120 100% 50%)", "0 1 0"],
+    ["hwb(180 0% 0%)", "0 1 1"],
+    ["rebeccapurple", "0.4 0.2 0.6"],
+    ["transparent", "0 0 0"],
+  ])('converts "%s" to "%s"', (input, expected) => {
+    expect(colorToWallpaperColor(input)).toBe(expected);
+  });
+
+  it.each(["#000000", "#808080", "#ff8000", "#ffffff"])(
+    "round-trips the 8-bit color %s",
+    (input) => {
+      expect(wallpaperColorToHex(colorToWallpaperColor(input))).toBe(input);
+    },
+  );
+
+  it("preserves and normalizes Wallpaper Engine color strings", () => {
+    expect(colorToWallpaperColor(" 1.0   5e-1 +0 ")).toBe("1 0.5 0");
+  });
+
+  it.each([
+    "color(display-p3 0 1 0)",
+    "oklch(70% 0.2 40)",
+    "lab(60% 40 30)",
+  ])("maps %s into the sRGB gamut", (input) => {
+    const channels = colorToWallpaperColor(input).split(" ").map(Number);
+    expect(channels).toHaveLength(3);
+    expect(channels.every((channel) => channel >= 0 && channel <= 1)).toBe(
+      true,
+    );
+  });
+
+  it("rejects invalid and out-of-range native colors", () => {
+    expect(() => colorToWallpaperColor("not a color")).toThrow();
+    expect(() => colorToWallpaperColor("2 0 0")).toThrow(RangeError);
+  });
+});
 
 describe("parseWallpaperColor", () => {
   it("parses black", () => {
@@ -62,6 +146,112 @@ describe("wallpaperColorToHex", () => {
   it("pads single-digit hex values", () => {
     // 0.0392 * 255 ≈ 9.996 → ceil → 10 = '0a'
     expect(wallpaperColorToHex("0 0 0.0392")).toBe("#00000a");
+  });
+});
+
+describe("average color extraction", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("forwards the complete FastAverageColor option set unchanged", async () => {
+    const options = {
+      defaultColor: [1, 2, 3, 255],
+      ignoredColor: [
+        [255, 255, 255],
+        [0, 0, 0, 0],
+        [128, 128, 128, 255, 12],
+      ],
+      mode: "precision",
+      algorithm: "dominant",
+      step: 2,
+      left: 3,
+      top: 4,
+      width: 50,
+      height: 60,
+      silent: true,
+      crossOrigin: "anonymous",
+      dominantDivider: 16,
+    } satisfies AverageColorOptions;
+    fastAverageColorMocks.getColorAsync.mockResolvedValueOnce(
+      averageColorResult,
+    );
+
+    await expect(getAverageColor("https://example.com/art.jpg", options)).resolves.toBe(
+      averageColorResult,
+    );
+
+    expect(fastAverageColorMocks.getColorAsync).toHaveBeenCalledWith(
+      "https://example.com/art.jpg",
+      options,
+    );
+    expect(fastAverageColorMocks.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("accepts every image and media source supported by FastAverageColor", async () => {
+    const sources = [
+      "data:image/png;base64,AA==",
+      {} as HTMLImageElement,
+      {} as HTMLVideoElement,
+      {} as HTMLCanvasElement,
+      {} as OffscreenCanvas,
+      {} as ImageBitmap,
+      {} as VideoFrame,
+    ] satisfies AverageColorSource[];
+    fastAverageColorMocks.getColorAsync.mockResolvedValue(averageColorResult);
+
+    for (const source of sources) {
+      await getAverageColor(source);
+    }
+
+    expect(
+      fastAverageColorMocks.getColorAsync.mock.calls.map(([source]) => source),
+    ).toEqual(sources);
+    expect(fastAverageColorMocks.destroy).toHaveBeenCalledTimes(sources.length);
+  });
+
+  it("exposes reusable sync, async, and raw-pixel extraction", async () => {
+    const extractor = createAverageColorExtractor();
+    const canvas = {} as HTMLCanvasElement;
+    const pixels = new Uint8ClampedArray([10, 20, 30, 255]);
+    fastAverageColorMocks.getColor.mockReturnValueOnce(averageColorResult);
+    fastAverageColorMocks.getColorAsync.mockResolvedValueOnce(
+      averageColorResult,
+    );
+    fastAverageColorMocks.getColorFromArray4.mockReturnValueOnce(
+      averageColorResult.value,
+    );
+
+    expect(extractor.getColor(canvas, { algorithm: "simple" })).toBe(
+      averageColorResult,
+    );
+    await expect(
+      extractor.getColorAsync(canvas, { mode: "speed" }),
+    ).resolves.toBe(averageColorResult);
+    expect(
+      extractor.getColorFromArray4(pixels, { algorithm: "sqrt" }),
+    ).toBe(averageColorResult.value);
+    extractor.destroy();
+
+    expect(fastAverageColorMocks.getColor).toHaveBeenCalledWith(canvas, {
+      algorithm: "simple",
+    });
+    expect(fastAverageColorMocks.getColorAsync).toHaveBeenCalledWith(canvas, {
+      mode: "speed",
+    });
+    expect(fastAverageColorMocks.getColorFromArray4).toHaveBeenCalledWith(
+      pixels,
+      { algorithm: "sqrt" },
+    );
+    expect(fastAverageColorMocks.destroy).toHaveBeenCalledOnce();
+  });
+
+  it("destroys its one-shot extractor when extraction rejects", async () => {
+    const failure = new Error("image failed");
+    fastAverageColorMocks.getColorAsync.mockRejectedValueOnce(failure);
+
+    await expect(getAverageColor("broken.jpg")).rejects.toBe(failure);
+    expect(fastAverageColorMocks.destroy).toHaveBeenCalledOnce();
   });
 });
 

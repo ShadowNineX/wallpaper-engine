@@ -33,12 +33,13 @@ interface WallpaperPropertyBase {
 }
 
 /**
- * Color picker property. Shows a color picker to the user.
- * The runtime value is `"R G B"` where each channel is in the **0–1** range.
+ * The stored and runtime value is `"R G B"` where each channel is in the
+ * **0–1** range. {@link colorProperty} accepts Color.js-supported color syntax
+ * and normalizes it to this representation.
  */
 export interface WallpaperColorProperty extends WallpaperPropertyBase {
   type: "color";
-  /** Default color as `"R G B"` with each channel in the 0–1 range. */
+  /** Normalized sRGB default as `"R G B"` with channels in the 0–1 range. */
   value: string;
 }
 

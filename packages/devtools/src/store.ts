@@ -138,7 +138,9 @@ export const useDevtoolsStore = defineStore("devtools", () => {
   });
 
   // --- wallpaper property state ---
-  const currentValues = reactive<WallpaperUserProperties>(createInitialValues());
+  const currentValues = reactive<WallpaperUserProperties>(
+    createInitialValues(),
+  );
   const propertyDisplayPaths = reactive<Record<string, string>>(
     createInitialDisplayPaths(),
   );
@@ -238,15 +240,14 @@ export const useDevtoolsStore = defineStore("devtools", () => {
     const removed = [...previousByPath]
       .filter(([path, file]) => {
         const replacement = nextByPath.get(path);
-        return !replacement || replacement.url !== file.url;
+        return replacement?.url !== file.url;
       })
       .map(([, file]) => file.url);
     const addedOrChanged = [...nextByPath]
       .filter(([path, file]) => {
         const old = previousByPath.get(path);
         return (
-          !old ||
-          old.size !== file.size ||
+          old?.size !== file.size ||
           old.mtimeMs !== file.mtimeMs ||
           old.url !== file.url
         );

@@ -36,7 +36,6 @@
     "@vueuse/core": "^14.4.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "fast-average-color": "^9.5.2",
     "pinia": "^4.0.2",
     "reka-ui": "^2.10.1",
     "tailwind-merge": "^3.6.0",

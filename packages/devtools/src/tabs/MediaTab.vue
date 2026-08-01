@@ -5,7 +5,7 @@ import Image from "~icons/ph/image-duotone";
 import Music2 from "~icons/ph/music-notes-duotone";
 import Radio from "~icons/ph/broadcast-duotone";
 import Upload from "~icons/ph/upload-simple";
-import { FastAverageColor } from "fast-average-color";
+import { createAverageColorExtractor } from "../../../wallpaper-engine/src/helpers";
 import type {
   WallpaperMediaPlaybackState,
   WallpaperMediaThumbnailEvent,
@@ -37,7 +37,6 @@ const {
 const timeline = mediaTimeline;
 const thumb = mediaThumb;
 const thumbnailInput = shallowRef<HTMLInputElement | null>(null);
-const averageColor = new FastAverageColor();
 
 const mediaListenerCount = computed(
   () =>
@@ -131,54 +130,70 @@ async function onThumbnailFile(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
   if (!file) return;
-  if (file.type !== "image/png") {
-    toast("Wallpaper Engine thumbnails must be PNG images.");
-    input.value = "";
-    return;
-  }
 
-  const dataUrl = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(file);
-  });
-  thumb.value.thumbnail = dataUrl;
-
+  const sourceUrl = URL.createObjectURL(file);
   try {
     const image = new globalThis.Image();
-    image.src = dataUrl;
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
-      image.onerror = () => reject(new Error("Unable to decode PNG"));
+      image.onerror = () => reject(new Error("Unable to decode artwork"));
+      image.src = sourceUrl;
     });
+
     const width = image.naturalWidth;
     const height = image.naturalHeight;
-    const [full, topLeft, bottomRight] = await Promise.all([
-      averageColor.getColorAsync(image),
-      averageColor.getColorAsync(image, {
-        left: 0,
-        top: 0,
-        width: Math.max(1, Math.floor(width / 2)),
-        height: Math.max(1, Math.floor(height / 2)),
-      }),
-      averageColor.getColorAsync(image, {
-        left: Math.floor(width / 2),
-        top: Math.floor(height / 2),
-        width: Math.max(1, Math.ceil(width / 2)),
-        height: Math.max(1, Math.ceil(height / 2)),
-      }),
-    ]);
-    thumb.value.primaryColor = full.hex;
-    thumb.value.secondaryColor = topLeft.hex;
-    thumb.value.tertiaryColor = bottomRight.hex;
-    thumb.value.textColor = full.isDark ? "#ffffff" : "#000000";
-    thumb.value.highContrastColor = full.isDark ? "#ffffff" : "#000000";
+    if (width < 1 || height < 1) throw new Error("Artwork has no pixels");
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas is unavailable");
+    context.drawImage(image, 0, 0, width, height);
+
+    const pngDataUrl = canvas.toDataURL("image/png");
+    if (!pngDataUrl.startsWith("data:image/png;base64,")) {
+      throw new Error("Unable to encode artwork as PNG");
+    }
+    thumb.value.thumbnail = pngDataUrl;
+
+    const averageColor = createAverageColorExtractor();
+    try {
+      const [full, topLeft, bottomRight] = await Promise.all([
+        averageColor.getColorAsync(canvas),
+        averageColor.getColorAsync(canvas, {
+          left: 0,
+          top: 0,
+          width: Math.max(1, Math.floor(width / 2)),
+          height: Math.max(1, Math.floor(height / 2)),
+        }),
+        averageColor.getColorAsync(canvas, {
+          left: Math.floor(width / 2),
+          top: Math.floor(height / 2),
+          width: Math.max(1, Math.ceil(width / 2)),
+          height: Math.max(1, Math.ceil(height / 2)),
+        }),
+      ]);
+      thumb.value.primaryColor = full.hex;
+      thumb.value.secondaryColor = topLeft.hex;
+      thumb.value.tertiaryColor = bottomRight.hex;
+      thumb.value.textColor = full.isDark ? "#ffffff" : "#000000";
+      thumb.value.highContrastColor = full.isDark ? "#ffffff" : "#000000";
+    } catch (error) {
+      console.warn("[WE Dev] Unable to extract thumbnail colors", error);
+      toast("Artwork converted to PNG, but its palette could not be extracted.");
+    } finally {
+      averageColor.destroy();
+    }
   } catch (error) {
-    console.warn("[WE Dev] Unable to extract thumbnail colors", error);
-    toast("PNG loaded, but its palette could not be extracted.");
+    console.warn("[WE Dev] Unable to prepare thumbnail", error);
+    toast(
+      "Unable to decode or convert that image. Choose a format supported by this browser.",
+    );
+  } finally {
+    URL.revokeObjectURL(sourceUrl);
+    input.value = "";
   }
-  input.value = "";
 }
 
 function sendThumbnail(): void {
@@ -350,15 +365,19 @@ function sendThumbnail(): void {
       <div class="we-card-header">
         <div>
           <h2 class="we-card-title">Artwork</h2>
-          <p class="we-card-description">Wallpaper Engine provides album art as a base64 PNG.</p>
+          <p class="we-card-description">
+            Wallpaper Engine emits album art callbacks as base64 PNG.
+          </p>
         </div>
         <Image class="size-4 text-we-faint" />
       </div>
 
+      <label for="media-thumbnail-input" class="sr-only">Artwork image</label>
       <input
         ref="thumbnailInput"
+        id="media-thumbnail-input"
         type="file"
-        accept="image/png"
+        accept="image/*"
         class="hidden"
         @change="onThumbnailFile"
       />
@@ -370,10 +389,11 @@ function sendThumbnail(): void {
         <div class="min-w-0 flex-1">
           <Button size="sm" variant="outline" class="h-8 gap-1.5 text-[11px]" @click="pickThumbnail">
             <Upload class="size-3" />
-            Choose PNG
+            Choose image
           </Button>
           <p class="mt-2 text-[10px] leading-relaxed text-we-faint">
-            Selecting an image also extracts the five host palette colors.
+            Any image this browser can decode is converted to PNG and used to extract the five
+            host palette colors.
           </p>
         </div>
       </div>
@@ -392,7 +412,14 @@ function sendThumbnail(): void {
                 type="color"
                 class="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-we-border bg-we-btn p-1"
               />
-              <Input v-model="thumb[field.key]" class="h-8 font-mono text-[11px]" />
+              <label :for="`thumb-${field.key}-value`" class="sr-only">
+                {{ field.label }} color value
+              </label>
+              <Input
+                :id="`thumb-${field.key}-value`"
+                v-model="thumb[field.key]"
+                class="h-8 font-mono text-[11px]"
+              />
             </div>
           </div>
         </div>

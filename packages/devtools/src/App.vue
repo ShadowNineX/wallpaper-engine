@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, shallowRef } from "vue";
+import { storeToRefs } from "pinia";
 import {
   useDebounceFn,
   useDraggable,
@@ -13,24 +14,19 @@ import Minus from "~icons/ph/minus";
 import Music2 from "~icons/ph/music-notes-duotone";
 import Settings2 from "~icons/ph/gear-six-duotone";
 import SlidersHorizontal from "~icons/ph/sliders-horizontal-duotone";
-import { audioState } from "./audio";
 import "vue-sonner/style.css";
 import type { ToasterProps } from "vue-sonner";
 import { cfg } from "./config";
+import { AUDIO_MODE_LABELS, audioState } from "./audio";
 import { useDevtoolsStore } from "./store";
-import { storeToRefs } from "pinia";
 
 import PropertiesTab from "./tabs/PropertiesTab.vue";
 import GeneralTab from "./tabs/GeneralTab.vue";
 import AudioTab from "./tabs/AudioTab.vue";
 import MediaTab from "./tabs/MediaTab.vue";
 import { Toaster } from "@/components/ui/sonner";
-import StatusBar from "./components/StatusBar.vue";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-
-const store = useDevtoolsStore();
-const { mediaActive } = storeToRefs(store);
 
 type TabId = "properties" | "general" | "audio" | "media";
 
@@ -47,6 +43,45 @@ const tabComponents = {
   audio: AudioTab,
   media: MediaTab,
 } as const;
+
+type TabStatusTone = "positive" | "neutral" | "warning";
+interface TabStatus {
+  label: string;
+  tone: TabStatusTone;
+}
+
+const statusToneClasses = {
+  positive: {
+    dot: "bg-emerald-400",
+    text: "text-emerald-300/90",
+  },
+  neutral: {
+    dot: "bg-we-border-strong",
+    text: "text-we-faint",
+  },
+  warning: {
+    dot: "bg-amber-400",
+    text: "text-amber-300/90",
+  },
+} as const satisfies Record<TabStatusTone, { dot: string; text: string }>;
+
+const store = useDevtoolsStore();
+const { listenerCounts, mediaActive } = storeToRefs(store);
+const tabStatuses = computed<Record<TabId, TabStatus>>(() => ({
+  properties: listenerCounts.value.property
+    ? { label: "Ready", tone: "positive" }
+    : { label: "No listener", tone: "warning" },
+  general: store.general.paused
+    ? { label: "Paused", tone: "warning" }
+    : { label: "Running", tone: "positive" },
+  audio: {
+    label: AUDIO_MODE_LABELS[audioState.mode],
+    tone: audioState.mode === "off" ? "neutral" : "positive",
+  },
+  media: mediaActive.value
+    ? { label: "Enabled", tone: "positive" }
+    : { label: "Disabled", tone: "neutral" },
+}));
 
 const toastOptions = {
   unstyled: true,
@@ -72,7 +107,13 @@ const active = ref<TabId>("properties");
 const collapsed = ref(false);
 const panel = shallowRef<HTMLElement | null>(null);
 const header = shallowRef<HTMLElement | null>(null);
-const panelWidth = Math.min(440, Math.max(280, window.innerWidth - 24));
+const EXPANDED_PANEL_WIDTH = 440;
+const COLLAPSED_PANEL_WIDTH = 320;
+const VIEWPORT_MARGIN = 12;
+const panelWidth = Math.min(
+  EXPANDED_PANEL_WIDTH,
+  Math.max(COLLAPSED_PANEL_WIDTH, window.innerWidth - VIEWPORT_MARGIN * 2),
+);
 const {
   style: dragStyle,
   x: panelX,
@@ -96,9 +137,10 @@ const toastPosition = computed<NonNullable<ToasterProps["position"]>>(() => {
     : "bottom-right";
 });
 
-const VIEWPORT_MARGIN = 12;
 let panelSizeAnimation: Animation | undefined;
 let pendingPanelHeight: number | undefined;
+let panelWidthTarget = panelWidth;
+let panelWidthTransitioning = false;
 
 function cancelPanelSizeAnimation(): void {
   const animation = panelSizeAnimation;
@@ -163,22 +205,33 @@ function onTabEnter(): void {
   if (fromHeight !== undefined) animatePanelHeight(fromHeight);
 }
 
+function clampPanelAxis(
+  position: number,
+  size: number,
+  viewportSize: number,
+): number {
+  const maximum = Math.max(
+    VIEWPORT_MARGIN,
+    viewportSize - VIEWPORT_MARGIN - size,
+  );
+  return Math.min(maximum, Math.max(VIEWPORT_MARGIN, position));
+}
 
 function constrainPanelToViewport(): void {
   const element = panel.value;
   if (!element) return;
 
-  const maxX = Math.max(
-    VIEWPORT_MARGIN,
-    window.innerWidth - VIEWPORT_MARGIN - element.offsetWidth,
+  const width = element.offsetWidth;
+  const reachedWidthTarget = Math.abs(width - panelWidthTarget) < 1;
+  if (!panelWidthTransitioning || reachedWidthTarget) {
+    panelWidthTransitioning = false;
+    panelX.value = clampPanelAxis(panelX.value, width, window.innerWidth);
+  }
+  panelY.value = clampPanelAxis(
+    panelY.value,
+    element.offsetHeight,
+    window.innerHeight,
   );
-  const maxY = Math.max(
-    VIEWPORT_MARGIN,
-    window.innerHeight - VIEWPORT_MARGIN - element.offsetHeight,
-  );
-
-  panelX.value = Math.min(maxX, Math.max(VIEWPORT_MARGIN, panelX.value));
-  panelY.value = Math.min(maxY, Math.max(VIEWPORT_MARGIN, panelY.value));
 }
 
 const finishViewportResize = useDebounceFn(() => {
@@ -193,41 +246,34 @@ useEventListener(window, "resize", () => {
 });
 useResizeObserver(panel, constrainPanelToViewport);
 
-let lastExpandedWidth = panelWidth;
-
-
 function toggleCollapsed(): void {
   cancelPanelSizeAnimation();
   const viewportWidth = window.innerWidth;
-  const maxPanelWidth = Math.max(0, viewportWidth - 24);
-  const currentWidth = panel.value?.offsetWidth ?? panelWidth;
-  const rightEdge = panelX.value + currentWidth;
-
-  if (!collapsed.value) {
-    lastExpandedWidth = currentWidth;
-    void nextTick(constrainPanelToViewport);
-    const collapsedWidth = Math.min(280, maxPanelWidth);
-    panelX.value = Math.max(
-      0,
-      Math.min(rightEdge - collapsedWidth, viewportWidth - collapsedWidth),
+  const maxPanelWidth = Math.max(0, viewportWidth - VIEWPORT_MARGIN * 2);
+  const currentWidth =
+    panel.value?.offsetWidth ||
+    Math.min(
+      collapsed.value ? COLLAPSED_PANEL_WIDTH : EXPANDED_PANEL_WIDTH,
+      maxPanelWidth,
     );
-    collapsed.value = true;
-    return;
-  }
+  const renderedRightEdge = panel.value?.getBoundingClientRect().right;
+  const rightEdge =
+    renderedRightEdge !== undefined && renderedRightEdge > 0
+      ? renderedRightEdge
+      : panelX.value + currentWidth;
 
-  const expandedWidth = Math.min(lastExpandedWidth, maxPanelWidth);
-  panelX.value = Math.max(
-    0,
-    Math.min(rightEdge - expandedWidth, viewportWidth - expandedWidth),
+  panelWidthTarget = Math.min(
+    collapsed.value ? EXPANDED_PANEL_WIDTH : COLLAPSED_PANEL_WIDTH,
+    maxPanelWidth,
   );
+  panelWidthTransitioning = Math.abs(currentWidth - panelWidthTarget) >= 1;
+  panelX.value = clampPanelAxis(
+    rightEdge - panelWidthTarget,
+    panelWidthTarget,
+    viewportWidth,
+  );
+  collapsed.value = !collapsed.value;
   void nextTick(constrainPanelToViewport);
-  collapsed.value = false;
-}
-
-function tabActive(id: TabId): boolean {
-  if (id === "audio") return audioState.mode !== "off";
-  if (id === "media") return mediaActive.value;
-  return false;
 }
 </script>
 
@@ -237,7 +283,7 @@ function tabActive(id: TabId): boolean {
     :style="dragStyle"
     class="fixed z-2147483647 flex max-h-[calc(100dvh-24px)] max-w-[calc(100dvw-24px)] flex-col overflow-hidden rounded-xl border border-[#4b5570] bg-we-panel text-xs text-we-text shadow-[0_24px_80px_rgba(3,7,18,0.72),0_0_42px_rgba(91,134,237,0.1)]"
     :class="[
-      collapsed ? 'w-[280px]' : 'w-[440px]',
+      collapsed ? 'w-[320px]' : 'w-110',
       isDragging || isViewportResizing
         ? 'transition-none'
         : 'transition-[width,left,top] duration-250 ease-in-out',
@@ -245,7 +291,8 @@ function tabActive(id: TabId): boolean {
   >
     <header
       ref="header"
-      class="flex shrink-0 cursor-move items-center gap-3 border-b border-[#49516a] bg-[linear-gradient(120deg,#121b31_0%,#241638_58%,#151726_100%)] px-3 py-2.5 select-none"
+      class="flex shrink-0 cursor-move items-center gap-3 border-[#49516a] bg-[linear-gradient(120deg,#121b31_0%,#241638_58%,#151726_100%)] px-3 py-2.5 select-none"
+      :class="{ 'border-b': !collapsed }"
     >
       <div
         class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(91,134,237,0.3),rgba(139,92,246,0.24))] text-[#92b2ff] ring-1 ring-white/10 shadow-[0_0_20px_rgba(91,134,237,0.16)]"
@@ -253,10 +300,17 @@ function tabActive(id: TabId): boolean {
         <SlidersHorizontal class="size-4.5" />
       </div>
       <div class="min-w-0 flex-1">
-        <div class="truncate text-[13px] font-semibold leading-4 tracking-[-0.01em] text-we-text">
+        <div
+          class="text-[13px] font-semibold leading-4 tracking-[-0.01em] text-we-text"
+          :class="collapsed ? 'whitespace-normal' : 'truncate'"
+        >
           Wallpaper Engine Devtools
         </div>
-        <div v-if="cfg.title" class="truncate text-[11px] leading-4 text-we-faint">
+        <div
+          v-if="cfg.title"
+          class="text-[11px] leading-4 text-we-faint"
+          :class="collapsed ? 'whitespace-normal' : 'truncate'"
+        >
           {{ cfg.title }}
         </div>
       </div>
@@ -277,7 +331,6 @@ function tabActive(id: TabId): boolean {
       :class="collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'"
     >
       <div class="flex h-full min-h-0 flex-col overflow-hidden">
-        <StatusBar />
         <Tabs
           :model-value="active"
           class="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -290,14 +343,23 @@ function tabActive(id: TabId): boolean {
               v-for="tab in tabs"
               :key="tab.id"
               :value="tab.id"
-              class="group relative flex h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-md border border-transparent bg-transparent px-1 text-[11px] font-medium text-we-faint shadow-none transition-all hover:bg-we-btn/70 hover:text-we-text data-[state=active]:border-we-primary/40 data-[state=active]:bg-[linear-gradient(145deg,rgba(91,134,237,0.18),rgba(139,92,246,0.1))] data-[state=active]:text-white data-[state=active]:shadow-[inset_0_-2px_0_rgba(91,134,237,0.75)]"
+              :aria-label="`${tab.label}: ${tabStatuses[tab.id].label}`"
+              :title="`${tab.label}: ${tabStatuses[tab.id].label}`"
+              class="group relative flex h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent bg-transparent px-1 text-[11px] font-medium text-we-faint shadow-none transition-all hover:bg-we-btn/70 hover:text-we-text data-[state=active]:border-we-primary/40 data-[state=active]:bg-[linear-gradient(145deg,rgba(91,134,237,0.18),rgba(139,92,246,0.1))] data-[state=active]:text-white data-[state=active]:shadow-[inset_0_-2px_0_rgba(91,134,237,0.75)]"
             >
-              <component :is="tab.icon" class="size-4" />
-              <span class="truncate">{{ tab.label }}</span>
+              <component :is="tab.icon" class="mb-0.5 size-4" />
+              <span class="max-w-full truncate leading-4">{{ tab.label }}</span>
               <span
-                v-if="tabActive(tab.id)"
-                class="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-emerald-400 ring-2 ring-we-surface"
-              />
+                data-tab-status
+                class="flex max-w-full items-center gap-1 text-[9px] leading-3 font-normal"
+                :class="statusToneClasses[tabStatuses[tab.id].tone].text"
+              >
+                <span
+                  class="size-1.5 shrink-0 rounded-full"
+                  :class="statusToneClasses[tabStatuses[tab.id].tone].dot"
+                />
+                <span class="truncate">{{ tabStatuses[tab.id].label }}</span>
+              </span>
             </TabsTrigger>
           </TabsList>
 

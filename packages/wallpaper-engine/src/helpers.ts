@@ -4,8 +4,17 @@
  * Every export is side-effect-free and tree-shakeable — import only what you need.
  *
  * @example
- * import { wallpaperColorToRgb, toFileUrl, clampAudio, createFpsLimiter } from 'wallpaper-engine/helpers';
+ * import { colorToWallpaperColor, getAverageColor, wallpaperColorToRgb, toFileUrl } from 'wallpaper-engine/helpers';
  */
+
+export { colorToWallpaperColor } from "./color";
+export { createAverageColorExtractor, getAverageColor } from "./image-color";
+export type {
+  AverageColorExtractor,
+  AverageColorOptions,
+  AverageColorResult,
+  AverageColorSource,
+} from "./image-color";
 
 // ---------------------------------------------------------------------------
 // Color helpers

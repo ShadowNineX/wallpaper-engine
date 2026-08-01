@@ -1,14 +1,13 @@
 import { createPinia, setActivePinia } from "pinia";
-import { mount } from "@vue/test-utils";
+import { flushPromises, mount } from "@vue/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("vue-sonner", () => ({ toast: vi.fn() }));
-vi.mock("fast-average-color", () => ({
-  FastAverageColor: class {
-    getColorAsync() {
-      return Promise.resolve({ hex: "#000000" });
-    }
-  },
+vi.mock("../../../wallpaper-engine/src/helpers", () => ({
+  createAverageColorExtractor: () => ({
+    getColorAsync: () => Promise.resolve({ hex: "#000000" }),
+    destroy: () => undefined,
+  }),
 }));
 
 beforeEach(() => {
@@ -19,6 +18,8 @@ beforeEach(() => {
 
 afterEach(() => {
   delete window.__WE_DEVTOOLS_CONFIG__;
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("MediaTab", () => {
@@ -45,6 +46,86 @@ describe("MediaTab", () => {
     expect(
       wrapper.get('[data-slot="native-select-wrapper"]').attributes("data-slot"),
     ).toBe("native-select-wrapper");
+  });
+
+  it("associates artwork file and palette inputs with labels", async () => {
+    const { default: MediaTab } = await import("../../src/tabs/MediaTab.vue");
+    const wrapper = mount(MediaTab);
+
+    expect(
+      wrapper.get('label[for="media-thumbnail-input"]').text(),
+    ).toBe("Artwork image");
+    expect(wrapper.get("#media-thumbnail-input").attributes("type")).toBe("file");
+    expect(wrapper.get('label[for="thumb-primaryColor"]').text()).toBe(
+      "Primary",
+    );
+    expect(
+      wrapper.get('label[for="thumb-primaryColor-value"]').text(),
+    ).toBe("Primary color value");
+    expect(
+      wrapper.get<HTMLInputElement>("#thumb-primaryColor-value").element.value,
+    ).toBe("#202020");
+  });
+
+  it("accepts browser-decodable artwork and emits a PNG callback", async () => {
+    const [{ default: MediaTab }, { listenerFns }] = await Promise.all([
+      import("../../src/tabs/MediaTab.vue"),
+      import("../../src/store"),
+    ]);
+    const thumbnail = vi.fn();
+    listenerFns.mediaThumb.push(thumbnail);
+    const wrapper = mount(MediaTab);
+    const button = (label: string) =>
+      wrapper.findAll("button").find((candidate) => candidate.text().includes(label));
+
+    await button("Enabled")?.trigger("click");
+    thumbnail.mockClear();
+
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      drawImage,
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, "toDataURL").mockReturnValue(
+      "data:image/png;base64,converted",
+    );
+    const createObjectURL = vi.fn(() => "blob:artwork-source");
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal("URL", { createObjectURL, revokeObjectURL });
+    vi.stubGlobal(
+      "Image",
+      class {
+        naturalWidth = 2;
+        naturalHeight = 2;
+        onload: (() => void) | null = null;
+        onerror: (() => void) | null = null;
+
+        set src(_value: string) {
+          queueMicrotask(() => this.onload?.());
+        }
+      },
+    );
+
+    const input = wrapper.get<HTMLInputElement>('input[type="file"]');
+    const jpeg = new File(["jpeg"], "cover.jpg", { type: "image/jpeg" });
+    Object.defineProperty(input.element, "files", {
+      configurable: true,
+      value: [jpeg],
+    });
+
+    expect(input.attributes("accept")).toBe("image/*");
+    expect(button("Choose image")).toBeDefined();
+    await input.trigger("change");
+    await flushPromises();
+    await button("Send artwork")?.trigger("click");
+
+    expect(drawImage).toHaveBeenCalledOnce();
+    expect(thumbnail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        thumbnail: "data:image/png;base64,converted",
+      }),
+    );
+    expect(createObjectURL).toHaveBeenCalledWith(jpeg);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:artwork-source");
   });
 
   it("delivers status, playback, timeline, artwork, and disabled transitions", async () => {
