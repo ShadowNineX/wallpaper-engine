@@ -53,9 +53,10 @@ export function colorProperty(
 /**
  * Define a numeric slider property.
  *
- * Wallpaper Engine reads `step`, not `precision`, when determining the slider
- * increment. When only `precision` is supplied, this builder derives
- * `step` as `10 ** -precision`. An explicit `step` takes precedence.
+ * Wallpaper Engine uses `precision` to format the slider value and `step` to
+ * determine its increment. When only `precision` is supplied, this builder
+ * retains it and derives `step` as `10 ** -precision`. An explicit `step`
+ * takes precedence.
  *
  * @example
  * sliderProperty({

@@ -105,8 +105,9 @@ This outputs a `project.json` alongside your build:
 | `directoryProperty` | Directory picker | `WallpaperDirectoryValue` — `value: string` (path) |
 
 Fractional sliders accept either `precision` (decimal places) or an explicit
-`step`. Wallpaper Engine reads the singular `step` field from `project.json`;
-`sliderProperty` derives it automatically when only `precision` is provided:
+`step`. Wallpaper Engine uses `precision` to format the displayed value and the
+singular `step` field for its increment. `sliderProperty` retains `precision`
+and derives `step` automatically when only `precision` is provided:
 
 ```ts
 sliderProperty({

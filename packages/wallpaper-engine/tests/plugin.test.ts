@@ -254,6 +254,7 @@ describe("wallpaperEnginePlugin", () => {
         },
       }),
     );
+    expect(project.general.properties.precise.precision).toBe(3);
     expect(project.general.properties.precise.step).toBe(0.001);
     expect(project.general.properties.precise.steps).toBeUndefined();
     expect(project.general.properties.stepped.step).toBe(0.05);

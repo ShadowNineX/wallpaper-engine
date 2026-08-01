@@ -54,10 +54,13 @@ export interface WallpaperSliderProperty extends WallpaperPropertyBase {
   max: number;
   /** Allow fractional (decimal) values. */
   fraction?: boolean;
-  /** Number of decimal places when `fraction` is `true` (default: `2`). */
+  /**
+   * Number of decimal places Wallpaper Engine uses to format fractional values.
+   * Retained in `project.json` alongside `step`.
+   */
   precision?: number;
   /**
-   * Numeric increment accepted by Wallpaper Engine's `project.json` format.
+   * Numeric increment Wallpaper Engine uses when changing the slider value.
    * When omitted, {@link sliderProperty} derives it from `precision`.
    */
   step?: number;
