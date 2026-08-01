@@ -182,6 +182,40 @@ function stubRaf() {
   return { raf, caf };
 }
 
+function createRafHarness(startTime = 0) {
+  const callbacks: FrameRequestCallback[] = [];
+  let now = startTime;
+  let id = 0;
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      callbacks.push(callback);
+      return ++id;
+    }),
+  );
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  vi.stubGlobal("performance", { now: () => now });
+
+  return {
+    step(timestamp: number): void {
+      const callback = callbacks.shift();
+      if (!callback) throw new Error("No animation frame was queued");
+      now = timestamp;
+      callback(timestamp);
+    },
+  };
+}
+
+const issue2Scenarios = [
+  30, 60, 75, 90, 120, 144, 165, 240,
+].flatMap((refreshRate) =>
+  [1, 5, 10, 15, 24, 30, 45, 60, 90, 120].map((limit) => ({
+    refreshRate,
+    limit,
+    seconds: 2,
+  })),
+);
+
 describe("createFpsLimiter", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -256,7 +290,140 @@ describe("createFpsLimiter", () => {
     expect(draw).toHaveBeenNthCalledWith(2, 1);
   });
 
-  it("skips frames below the configured threshold and draws once accumulated", () => {
+  it.each(issue2Scenarios)(
+    "reports correct deltas at $limit FPS on a $refreshRate Hz display",
+    ({ refreshRate, limit, seconds }) => {
+      const harness = createRafHarness();
+      const draw = vi.fn();
+      const limiter = createFpsLimiter(draw);
+      limiter.setLimit(limit);
+      limiter.start();
+
+      for (let frame = 1; frame <= refreshRate * seconds; frame++) {
+        harness.step((frame * 1_000) / refreshRate);
+      }
+
+      const deltas = draw.mock.calls.map(([dt]) => dt as number);
+      const effectiveRate = Math.min(refreshRate, limit);
+      expect(deltas).toHaveLength(effectiveRate * seconds);
+      expect(deltas.reduce((sum, dt) => sum + dt, 0)).toBeCloseTo(
+        seconds,
+        10,
+      );
+
+      if (limit >= refreshRate || refreshRate % limit === 0) {
+        for (const dt of deltas) {
+          expect(dt).toBeCloseTo(1 / effectiveRate, 10);
+        }
+      } else {
+        const framesPerDraw = refreshRate / limit;
+        const minimumDt = Math.floor(framesPerDraw) / refreshRate;
+        const maximumDt = Math.ceil(framesPerDraw) / refreshRate;
+        for (const dt of deltas) {
+          expect(dt).toBeGreaterThanOrEqual(minimumDt - 1e-10);
+          expect(dt).toBeLessThanOrEqual(maximumDt + 1e-10);
+        }
+      }
+    },
+  );
+
+  it.each([{ limit: 5 }, { limit: 30 }])(
+    "reports actual draw intervals at $limit FPS with jittering RAF timestamps",
+    ({ limit }) => {
+      const startTime = 5_000;
+      const harness = createRafHarness(startTime);
+      const records: Array<{ timestamp: number; dt: number }> = [];
+      let timestamp = startTime;
+      const limiter = createFpsLimiter((dt) => {
+        records.push({ timestamp, dt });
+      });
+      limiter.setLimit(limit);
+      limiter.start();
+
+      const jitterPattern = [15.4, 17.9, 16.1, 16.8, 17.2, 15.9];
+      for (let frame = 0; frame < 300; frame++) {
+        const increment = jitterPattern[frame % jitterPattern.length];
+        if (increment === undefined) throw new Error("Missing jitter increment");
+        timestamp += increment;
+        harness.step(timestamp);
+      }
+
+      const elapsed = (timestamp - startTime) / 1_000;
+      expect(records).toHaveLength(Math.floor(elapsed * limit));
+
+      let previousTimestamp = startTime;
+      for (const record of records) {
+        expect(record.dt).toBeCloseTo(
+          (record.timestamp - previousTimestamp) / 1_000,
+          10,
+        );
+        previousTimestamp = record.timestamp;
+      }
+    },
+  );
+
+  it("caps dt after a long stall without producing catch-up draws", () => {
+    const harness = createRafHarness();
+    const draw = vi.fn();
+    const limiter = createFpsLimiter(draw);
+    limiter.setLimit(5);
+    limiter.start();
+
+    harness.step(100);
+    expect(draw).not.toHaveBeenCalled();
+    harness.step(200);
+    expect(draw.mock.calls[0]?.[0]).toBeCloseTo(0.2, 10);
+
+    harness.step(5_000);
+    expect(draw).toHaveBeenNthCalledWith(2, 1);
+    harness.step(5_016);
+    expect(draw).toHaveBeenCalledTimes(2);
+    harness.step(5_200);
+    expect(draw.mock.calls[2]?.[0]).toBeCloseTo(0.2, 10);
+  });
+
+  it("preserves elapsed draw time when the limit changes at runtime", () => {
+    const harness = createRafHarness();
+    const draw = vi.fn();
+    const limiter = createFpsLimiter(draw);
+    limiter.setLimit(30);
+    limiter.start();
+
+    harness.step(1_000 / 60);
+    harness.step(2_000 / 60);
+    expect(draw.mock.calls[0]?.[0]).toBeCloseTo(1 / 30, 10);
+
+    limiter.setLimit(5);
+    for (let frame = 3; frame <= 14; frame++) {
+      harness.step((frame * 1_000) / 60);
+    }
+    expect(draw.mock.calls[1]?.[0]).toBeCloseTo(1 / 5, 10);
+
+    limiter.setLimit(0);
+    harness.step(15_000 / 60);
+    expect(draw.mock.calls[2]?.[0]).toBeCloseTo(1 / 60, 10);
+  });
+
+  it("does not reset accumulated time when the same limit is repeated", () => {
+    const harness = createRafHarness();
+    const draw = vi.fn();
+    const limiter = createFpsLimiter(draw);
+    limiter.setLimit(5);
+    limiter.start();
+
+    for (let frame = 1; frame <= 6; frame++) {
+      harness.step((frame * 1_000) / 60);
+    }
+    limiter.setLimit(5);
+    for (let frame = 7; frame <= 12; frame++) {
+      harness.step((frame * 1_000) / 60);
+    }
+
+    expect(draw).toHaveBeenCalledOnce();
+    expect(draw.mock.calls[0]?.[0]).toBeCloseTo(1 / 5, 10);
+  });
+
+  it("skips frames below the configured threshold and reports all elapsed time", () => {
     const callbacks: FrameRequestCallback[] = [];
     vi.stubGlobal(
       "requestAnimationFrame",
@@ -277,6 +444,6 @@ describe("createFpsLimiter", () => {
     callbacks.shift()?.(110);
 
     expect(draw).toHaveBeenCalledOnce();
-    expect(draw).toHaveBeenCalledWith(0.06);
+    expect(draw).toHaveBeenCalledWith(0.11);
   });
 });

@@ -177,29 +177,37 @@ export function createFpsLimiter(draw: (dt: number) => void): {
   setLimit(fps: number): void;
 } {
   let limit = 0;
-  let last = 0;
+  let lastTick = 0;
+  let lastDraw = 0;
   let threshold = 0;
   let rafId: number | null = null;
 
   function loop(timestamp: number): void {
     rafId = requestAnimationFrame(loop);
     const now = timestamp / 1000;
-    const dt = Math.min(now - last, 1);
-    last = now;
+    const tickDelta = Math.min(Math.max(now - lastTick, 0), 1);
+    lastTick = now;
 
     if (limit > 0) {
-      threshold += dt;
-      if (threshold < 1 / limit) return;
-      threshold -= 1 / limit;
+      const frameDuration = 1 / limit;
+      const epsilon = frameDuration * 1e-9;
+      threshold += tickDelta;
+      if (threshold + epsilon < frameDuration) return;
+
+      const remainder = threshold % frameDuration;
+      threshold = remainder + epsilon >= frameDuration ? 0 : remainder;
     }
 
+    const dt = Math.min(Math.max(now - lastDraw, 0), 1);
+    lastDraw = now;
     draw(dt);
   }
 
   return {
     start() {
       if (rafId !== null) cancelAnimationFrame(rafId);
-      last = performance.now() / 1000;
+      lastTick = performance.now() / 1000;
+      lastDraw = lastTick;
       threshold = 0;
       rafId = requestAnimationFrame(loop);
     },
@@ -210,6 +218,7 @@ export function createFpsLimiter(draw: (dt: number) => void): {
       }
     },
     setLimit(fps: number) {
+      if (limit !== fps) threshold = 0;
       limit = fps;
     },
   };
