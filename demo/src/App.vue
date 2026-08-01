@@ -22,7 +22,10 @@ import {
   Waves,
 } from "lucide-vue-next";
 import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
-import { wallpaperColorToHex } from "wallpaper-engine/helpers";
+import {
+  createFpsLimiter,
+  wallpaperColorToHex,
+} from "wallpaper-engine/helpers";
 import { properties } from "./wallpaper";
 
 type UserProps = WallpaperUserPropertiesOf<typeof properties>;
@@ -100,13 +103,16 @@ const timelineDuration = ref(0);
 const now = ref(new Date());
 const paused = ref(false);
 const fpsLimit = ref(60);
+const measuredFps = ref(0);
+const lastFrameDelta = ref(0);
 const canvas = ref<HTMLCanvasElement | null>(null);
 const backgroundVideo = ref<HTMLVideoElement | null>(null);
 const rawAudio = new Float32Array(128);
 const smoothedAudio = new Float32Array(128);
 const particles: Particle[] = [];
-let animationFrame = 0;
-let previousFrame = 0;
+let animationRunning = false;
+let fpsSampleStart = 0;
+let renderedFrames = 0;
 let previousGalleryChange = 0;
 let clockTimer: ReturnType<typeof setInterval> | undefined;
 
@@ -119,6 +125,13 @@ const effectiveGlow = computed(() =>
   useMediaColors.value && mediaSecondary.value
     ? mediaSecondary.value
     : glowColor.value,
+);
+
+const fpsLimitLabel = computed(() =>
+  fpsLimit.value === 0 ? "∞" : String(fpsLimit.value),
+);
+const frameDeltaLabel = computed(() =>
+  (lastFrameDelta.value * 1_000).toFixed(1),
 );
 
 const activePath = computed(() => {
@@ -481,31 +494,50 @@ function drawScene(time: number, deltaSeconds: number): void {
   context.globalCompositeOperation = "source-over";
 }
 
-function animate(time: number): void {
-  animationFrame = requestAnimationFrame(animate);
-  const interval = 1000 / Math.max(1, fpsLimit.value);
-  if (previousFrame > 0 && time - previousFrame < interval) return;
-  const deltaSeconds = Math.min(0.1, (time - (previousFrame || time)) / 1000);
-  previousFrame = time;
+function resetFpsMeasurement(time = performance.now()): void {
+  fpsSampleStart = time;
+  renderedFrames = 0;
+  measuredFps.value = 0;
+  lastFrameDelta.value = 0;
+}
+
+function renderAnimationFrame(deltaSeconds: number): void {
+  const time = performance.now();
+  lastFrameDelta.value = deltaSeconds;
+  renderedFrames += 1;
+
+  const sampleDuration = time - fpsSampleStart;
+  if (sampleDuration >= 1_000) {
+    measuredFps.value = Math.round((renderedFrames * 1_000) / sampleDuration);
+    fpsSampleStart = time;
+    renderedFrames = 0;
+  }
+
   drawScene(time, deltaSeconds);
   if (
     isGallerySource.value &&
-    time - previousGalleryChange >= galleryInterval.value * 1000
+    time - previousGalleryChange >= galleryInterval.value * 1_000
   ) {
     advanceGallery();
   }
 }
 
+const animationLoop = createFpsLimiter(renderAnimationFrame);
+animationLoop.setLimit(fpsLimit.value);
+
 function startAnimation(): void {
-  if (paused.value || animationFrame !== 0) return;
-  previousFrame = 0;
+  if (paused.value || animationRunning) return;
+  animationRunning = true;
   previousGalleryChange = performance.now();
-  animationFrame = requestAnimationFrame(animate);
+  resetFpsMeasurement(previousGalleryChange);
+  animationLoop.start();
 }
 
 function stopAnimation(): void {
-  if (animationFrame !== 0) cancelAnimationFrame(animationFrame);
-  animationFrame = 0;
+  if (!animationRunning) return;
+  animationLoop.stop();
+  animationRunning = false;
+  resetFpsMeasurement();
 }
 
 function startClock(): void {
@@ -612,7 +644,10 @@ globalThis.wallpaperPropertyListener = {
     }
   },
   applyGeneralProperties(values) {
-    fpsLimit.value = values.fps && values.fps > 0 ? values.fps : 60;
+    if (values.fps === undefined) return;
+    fpsLimit.value = Math.max(0, values.fps);
+    animationLoop.setLimit(fpsLimit.value);
+    resetFpsMeasurement();
   },
   setPaused: setWallpaperPaused,
   userDirectoryFilesAddedOrChanged: updateDirectoryFiles,
@@ -725,7 +760,14 @@ onBeforeUnmount(() => {
           <span class="status-dot" :class="mediaEnabled ? 'is-live' : ''" />
           MEDIA {{ mediaEnabled ? "LINKED" : "STANDBY" }}
         </span>
-        <span class="system-pill"><Waves :size="13" /> {{ fpsLimit }} FPS</span>
+        <span
+          class="system-pill"
+          title="Configured limit · measured render rate · latest rendered-frame delta"
+        >
+          <Waves :size="13" />
+          LIMIT {{ fpsLimitLabel }} · ACTUAL {{ measuredFps }} · Δ
+          {{ frameDeltaLabel }} MS
+        </span>
       </div>
     </header>
 
