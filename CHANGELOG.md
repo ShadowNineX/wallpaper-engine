@@ -9,6 +9,8 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-08-04
+
 ### Added
 
 - Added a deterministic devtools Track loop audio mode with adjustable output,
@@ -170,7 +172,8 @@ migration); tags are used where they exist.
   canvas encoding, and FPS-limited animation loops.
 - Added an example wallpaper, automated tests, build configuration, and CI.
 
-[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.0.3...v1.1.0
