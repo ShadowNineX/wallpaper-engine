@@ -1,6 +1,6 @@
 import type { BuildOptions, Rolldown } from 'vite';
 import type { WallpaperEnginePluginOptions } from '../src/plugin/index';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { build } from 'vite';
@@ -118,6 +118,61 @@ describe('steam Workshop project preservation', () => {
     });
   });
 
+  it('round-trips editor state through a persistent project link', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const projectsDirectory = join(root, 'myprojects');
+    const linkPath = join(projectsDirectory, 'linked-wallpaper');
+    await mkdir(projectsDirectory);
+
+    const options: WallpaperEnginePluginOptions = {
+      title: 'First generated title',
+      projectLink: {
+        name: 'linked-wallpaper',
+        projectsDirectory,
+      },
+    };
+    await buildWallpaper(root, options);
+
+    expect((await lstat(linkPath)).isSymbolicLink()).toBe(true);
+    expect(await realpath(linkPath)).toBe(await realpath(outDir));
+    const originalLinkTarget = await readlink(linkPath);
+    expect(JSON.parse(await readFile(join(linkPath, 'project.json'), 'utf8')))
+      .toMatchObject({
+        file: 'index.html',
+        title: 'First generated title',
+        type: 'web',
+      });
+
+    await writeFile(join(linkPath, 'project.json'), JSON.stringify({
+      file: 'editor.html',
+      title: 'Editor title',
+      type: 'video',
+      general: { stale: true },
+      workshopid: '9876543210',
+      version: 12,
+      approved: false,
+      futureField: { retained: true },
+    }));
+    await buildWallpaper(root, {
+      ...options,
+      title: 'Second generated title',
+      file: 'wallpaper.html',
+    });
+
+    expect(await readlink(linkPath)).toBe(originalLinkTarget);
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toEqual({
+        workshopid: '9876543210',
+        version: 12,
+        approved: false,
+        futureField: { retained: true },
+        file: 'wallpaper.html',
+        title: 'Second generated title',
+        type: 'web',
+      });
+  });
+
   it('builds a clean clone from a metadata file and public preview', async () => {
     const root = await createWallpaperRoot();
     const previewBytes = new Uint8Array([9, 8, 7, 6]);
@@ -189,16 +244,24 @@ describe('steam Workshop project preservation', () => {
     expect([...preview.source as Uint8Array]).toEqual([...previewBytes]);
   });
 
-  it('rejects malformed previous output before Vite deletes it', async () => {
+  it('rejects malformed previous output before Vite deletes it or creates a link', async () => {
     const root = await createWallpaperRoot();
     const projectPath = join(root, 'dist', 'project.json');
+    const projectsDirectory = join(root, 'myprojects');
+    const linkPath = join(projectsDirectory, 'linked-wallpaper');
     await mkdir(join(root, 'dist'), { recursive: true });
+    await mkdir(projectsDirectory);
     await writeFile(projectPath, '{ malformed');
 
-    await expect(buildWallpaper(root, { title: 'T' })).rejects.toThrow(
-      projectPath,
-    );
+    await expect(buildWallpaper(root, {
+      title: 'T',
+      projectLink: {
+        name: 'linked-wallpaper',
+        projectsDirectory,
+      },
+    })).rejects.toThrow(projectPath);
     expect(await readFile(projectPath, 'utf8')).toBe('{ malformed');
+    await expect(lstat(linkPath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it.each([

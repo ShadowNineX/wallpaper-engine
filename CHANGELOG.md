@@ -14,6 +14,8 @@ migration); tags are used where they exist.
 - Added typed Steam Workshop author metadata, optional metadata-file merging,
   and pre-clean preservation of editor state and preview assets across Vite
   builds.
+- Added opt-in `projectLink` support that discovers Wallpaper Engine
+  installations and safely links a written Vite output into `projects/myprojects`.
 
 ### Changed
 

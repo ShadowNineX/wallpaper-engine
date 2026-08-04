@@ -24,7 +24,9 @@ import type {
   WallpaperSliderProperty,
   WallpaperTextInputProperty,
 } from '../types/project';
+import type { WallpaperProjectLinkOptions } from './project-link';
 import { colorToWallpaperColor } from '../color';
+import { ensureWallpaperProjectLink } from './project-link';
 
 export type {
   WallpaperBoolProperty,
@@ -45,6 +47,7 @@ export type {
   WallpaperFileType,
   WallpaperProject,
 } from '../types/project';
+export type { WallpaperProjectLinkOptions } from './project-link';
 
 // ---------------------------------------------------------------------------
 // Property builder helpers
@@ -264,6 +267,14 @@ export interface WallpaperEnginePluginOptions {
    */
   metadataFile?: string;
   /**
+   * Link this wallpaper's written build output into Wallpaper Engine's local
+   * projects directory. Automatic directory discovery is Windows-only.
+   *
+   * @example
+   * projectLink: { name: 'my-wallpaper' }
+   */
+  projectLink?: WallpaperProjectLinkOptions;
+  /**
    * Emit `project.json` without indentation or line breaks. Defaults to
    * enabled for production builds and disabled during development.
    *
@@ -369,8 +380,19 @@ export function wallpaperEnginePlugin(
         config,
         options.metadata,
         options.metadataFile,
-      ).then((state) => {
+      ).then(async (state) => {
+        const link = await ensureWallpaperProjectLink(
+          config.root,
+          config.build.outDir,
+          config.build.write,
+          options.projectLink,
+        );
         preservationState = state;
+        if (link?.created) {
+          config.logger.info(
+            `[wallpaper-engine] linked ${link.linkPath} -> ${link.targetPath}`,
+          );
+        }
       });
     },
 

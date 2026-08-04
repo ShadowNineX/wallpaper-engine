@@ -30,6 +30,9 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 .cache
 *.tsbuildinfo
 
+# local tooling
+WATCHDOG.yml
+
 # IntelliJ based IDEs
 .idea
 

@@ -3,6 +3,8 @@ import type {
   WallpaperProjectMetadata,
   WallpaperUserPropertiesOf,
 } from '../src/plugin/index';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
   boolProperty,
@@ -691,20 +693,43 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     ]);
   });
 
-  it('never injects devtools when explicitly disabled', () => {
-    const plugin = wallpaperEnginePlugin({ title: 'T', devtools: false });
-    if (
-      typeof plugin.configResolved !== 'function'
-      || typeof plugin.transformIndexHtml !== 'function'
-    ) {
-      throw new TypeError('plugin hooks are not callable');
+  it('never injects devtools or creates a project link when explicitly disabled during serve', async () => {
+    // importActual bypasses this suite's fs mock to inspect the real temp path.
+    const { lstat, mkdir, mkdtemp, rm } = await vi.importActual<
+      typeof import('node:fs/promises')
+    >('node:fs/promises');
+    const root = await mkdtemp(join(tmpdir(), 'wallpaper-engine-serve-'));
+    const projectsDirectory = join(root, 'myprojects');
+    const linkPath = join(projectsDirectory, 'wallpaper');
+    await mkdir(projectsDirectory);
+
+    try {
+      const plugin = wallpaperEnginePlugin({
+        title: 'T',
+        devtools: false,
+        projectLink: { name: 'wallpaper', projectsDirectory },
+      });
+      if (
+        typeof plugin.configResolved !== 'function'
+        || typeof plugin.transformIndexHtml !== 'function'
+      ) {
+        throw new TypeError('plugin hooks are not callable');
+      }
+
+      const result = plugin.configResolved.call(
+        {} as never,
+        { command: 'serve' } as never,
+      );
+
+      expect(result).toBeUndefined();
+      expect(
+        plugin.transformIndexHtml.call({} as never, '', {} as never),
+      ).toBeUndefined();
+      await expect(lstat(linkPath)).rejects.toMatchObject({ code: 'ENOENT' });
     }
-
-    plugin.configResolved.call({} as never, { command: 'serve' } as never);
-
-    expect(
-      plugin.transformIndexHtml.call({} as never, '', {} as never),
-    ).toBeUndefined();
+    finally {
+      await rm(root, { force: true, recursive: true });
+    }
   });
 
   it('resolves only its virtual module id', () => {

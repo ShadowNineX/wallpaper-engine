@@ -190,6 +190,7 @@ import { wallpaperEnginePlugin } from "wallpaper-engine/plugin";
 | `localization` | localization record | — | BCP 47 translations for `ui_` labels |
 | `metadata` | `WallpaperProjectMetadata` | — | Source-controlled description, preview, tags, ratings, and visibility |
 | `metadataFile` | `string` | — | Root-relative or absolute JSON file containing publishing/editor state |
+| `projectLink` | `WallpaperProjectLinkOptions` | — | Link the written build output into Wallpaper Engine's local projects |
 | `devtools` | `boolean` | `true` | Enable the development simulator |
 | `minify` | `boolean` | production only | Override environment-based JSON formatting |
 | `supportsAudioProcessing` | `boolean` | auto-detected | Force audio support on or off |
@@ -224,7 +225,45 @@ The merge is shallow and uses this exact precedence:
 
 Generated core fields are always authoritative. `general` is replaced rather than recursively merged, so stale properties, localization, or audio flags cannot survive a build.
 
-For a clean clone or a separately copied editor project, point `metadataFile` at a flat JSON object:
+Link the editor project directly to Vite's output with a source-control-safe
+name:
+
+```ts
+wallpaperEnginePlugin({
+  title: "Night Sky",
+  projectLink: { name: "my-wallpaper" },
+});
+```
+
+On written production builds only, the plugin creates or validates
+`<myprojects>/my-wallpaper` as a link to Vite's final absolute `build.outDir`.
+`vite dev` and builds with `build.write: false` have no link side effects. On
+Windows, automatic discovery checks the Steam path in
+`HKCU\Software\Valve\Steam`, `%ProgramFiles(x86)%\Steam`,
+`%ProgramFiles%\Steam`, and the conventional `C:\Program Files...` locations,
+then reads each `steamapps/libraryfolders.vdf`. The created link is a Windows
+directory junction.
+
+For a custom Steam library, Wine/Proton prefix, or non-Windows host, provide
+the existing absolute `projects/myprojects` directory explicitly:
+
+```ts
+wallpaperEnginePlugin({
+  title: "Night Sky",
+  projectLink: {
+    name: "my-wallpaper",
+    projectsDirectory: "/mnt/games/wallpaper_engine/projects/myprojects",
+  },
+});
+```
+
+Explicit non-Windows configurations use a directory symlink. The parent must
+already exist. The plugin fails closed if the destination is a file, real
+directory, wrong-target link, or would overlap `outDir`; it never replaces or
+removes existing paths. Removing or renaming `projectLink` does not delete an
+existing link.
+
+For a clean clone or CI build, point `metadataFile` at a flat JSON object:
 
 ```ts
 wallpaperEnginePlugin({
@@ -249,14 +288,20 @@ Put the referenced preview at `public/preview.jpg`, or the matching nested path 
 
 The plugin fails before cleanup when an explicitly configured metadata file is missing or either JSON source is unreadable, malformed, or not a top-level object. It also rejects absolute or escaping preview paths and fails a written build when the final preview is unavailable from the bundle, `public`, or the previous output.
 
-Zero-script Workshop workflow:
+Linked-project Workshop workflow:
 
 1. Commit the author metadata and preview.
-2. Build directly to the Vite `outDir` used as the Wallpaper Engine project.
-3. Publish that project in Wallpaper Engine.
-4. Keep building to the same directory. Generated files refresh while Workshop identity, version, editor state, and preview survive.
+2. Configure `projectLink` and build once to create the link.
+3. Open `<myprojects>/my-wallpaper/project.json` in Wallpaper Engine.
+4. Publish or update that same project in Wallpaper Engine.
+5. Keep building normally. Editor changes are written through the link into
+   `outDir`, then captured before the next Vite cleanup while generated files
+   refresh.
 
-Wallpaper Engine may copy an imported build to another directory. Automatic round-tripping works only when later builds target that editor project/output. For a clean clone or a separately copied project, use `metadataFile: "wallpaper-engine.metadata.json"` without generated core keys and keep its preview under `public/`.
+The link and `outDir` expose the same physical `project.json`, so there is no
+copied editor project to drift. Keep `metadataFile:
+"wallpaper-engine.metadata.json"` without generated core keys as the
+clean-clone and CI fallback, with its preview under `public/`.
 
 ### Audio detection
 
