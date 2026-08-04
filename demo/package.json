@@ -10,12 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tresjs/core": "^5.8.3",
     "lucide-vue-next": "^1.0.0",
+    "three": "^0.185.1",
     "vue": "^3.5.40",
     "wallpaper-engine": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^25.9.5",
+    "@types/three": "^0.185.3",
     "@vitejs/plugin-vue": "^6.0.8",
     "@vue/tsconfig": "^0.9.1",
     "typescript": "~6.0.3",

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ChevronRight, Image as ImageIcon, RefreshCw } from "lucide-vue-next";
+import { ChevronRight, RefreshCw } from "lucide-vue-next";
 
 defineProps<{
-  sourceLabel: string;
   randomSource: boolean;
   gallerySource: boolean;
 }>();
@@ -15,13 +14,6 @@ const emit = defineEmits<{
 
 <template>
   <footer class="footerbar">
-    <div class="source-readout">
-      <span class="source-icon"><ImageIcon :size="14" /></span>
-      <div>
-        <span class="micro-label">BACKGROUND SOURCE</span>
-        <strong>{{ sourceLabel }}</strong>
-      </div>
-    </div>
     <button
       v-if="randomSource"
       class="source-action"
@@ -42,9 +34,5 @@ const emit = defineEmits<{
       NEXT
       <ChevronRight :size="14" />
     </button>
-    <div v-else class="audio-readout">
-      <span class="audio-bars"><i /><i /><i /><i /></span>
-      AUDIO REACTIVE
-    </div>
   </footer>
 </template>

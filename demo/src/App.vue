@@ -16,6 +16,7 @@ import {
   wallpaperColorToHex,
 } from "wallpaper-engine/helpers";
 import ClockPanel from "./components/ClockPanel.vue";
+import GeneratedShaderBackground from "./components/GeneratedShaderBackground.vue";
 import MediaPanel from "./components/MediaPanel.vue";
 import SourceFooter from "./components/SourceFooter.vue";
 import SystemHeader from "./components/SystemHeader.vue";
@@ -40,6 +41,17 @@ interface Particle {
   speed: number;
   drift: number;
   phase: number;
+}
+
+interface PrismSpark {
+  x: number;
+  y: number;
+  velocityX: number;
+  velocityY: number;
+  size: number;
+  life: number;
+  maxLife: number;
+  colorIndex: 0 | 1;
 }
 type RgbColor = [number, number, number];
 
@@ -99,6 +111,7 @@ const playbackState = ref<WallpaperMediaPlaybackState>(
 const timelinePosition = ref(0);
 const timelineDuration = ref(0);
 
+const showDebugInfo = import.meta.env.DEV;
 const now = ref(new Date());
 const paused = ref(false);
 const fpsLimit = ref(60);
@@ -109,6 +122,11 @@ const backgroundVideo = ref<HTMLVideoElement | null>(null);
 const rawAudio = new Float32Array(128);
 const smoothedAudio = new Float32Array(128);
 const particles: Particle[] = [];
+const prismSparks: PrismSpark[] = [];
+let bassEnergyBaseline = 0;
+let previousBassEnergy = 0;
+let pendingPrismBurst = 0;
+let lastPrismBurstAt = Number.NEGATIVE_INFINITY;
 let animationRunning = false;
 let fpsSampleStart = 0;
 let renderedFrames = 0;
@@ -174,18 +192,6 @@ const isGallerySource = computed(
     backgroundSource.value === "videogallery",
 );
 
-const sourceLabel = computed(() => {
-  const labels: Record<BackgroundSource, string> = {
-    generated: "GENERATED ATMOSPHERE",
-    image: "CUSTOM IMAGE",
-    video: "CUSTOM VIDEO",
-    randomimage: "RANDOM IMAGE",
-    imagegallery: `IMAGE GALLERY · ${imageGallery.value.length}`,
-    randomvideo: "RANDOM VIDEO",
-    videogallery: `VIDEO GALLERY · ${videoGallery.value.length}`,
-  };
-  return labels[backgroundSource.value];
-});
 
 const hasMedia = computed(
   () => mediaTitle.value !== "" || mediaArtist.value !== "",
@@ -297,6 +303,30 @@ function parseHex(color: string): [number, number, number] {
   return [(value >> 16) & 255, (value >> 8) & 255, value & 255];
 }
 
+function ensurePrismContrast(color: RgbColor): RgbColor {
+  const minimumLuminance = 170;
+  const peak = Math.max(...color);
+  const saturationScale = peak > 0 ? Math.max(1, 190 / peak) : 0;
+  const saturated: RgbColor =
+    peak > 0
+      ? [
+          Math.min(255, Math.round(color[0] * saturationScale)),
+          Math.min(255, Math.round(color[1] * saturationScale)),
+          Math.min(255, Math.round(color[2] * saturationScale)),
+        ]
+      : [minimumLuminance, minimumLuminance, minimumLuminance];
+  const luminance =
+    saturated[0] * 0.2126 +
+    saturated[1] * 0.7152 +
+    saturated[2] * 0.0722;
+  if (luminance >= minimumLuminance) return saturated;
+
+  const whiteMix = (minimumLuminance - luminance) / (255 - luminance);
+  return saturated.map((channel) =>
+    Math.round(channel + (255 - channel) * whiteMix),
+  ) as RgbColor;
+}
+
 function resizeCanvas(): void {
   const element = canvas.value;
   if (!element) return;
@@ -304,6 +334,49 @@ function resizeCanvas(): void {
   const ratio = Math.min(devicePixelRatio || 1, 2);
   element.width = Math.max(1, Math.round(rect.width * ratio));
   element.height = Math.max(1, Math.round(rect.height * ratio));
+}
+
+function getUiScale(width: number, height: number): number {
+  return Math.min(4, Math.max(0.75, Math.min(width, height) / 1_080));
+}
+
+function detectBassPunch(time = performance.now()): void {
+  let bassEnergy = 0;
+  for (let index = 1; index <= 10; index++) {
+    bassEnergy += (rawAudio[index] ?? 0) + (rawAudio[index + 64] ?? 0);
+  }
+  bassEnergy = Math.min(1, (bassEnergy / 20) * visualSensitivity.value);
+
+  const baseline = bassEnergyBaseline;
+  const rise = bassEnergy - previousBassEnergy;
+  bassEnergyBaseline +=
+    (bassEnergy - bassEnergyBaseline) * (bassEnergy > baseline ? 0.08 : 0.025);
+  previousBassEnergy = bassEnergy;
+
+  const riseThreshold = Math.max(0.035, baseline * 0.2);
+  if (
+    visualStyle.value !== "bars" ||
+    time - lastPrismBurstAt < 140 ||
+    bassEnergy < Math.max(0.12, baseline * 1.28) ||
+    rise < riseThreshold
+  ) {
+    return;
+  }
+
+  pendingPrismBurst = Math.max(
+    pendingPrismBurst,
+    Math.min(1, bassEnergy * 0.7 + rise * 1.8),
+  );
+  lastPrismBurstAt = time;
+}
+
+function clearPrismSparks(resetDetector = false): void {
+  prismSparks.length = 0;
+  pendingPrismBurst = 0;
+  if (!resetDetector) return;
+  bassEnergyBaseline = 0;
+  previousBassEnergy = 0;
+  lastPrismBurstAt = Number.NEGATIVE_INFINITY;
 }
 
 function sampleAudio(index: number, time: number): number {
@@ -323,6 +396,7 @@ function drawBarsVisualizer(
   accent: RgbColor,
   glow: RgbColor,
 ): void {
+  const uiScale = getUiScale(width, height);
   const count = 56;
   const floor = height * 0.92;
   const span = width * 0.72;
@@ -334,16 +408,111 @@ function drawBarsVisualizer(
     const level = Math.sqrt(
       (sampleAudio(audioIndex, time) + sampleAudio(mirrorIndex, time)) / 2,
     );
-    const barHeight = 5 + level * height * 0.19;
-    const alpha = 0.2 + level * 0.75;
+    const barHeight = 5 * uiScale + level * height * 0.19;
+    const barWidth = Math.max(1, slot * 0.54);
+    const x = start + index * slot;
+    const y = floor - barHeight;
+    const alpha = 0.52 + level * 0.45;
     const [r, g, b] = index % 2 === 0 ? accent : glow;
     context.fillStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    context.fillRect(x, y, barWidth, barHeight);
+    context.fillStyle = `rgba(255, 255, 255, ${0.16 + level * 0.22})`;
     context.fillRect(
-      start + index * slot,
-      floor - barHeight,
-      Math.max(1, slot * 0.54),
-      barHeight,
+      x,
+      y,
+      barWidth,
+      Math.min(barHeight, Math.max(1, uiScale * 1.5)),
     );
+  }
+}
+
+function spawnPrismSparks(
+  width: number,
+  height: number,
+  time: number,
+  intensity: number,
+): void {
+  const uiScale = getUiScale(width, height);
+  const count = 56;
+  const floor = height * 0.92;
+  const span = width * 0.72;
+  const start = (width - span) / 2;
+  const slot = span / count;
+  const burstSize = Math.min(
+    96 - prismSparks.length,
+    Math.round(6 + intensity * 18),
+  );
+
+  for (let index = 0; index < burstSize; index++) {
+    const barIndex = Math.floor(randomUnit() * count);
+    const audioIndex = Math.round((barIndex / (count - 1)) * 63);
+    const mirrorIndex = 127 - audioIndex;
+    const level = Math.sqrt(
+      (sampleAudio(audioIndex, time) + sampleAudio(mirrorIndex, time)) / 2,
+    );
+    const barHeight = 5 * uiScale + level * height * 0.19;
+    const direction = (barIndex / (count - 1) - 0.5) * 2;
+    const life = 0.28 + randomUnit() * 0.42;
+
+    prismSparks.push({
+      x: start + (barIndex + 0.27) * slot,
+      y: floor - barHeight,
+      velocityX: (direction * 45 + (randomUnit() - 0.5) * 70) * uiScale,
+      velocityY:
+        -(80 + randomUnit() * 180) * (0.7 + intensity * 0.6) * uiScale,
+      size: (1 + randomUnit() * 2.4) * uiScale,
+      life,
+      maxLife: life,
+      colorIndex: randomUnit() < 0.5 ? 0 : 1,
+    });
+  }
+}
+
+function drawPrismSparks(
+  context: CanvasRenderingContext2D,
+  deltaSeconds: number,
+  uiScale: number,
+  accent: RgbColor,
+  glow: RgbColor,
+): void {
+  const step = Math.min(0.05, Math.max(0, deltaSeconds));
+
+  for (let index = prismSparks.length - 1; index >= 0; index--) {
+    const spark = prismSparks[index];
+    if (!spark) continue;
+    spark.life -= step;
+    if (spark.life <= 0) {
+      const last = prismSparks.pop();
+      if (last && index < prismSparks.length) prismSparks[index] = last;
+      continue;
+    }
+
+    spark.x += spark.velocityX * step;
+    spark.y += spark.velocityY * step;
+    spark.velocityY += 180 * uiScale * step;
+
+    const alpha = (spark.life / spark.maxLife) ** 2;
+    const [r, g, b] = spark.colorIndex === 0 ? accent : glow;
+    context.strokeStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    context.lineWidth = Math.max(uiScale * 0.75, spark.size * 0.45);
+    context.beginPath();
+    context.moveTo(
+      spark.x - spark.velocityX * step * 1.8,
+      spark.y - spark.velocityY * step * 1.8,
+    );
+    context.lineTo(spark.x, spark.y);
+    context.stroke();
+
+    if (alpha < 0.42) continue;
+    const flare = spark.size * (0.8 + alpha * 1.7);
+    context.strokeStyle = `rgba(255, 255, 255, ${alpha * 0.9})`;
+    context.lineWidth = Math.max(uiScale * 0.5, spark.size * 0.3);
+    context.beginPath();
+    context.moveTo(spark.x - flare, spark.y);
+    context.lineTo(spark.x + flare, spark.y);
+    context.moveTo(spark.x, spark.y - flare);
+    context.lineTo(spark.x, spark.y + flare);
+    context.stroke();
   }
 }
 
@@ -355,6 +524,7 @@ function drawWaveVisualizer(
   accent: RgbColor,
   glow: RgbColor,
 ): void {
+  const uiScale = getUiScale(width, height);
   const floor = height * 0.92;
   const gradient = context.createLinearGradient(
     width * 0.15,
@@ -367,7 +537,7 @@ function drawWaveVisualizer(
   gradient.addColorStop(0.72, `rgba(${accent.join(",")}, 0.9)`);
   gradient.addColorStop(1, `rgba(${accent.join(",")}, 0)`);
   context.strokeStyle = gradient;
-  context.lineWidth = 2;
+  context.lineWidth = 2 * uiScale;
   context.beginPath();
   for (let index = 0; index <= 96; index++) {
     const ratio = index / 96;
@@ -392,6 +562,7 @@ function drawRingVisualizer(
   accent: RgbColor,
   glow: RgbColor,
 ): void {
+  const uiScale = getUiScale(width, height);
   const centerX = width * 0.5;
   const centerY = height * 0.46;
   const radius = Math.min(width, height) * 0.2;
@@ -399,10 +570,10 @@ function drawRingVisualizer(
     const angle = (index / 72) * Math.PI * 2 - Math.PI / 2;
     const audioIndex = Math.min(127, Math.floor((index / 72) * 128));
     const level = Math.sqrt(sampleAudio(audioIndex, time));
-    const extension = 3 + level * Math.min(width, height) * 0.055;
+    const extension = 3 * uiScale + level * Math.min(width, height) * 0.055;
     const [r, g, b] = index < 36 ? accent : glow;
     context.strokeStyle = `rgba(${r}, ${g}, ${b}, ${0.25 + level * 0.65})`;
-    context.lineWidth = 1.5;
+    context.lineWidth = 1.5 * uiScale;
     context.beginPath();
     context.moveTo(
       centerX + Math.cos(angle) * radius,
@@ -448,6 +619,7 @@ function drawScene(time: number, deltaSeconds: number): void {
   const height = element.height / ratio;
   context.setTransform(ratio, 0, 0, ratio, 0, 0);
   context.clearRect(0, 0, width, height);
+  const uiScale = getUiScale(width, height);
 
   for (let index = 0; index < 128; index++) {
     const current = smoothedAudio[index] ?? 0;
@@ -457,6 +629,10 @@ function drawScene(time: number, deltaSeconds: number): void {
 
   const accent = parseHex(effectiveAccent.value);
   const glow = parseHex(effectiveGlow.value);
+  const visualAccent =
+    visualStyle.value === "bars" ? ensurePrismContrast(accent) : accent;
+  const visualGlow =
+    visualStyle.value === "bars" ? ensurePrismContrast(glow) : glow;
   const bass = sampleAudio(4, time) + sampleAudio(68, time);
   context.globalCompositeOperation = "lighter";
   for (const particle of particles) {
@@ -479,17 +655,33 @@ function drawScene(time: number, deltaSeconds: number): void {
     context.arc(
       particle.x * width,
       particle.y * height,
-      particle.radius * (1 + bass * 0.22),
+      particle.radius * uiScale * (1 + bass * 0.22),
       0,
       Math.PI * 2,
     );
     context.fill();
   }
-  drawVisualizer(context, width, height, time, accent, glow);
+  drawVisualizer(context, width, height, time, visualAccent, visualGlow);
+  if (visualStyle.value === "bars") {
+    if (pendingPrismBurst > 0) {
+      spawnPrismSparks(width, height, time, pendingPrismBurst);
+      pendingPrismBurst = 0;
+    }
+    drawPrismSparks(
+      context,
+      deltaSeconds,
+      uiScale,
+      visualAccent,
+      visualGlow,
+    );
+  } else if (prismSparks.length > 0 || pendingPrismBurst > 0) {
+    clearPrismSparks();
+  }
   context.globalCompositeOperation = "source-over";
 }
 
 function resetFpsMeasurement(time = performance.now()): void {
+  if (!showDebugInfo) return;
   fpsSampleStart = time;
   renderedFrames = 0;
   measuredFps.value = 0;
@@ -498,14 +690,16 @@ function resetFpsMeasurement(time = performance.now()): void {
 
 function renderAnimationFrame(deltaSeconds: number): void {
   const time = performance.now();
-  lastFrameDelta.value = deltaSeconds;
-  renderedFrames += 1;
+  if (showDebugInfo) {
+    lastFrameDelta.value = deltaSeconds;
+    renderedFrames += 1;
 
-  const sampleDuration = time - fpsSampleStart;
-  if (sampleDuration >= 1_000) {
-    measuredFps.value = Math.round((renderedFrames * 1_000) / sampleDuration);
-    fpsSampleStart = time;
-    renderedFrames = 0;
+    const sampleDuration = time - fpsSampleStart;
+    if (sampleDuration >= 1_000) {
+      measuredFps.value = Math.round((renderedFrames * 1_000) / sampleDuration);
+      fpsSampleStart = time;
+      renderedFrames = 0;
+    }
   }
 
   drawScene(time, deltaSeconds);
@@ -520,8 +714,8 @@ function renderAnimationFrame(deltaSeconds: number): void {
 const animationLoop = createFpsLimiter(renderAnimationFrame);
 animationLoop.setLimit(fpsLimit.value);
 
-function startAnimation(): void {
-  if (paused.value || animationRunning) return;
+function startAnimation(force = false): void {
+  if (paused.value || (animationRunning && !force)) return;
   animationRunning = true;
   previousGalleryChange = performance.now();
   resetFpsMeasurement(previousGalleryChange);
@@ -548,17 +742,28 @@ function stopClock(): void {
   clockTimer = undefined;
 }
 
+function resumeWallpaper(): void {
+  if (paused.value) return;
+  resizeCanvas();
+  startAnimation(true);
+  startClock();
+  backgroundVideo.value?.play().catch(() => undefined);
+}
+
+function handleVisibilityChange(): void {
+  if (document.visibilityState === "visible") resumeWallpaper();
+}
+
 function setWallpaperPaused(value: boolean): void {
   paused.value = value;
   if (value) {
+    clearPrismSparks(true);
     stopAnimation();
     stopClock();
     backgroundVideo.value?.pause();
     return;
   }
-  startAnimation();
-  startClock();
-  backgroundVideo.value?.play().catch(() => undefined);
+  resumeWallpaper();
 }
 
 function applyColorAndMotionProperties(values: Partial<UserProps>): void {
@@ -582,6 +787,7 @@ function applyColorAndMotionProperties(values: Partial<UserProps>): void {
   }
   if (values.visualstyle) {
     visualStyle.value = values.visualstyle.value as VisualStyle;
+    if (visualStyle.value !== "bars") clearPrismSparks();
   }
 }
 
@@ -661,6 +867,7 @@ globalThis.wallpaperRegisterAudioListener((data) => {
   for (let index = 0; index < 128; index++) {
     rawAudio[index] = Math.max(0, Math.min(1, data[index] ?? 0));
   }
+  detectBassPunch();
 });
 
 globalThis.wallpaperPropertyListener = {
@@ -740,6 +947,9 @@ onMounted(() => {
   ensureParticles();
   resizeCanvas();
   window.addEventListener("resize", resizeCanvas);
+  window.addEventListener("focus", resumeWallpaper);
+  window.addEventListener("pageshow", resumeWallpaper);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
   startClock();
   startAnimation();
 });
@@ -748,11 +958,27 @@ onBeforeUnmount(() => {
   stopAnimation();
   stopClock();
   window.removeEventListener("resize", resizeCanvas);
+  window.removeEventListener("focus", resumeWallpaper);
+  window.removeEventListener("pageshow", resumeWallpaper);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
 });
 </script>
 
 <template>
   <div class="wallpaper" :style="wallpaperStyle">
+    <GeneratedShaderBackground
+      v-if="backgroundSource === 'generated'"
+      :background="backgroundColor"
+      :accent="effectiveAccent"
+      :glow="effectiveGlow"
+      :base-accent="accentColor"
+      :base-glow="glowColor"
+      :audio-data="smoothedAudio"
+      :sensitivity="visualSensitivity"
+      :animation-speed="animationSpeed"
+      :paused="paused"
+      :fps-limit="fpsLimit"
+    />
     <div
       v-if="isImageBackground"
       class="source-layer source-image"
@@ -778,6 +1004,7 @@ onBeforeUnmount(() => {
     </canvas>
 
     <SystemHeader
+      :show-debug-info="showDebugInfo"
       :greeting="greeting"
       :media-linked="mediaLinked"
       :fps-limit="fpsLimit"
@@ -810,7 +1037,7 @@ onBeforeUnmount(() => {
     </main>
 
     <SourceFooter
-      :source-label="sourceLabel"
+      v-if="isRandomSource || isGallerySource"
       :random-source="isRandomSource"
       :gallery-source="isGallerySource"
       @shuffle="requestRandomFile()"

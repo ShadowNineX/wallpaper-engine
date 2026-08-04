@@ -19,6 +19,8 @@ const props = defineProps<{
   timelineDuration: number;
 }>();
 
+const cubeFaces = ["front", "back", "right", "left", "top", "bottom"] as const;
+
 const hasMedia = computed(() => props.title !== "" || props.artist !== "");
 const heading = computed(() => props.title || "Awaiting playback");
 const byline = computed(() => {
@@ -58,15 +60,33 @@ function formatDuration(seconds: number): string {
   <Transition name="media-rise">
     <section v-if="show" class="media-card" :style="cardStyle">
       <div class="media-art-shell">
-        <img
-          v-if="thumbnail"
-          class="media-art"
-          :src="thumbnail"
-          alt="Current media artwork"
-        />
-        <div v-else class="media-art media-placeholder">
-          <Music2 v-if="contentType === 'music'" :size="38" />
-          <ImageIcon v-else :size="38" />
+        <div
+          class="media-cube"
+          role="img"
+          :aria-label="
+            thumbnail ? 'Current media artwork' : 'Media artwork placeholder'
+          "
+        >
+          <div
+            v-for="face in cubeFaces"
+            :key="face"
+            class="media-cube-face"
+            :class="`media-cube-face-${face}`"
+            aria-hidden="true"
+          >
+            <img
+              v-if="thumbnail"
+              class="media-art"
+              :src="thumbnail"
+              alt=""
+            />
+            <div v-else class="media-art media-placeholder">
+              <template v-if="face === 'front'">
+                <Music2 v-if="contentType === 'music'" :size="38" />
+                <ImageIcon v-else :size="38" />
+              </template>
+            </div>
+          </div>
         </div>
         <span class="playback-badge">
           <component :is="playbackIcon" :size="12" fill="currentColor" />

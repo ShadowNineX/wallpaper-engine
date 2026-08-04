@@ -9,6 +9,24 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+### Changed
+
+- Configured the demo's written build to link into Wallpaper Engine as
+  `aether-reactive-desktop` through the plugin's `projectLink` option.
+- Made the demo interface and canvas effects scale proportionally across small,
+  4K, ultrawide, and portrait displays.
+- Limited demo diagnostics to development mode, added punch-reactive prism
+  sparks with dark-color contrast correction, and removed persistent source and
+  audio footer labels.
+- Replaced flat demo media artwork with an accessible, square-edged six-face
+  CSS perspective cube that spins and honors reduced-motion preferences.
+- Rebuilt the demo's generated backdrop with TresJS and an audio-reactive
+  procedural nebula shader with adaptive bass and clap transients,
+  treble-driven stars, escalating energy stages, resilient media palettes, and
+  motion, FPS, pause, and viewport integration.
+- Made the demo animation loop and shader reliably resume after Wallpaper
+  Engine pauses playback for fullscreen or maximized applications.
+
 ## [1.2.0] - 2026-08-04
 
 ### Added

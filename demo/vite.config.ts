@@ -1,3 +1,4 @@
+import { templateCompilerOptions } from "@tresjs/core";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import { wallpaperEnginePlugin } from "wallpaper-engine/plugin";
@@ -7,9 +8,14 @@ import { properties } from "./src/wallpaper.ts";
 export default defineConfig({
   base: "./",
   plugins: [
-    vue(),
+    vue({
+      ...templateCompilerOptions,
+    }),
     wallpaperEnginePlugin({
       title: "Aether // Reactive Desktop",
+      projectLink: {
+        name: "aether-reactive-desktop",
+      },
       properties,
     }),
   ],

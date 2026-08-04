@@ -4,6 +4,7 @@ import { Sparkles, Waves } from "lucide-vue-next";
 
 const props = defineProps<{
   greeting: string;
+  showDebugInfo: boolean;
   mediaLinked: boolean;
   fpsLimit: number;
   measuredFps: number;
@@ -27,7 +28,7 @@ const frameDeltaLabel = computed(() =>
         <p class="brand-subtitle">Reactive desktop atmosphere</p>
       </div>
     </div>
-    <div class="system-cluster">
+    <div v-if="showDebugInfo" class="system-cluster">
       <span class="system-pill">
         <span class="status-dot" :class="mediaLinked ? 'is-live' : ''" />
         MEDIA {{ mediaLinked ? "LINKED" : "STANDBY" }}
