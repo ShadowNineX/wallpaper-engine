@@ -272,6 +272,23 @@ describe('wallpaperEnginePlugin', () => {
     expect(project.file).toBe('main.html');
   });
 
+  it('emits a configured scheme color as an index-free special property', () => {
+    const { project } = runGenerateBundle(
+      wallpaperEnginePlugin({ title: 'T', schemeColor: '#5994ff' }),
+    );
+
+    expect(project.general).toEqual({
+      properties: {
+        schemecolor: {
+          order: 0,
+          text: 'ui_browse_properties_scheme_color',
+          type: 'color',
+          value: '0.34902 0.580392 1',
+        },
+      },
+    });
+  });
+
   it('re-exports the metadata type from both public entries', () => {
     expectTypeOf<RootWallpaperProjectMetadata>()
       .toEqualTypeOf<WallpaperProjectMetadata>();
@@ -306,7 +323,16 @@ describe('wallpaperEnginePlugin', () => {
         file: 'old.html',
         title: 'Old',
         type: 'scene',
-        general: { stale: true },
+        general: {
+          properties: {
+            schemecolor: {
+              order: 0,
+              text: 'ui_browse_properties_scheme_color',
+              type: 'color',
+              value: '0 0 0',
+            },
+          },
+        },
         description: 'previous',
         visibility: 'previous-visibility',
         workshopid: 'previous-id',
@@ -335,6 +361,7 @@ describe('wallpaperEnginePlugin', () => {
       properties: {
         enabled: boolProperty({ text: 'Enabled', value: true }),
       },
+      schemeColor: '#5994ff',
     });
     if (typeof plugin.configResolved !== 'function')
       throw new TypeError('configResolved hook is not callable');
@@ -370,6 +397,12 @@ describe('wallpaperEnginePlugin', () => {
             text: 'Enabled',
             type: 'bool',
             value: true,
+          },
+          schemecolor: {
+            order: 0,
+            text: 'ui_browse_properties_scheme_color',
+            type: 'color',
+            value: '0.34902 0.580392 1',
           },
         },
       },

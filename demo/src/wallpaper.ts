@@ -6,7 +6,6 @@ import {
   fileProperty,
   groupProperty,
   sliderProperty,
-  textInputProperty,
 } from "wallpaper-engine/plugin";
 
 export const properties = {
@@ -47,7 +46,7 @@ export const properties = {
   }),
   visualstyle: comboProperty({
     text: "Audio visualizer",
-    value: "bars",
+    value: "wave",
     options: [
       { label: "Prism bars", value: "bars" },
       { label: "Silk wave", value: "wave" },
@@ -76,10 +75,6 @@ export const properties = {
     text: "Use album artwork colors",
     value: true,
     condition: "showmedia.value == true",
-  }),
-  greeting: textInputProperty({
-    text: "Header text",
-    value: "AETHER // LIVE",
   }),
   backgroundgroup: groupProperty({ text: "Background media" }),
   backgroundsource: comboProperty({

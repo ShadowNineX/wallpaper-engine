@@ -5,6 +5,7 @@ import type {
 } from '../../../wallpaper-engine/src/types/project';
 import { storeToRefs } from 'pinia';
 import { computed, reactive } from 'vue';
+import ArrowCounterClockwise from '~icons/ph/arrow-counter-clockwise';
 import RefreshCw from '~icons/ph/arrows-clockwise';
 import CaretRight from '~icons/ph/caret-right';
 import { Button } from '@/components/ui/button';
@@ -81,16 +82,28 @@ const layout = computed(() => {
           }}
         </p>
       </div>
-      <Button
-        size="sm"
-        variant="outline"
-        class="h-8 shrink-0 gap-1.5 px-2.5 text-[11px]"
-        title="Replay all initial property and runtime values"
-        @click="store.deliverAllProperties()"
-      >
-        <RefreshCw class="size-3" />
-        Replay all
-      </Button>
+      <div class="flex shrink-0 items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="outline"
+          class="h-8 gap-1.5 px-2.5 text-[11px]"
+          title="Restore every user property to its configured default"
+          @click="store.resetPropertiesToDefaults()"
+        >
+          <ArrowCounterClockwise class="size-3" />
+          Reset defaults
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          class="h-8 gap-1.5 px-2.5 text-[11px]"
+          title="Replay all initial property and runtime values"
+          @click="store.deliverAllProperties()"
+        >
+          <RefreshCw class="size-3" />
+          Replay all
+        </Button>
+      </div>
     </div>
 
     <div

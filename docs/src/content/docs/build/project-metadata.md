@@ -10,6 +10,7 @@ import { wallpaperEnginePlugin } from 'wallpaper-engine/plugin';
 
 wallpaperEnginePlugin({
   title: 'Night Sky',
+  schemeColor: '#5994ff',
   metadata: {
     description: 'An animated night sky.',
     preview: 'preview.jpg',
@@ -24,6 +25,7 @@ wallpaperEnginePlugin({
 | --- | --- | --- |
 | `title` | `string` | Required Wallpaper Engine title |
 | `file` | `string` | Entry HTML path; defaults to `'index.html'` |
+| `schemeColor` | `string` | Color.js syntax normalized into the reserved index-free `general.properties.schemecolor`; previous editor state is the fallback |
 | `properties` | Property record | User properties written under `general.properties` |
 | `localization` | Localization map | Labels written under `general.localization` |
 | `supportsAudioProcessing` | `boolean` | Defined value overrides bundle-call detection |
@@ -72,9 +74,10 @@ previous output < metadata file < defined metadata options < generated fields
 - Existing `dist/project.json` is the lowest-priority preservation source.
 - `metadataFile` replaces colliding top-level keys from previous output.
 - Each `metadata` field replaces lower-priority values only when it is not `undefined`.
-- Generated `file`, `title`, `type`, and `general` always win.
+- Generated `file`, `title`, `type`, and ordinary `general` fields always win.
+- A defined `schemeColor` option wins over every previous `general.properties.schemecolor` value. When the option is omitted and the source property schema does not define that key, a valid editor-managed value is carried into regenerated properties.
 
-Merging is top-level and shallow. `general` is not merged: it is removed from preservation sources and regenerated from plugin options and bundle audio detection. Put localization and properties in their defined options rather than an editor-owned `general` object.
+Merging is otherwise top-level and shallow. `general` is removed from preservation sources and regenerated from plugin options and bundle audio detection. Put localization and ordinary properties in their defined options rather than an editor-owned `general` object.
 
 Unknown top-level fields survive from previous output or a metadata file unless a higher source replaces them. This allows Wallpaper Engine editor state to coexist with build-owned fields.
 

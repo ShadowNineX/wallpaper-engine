@@ -17,6 +17,7 @@ import { defineStore } from 'pinia';
 import { reactive, ref } from 'vue';
 import { toast } from 'vue-sonner';
 import { propDefs, tr } from './config';
+import { releaseDevDirectory, releaseDevFile } from './dev-files';
 
 type RuntimePropertyDefinition = Exclude<
   WallpaperPropertyDefinition,
@@ -230,6 +231,59 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     });
   }
 
+  function resetPropertiesToDefaults(): void {
+    const previousFileUrls: string[] = [];
+    const previousDirectories = Object.entries(directorySelections);
+
+    for (const [key, definition] of Object.entries(propDefs)) {
+      if (definition.type !== 'file')
+        continue;
+      const value = currentValues[key]?.value;
+      if (typeof value === 'string' && value !== definition.value)
+        previousFileUrls.push(value);
+    }
+
+    const defaults = createInitialValues();
+    for (const key of Object.keys(currentValues))
+      delete currentValues[key];
+    Object.assign(currentValues, defaults);
+
+    const displayPaths = createInitialDisplayPaths();
+    for (const key of Object.keys(propertyDisplayPaths))
+      delete propertyDisplayPaths[key];
+    Object.assign(propertyDisplayPaths, displayPaths);
+
+    for (const key of Object.keys(directoryFiles))
+      delete directoryFiles[key];
+    for (const key of Object.keys(directorySelections))
+      delete directorySelections[key];
+
+    const userProperties: WallpaperUserProperties = {};
+    for (const [key, value] of Object.entries(defaults)) {
+      if (!isFetchAllDirectory(key))
+        userProperties[key] = clonePropertyValue(value);
+    }
+
+    try {
+      listenerFns.property?.applyUserProperties?.(userProperties);
+    }
+    catch (error) {
+      console.error('[WE Dev] property listener threw', error);
+    }
+
+    for (const [key, selection] of previousDirectories) {
+      if (isFetchAllDirectory(key))
+        notifyDirectoryChanges(key, selection, undefined);
+    }
+
+    for (const url of previousFileUrls)
+      releaseDevFile(url);
+    for (const [, selection] of previousDirectories)
+      releaseDevDirectory(selection.id);
+
+    toast('Properties reset to defaults.');
+  }
+
   function setFileSelection(key: string, selection: DevFileEntry): void {
     if (propDefs[key]?.type !== 'file')
       return;
@@ -377,6 +431,7 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     fanout,
     deliverAllProperties,
     deliverProperty,
+    resetPropertiesToDefaults,
     setFileSelection,
     clearFileSelection,
     setDirectorySelection,

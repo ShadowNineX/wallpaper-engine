@@ -22,10 +22,10 @@ const props = defineProps<{
 const cubeFaces = ["front", "back", "right", "left", "top", "bottom"] as const;
 
 const hasMedia = computed(() => props.title !== "" || props.artist !== "");
-const heading = computed(() => props.title || "Awaiting playback");
+const heading = computed(() => props.title || props.album || "Untitled media");
 const byline = computed(() => {
   if (props.artist && props.album) return `${props.artist} · ${props.album}`;
-  return props.artist || props.album || "Media integration is standing by";
+  return props.artist || props.album || "";
 });
 const detail = computed(
   () => props.subtitle || props.genres || props.albumArtist,
@@ -58,57 +58,68 @@ function formatDuration(seconds: number): string {
 
 <template>
   <Transition name="media-rise">
-    <section v-if="show" class="media-card" :style="cardStyle">
-      <div class="media-art-shell">
-        <div
-          class="media-cube"
-          role="img"
-          :aria-label="
-            thumbnail ? 'Current media artwork' : 'Media artwork placeholder'
-          "
-        >
+    <section
+      v-if="show"
+      class="media-card"
+      :class="{ 'is-idle': !hasMedia }"
+      :style="cardStyle"
+    >
+      <template v-if="hasMedia">
+        <div class="media-art-shell">
           <div
-            v-for="face in cubeFaces"
-            :key="face"
-            class="media-cube-face"
-            :class="`media-cube-face-${face}`"
-            aria-hidden="true"
+            class="media-cube"
+            role="img"
+            :aria-label="
+              thumbnail ? 'Current media artwork' : 'Media artwork placeholder'
+            "
           >
-            <img
-              v-if="thumbnail"
-              class="media-art"
-              :src="thumbnail"
-              alt=""
-            />
-            <div v-else class="media-art media-placeholder">
-              <template v-if="face === 'front'">
-                <Music2 v-if="contentType === 'music'" :size="38" />
-                <ImageIcon v-else :size="38" />
-              </template>
+            <div
+              v-for="face in cubeFaces"
+              :key="face"
+              class="media-cube-face"
+              :class="`media-cube-face-${face}`"
+              aria-hidden="true"
+            >
+              <img
+                v-if="thumbnail"
+                class="media-art"
+                :src="thumbnail"
+                alt=""
+              />
+              <div v-else class="media-art media-placeholder">
+                <template v-if="face === 'front'">
+                  <Music2 v-if="contentType === 'music'" :size="38" />
+                  <ImageIcon v-else :size="38" />
+                </template>
+              </div>
             </div>
           </div>
         </div>
-        <span class="playback-badge">
-          <component :is="playbackIcon" :size="12" fill="currentColor" />
-        </span>
-      </div>
 
-      <div class="media-copy">
-        <div class="media-meta-row">
-          <span><Radio :size="12" /> NOW {{ playbackLabel }}</span>
-          <span>{{ contentType.toUpperCase() }}</span>
-        </div>
-        <h2 :class="{ 'is-placeholder': !hasMedia }">{{ heading }}</h2>
-        <p class="media-byline">{{ byline }}</p>
-        <p v-if="detail" class="media-detail">{{ detail }}</p>
-
-        <div class="timeline-row">
-          <span>{{ formatDuration(timelinePosition) }}</span>
-          <div class="timeline-track">
-            <span :style="{ width: `${progressPercent}%` }" />
+        <div class="media-copy">
+          <div class="media-meta-row">
+            <span>
+              <component :is="playbackIcon" :size="12" fill="currentColor" />
+              NOW {{ playbackLabel }}
+            </span>
           </div>
-          <span>{{ formatDuration(timelineDuration) }}</span>
+          <h2>{{ heading }}</h2>
+          <p v-if="byline" class="media-byline">{{ byline }}</p>
+          <p v-if="detail" class="media-detail">{{ detail }}</p>
+
+          <div class="timeline-row">
+            <span>{{ formatDuration(timelinePosition) }}</span>
+            <div class="timeline-track">
+              <span :style="{ width: `${progressPercent}%` }" />
+            </div>
+            <span>{{ formatDuration(timelineDuration) }}</span>
+          </div>
         </div>
+      </template>
+
+      <div v-else class="media-idle">
+        <Radio :size="13" />
+        <span>MEDIA STANDBY</span>
       </div>
     </section>
   </Transition>

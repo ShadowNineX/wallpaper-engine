@@ -28,6 +28,7 @@ Returns one Vite plugin named `wallpaper-engine`. In serve mode it injects the b
 interface WallpaperEnginePluginOptions {
   file?: string;
   title: string;
+  schemeColor?: string;
   metadata?: WallpaperProjectMetadata;
   metadataFile?: string;
   projectLink?: WallpaperProjectLinkOptions;
@@ -43,6 +44,7 @@ interface WallpaperEnginePluginOptions {
 | --- | --- |
 | `file` | Generated entry HTML path; defaults to `'index.html'` |
 | `title` | Required generated project title |
+| `schemeColor` | Color.js input normalized into the reserved index-free `general.properties.schemecolor`; explicit configuration overrides preserved editor state |
 | `metadata` | Defined author fields override metadata-file and previous-output values |
 | `metadataFile` | Required non-null, non-array top-level JSON object when configured; resolves from final Vite root and merges shallowly |
 | `projectLink` | Creates/validates a persistent link only when `build.write` is true |
@@ -52,7 +54,7 @@ interface WallpaperEnginePluginOptions {
 | `localization` | Emitted under `general.localization` |
 | `devtools` | Defaults true for serve; false disables injection; build always omits it |
 
-Generated `file`, `title`, `type`, and `general` replace preserved values. See [Project Metadata](../../build/project-metadata/) for exact precedence and preview behavior.
+Generated `file`, `title`, `type`, and ordinary `general` fields replace preserved values. A defined `schemeColor` wins over previous editor state; when omitted, a valid previous `general.properties.schemecolor` is retained unless the source schema defines the same key. See [Project Metadata](../../build/project-metadata/) for exact precedence and preview behavior.
 
 ### Build-time errors
 

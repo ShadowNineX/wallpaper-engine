@@ -81,8 +81,19 @@ The Audio tab sends development frames at approximately 30 Hz. These generators 
 | Sweep | `sine` | Matching left/right sinusoidal sweep |
 | Bass pulse | `bass` | Matching left/right low-frequency pulse and harmonic |
 | Stereo pan | `stereo` | Energy moves between left and right channels |
+| Track loop | `track` | Repeating kick, clap, hi-hat, and bass pattern |
 
 The tab displays the current spectrum and listener status. “Off” means no callbacks; “Silence” still delivers callbacks containing zeroes. Use both to test timeout and quiet-signal behavior separately.
+
+Generated sound modes expose an **Output** slider that scales the final frame without changing its frequency profile. Sweep, Bass pulse, and Stereo pan also expose rate controls. Track loop adds:
+
+- **Tempo** — 60–180 BPM.
+- **Continuous bass** — sustained low-frequency bed.
+- **Kick** — low-frequency transient.
+- **Clap** — mid-frequency transient.
+- **Hi-hat** — high-frequency transient.
+
+Set an instrument to `0%` to isolate the remaining track components, or raise it to `150%` to stress the matching spectrum region. These controls only tune the deterministic simulator; they do not predict the values or cadence produced by Wallpaper Engine.
 
 :::note[Simulator cadence]
 The simulator timer uses `1000 / 30` ms. Browsers may throttle background tabs. Wallpaper Engine owns production cadence and values.

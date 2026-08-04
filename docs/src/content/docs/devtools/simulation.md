@@ -27,6 +27,7 @@ The Properties tab renders controls from the same property definitions passed to
 
 - Changing a scalar, file, or `ondemand` directory control sends a partial `applyUserProperties` payload containing only that property. A `fetchall` directory control instead sends add/change/remove callbacks.
 - **Replay all** sends every current non-group, non-`fetchall` user property, replays selected `fetchall` files through `userDirectoryFilesAddedOrChanged`, and sends the current FPS and pause state.
+- **Reset defaults** restores every user property to its configured default, clears selected local files and directories, sends one complete non-`fetchall` default payload, and removes previously delivered `fetchall` files. Runtime FPS and pause state are left unchanged.
 - Group markers become collapsible sections; they are never sent as runtime property values.
 - Property labels and combo option labels resolve configured localization tokens.
 - File and directory controls filter local selections by configured image/video type.
@@ -47,7 +48,7 @@ The simulator exposes development stubs for the LED and CUE objects so code can 
 
 ## Audio
 
-The Audio tab reports listener count, chooses one of six modes, and visualizes the most recently delivered 128-sample spectrum.
+The Audio tab reports listener count, chooses one of seven modes, visualizes the most recently delivered 128-sample spectrum, and exposes controls for the active generated signal.
 
 | Mode | Signal |
 | --- | --- |
@@ -57,6 +58,9 @@ The Audio tab reports listener count, chooses one of six modes, and visualizes t
 | Sweep | Mirrored sinusoidal sweep |
 | Bass pulse | Mirrored low-frequency pulse |
 | Stereo pan | Energy moves between channels |
+| Track loop | Repeating kick, clap, hi-hat, and bass pattern |
+
+**Output** scales every audible generated mode. Sweep, Bass pulse, and Stereo pan each expose a rate control. Track loop additionally exposes **Tempo**, **Continuous bass**, **Kick**, **Clap**, and **Hi-hat** levels, so frequency bands and beat combinations can be isolated without changing wallpaper code. Silence remains exactly zero-valued.
 
 Active modes send at approximately 30 Hz. See [Audio](../../guides/audio/) for channel layout, clamping, detection, and the exact simulator-only generator distinctions.
 

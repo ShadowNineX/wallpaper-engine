@@ -10,13 +10,14 @@ The build plugin supports two preservation sources: source-controlled metadata f
 | Field or artifact | Owner | Recommended source |
 | --- | --- | --- |
 | `file`, `title`, `type` | Build | Plugin options and generated output |
-| `general.properties`, `general.localization`, `general.supportsaudioprocessing` | Build | Property schema, localization option, and audio configuration/detection |
+| Ordinary `general.properties`, `general.localization`, `general.supportsaudioprocessing` | Build | Property schema, localization option, and audio configuration/detection |
+| `general.properties.schemecolor` | Author/build, then editor fallback | Source-owned `schemeColor`; a valid previous editor property is preserved only when the option and source schema key are absent |
 | `description`, `preview`, `tags`, ratings, visibility | Author/build | `metadata` or a checked-in `metadataFile` |
 | Unknown Workshop/editor top-level fields | Wallpaper Engine editor | Preserved previous `project.json` or checked-in metadata file after review |
 | Preview image bytes | Author/editor | Vite `publicDir`, emitted asset, or previous linked output |
 | `project.json` in `outDir` | Generated artifact | Never hand-maintain as the only source of truth |
 
-Generated core and `general` fields always replace editor copies. Other top-level fields can round-trip through previous output.
+Generated core and ordinary `general` fields replace editor copies. The `schemeColor` option emits the special index-free `general.properties.schemecolor`; otherwise a valid editor-managed value and other top-level fields can round-trip through previous output.
 
 ## Fresh clone flow
 
@@ -83,7 +84,7 @@ A practical loop:
 6. Publish through Wallpaper Engine after reviewing the generated project.
 
 :::note[Shallow top-level preservation]
-The plugin does not merge `general`. It regenerates that object. Editor changes under `general` must move into supported plugin options or they will be replaced on the next build.
+The plugin does not generally merge `general`; it regenerates that object. Configure the special browser color with `schemeColor`. When that option and a same-key source property are absent, a valid editor-managed `general.properties.schemecolor` is carried into regenerated properties. Other editor changes under `general` must move into supported plugin options or they will be replaced on the next build.
 :::
 
 ## Preview restoration rules

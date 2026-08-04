@@ -51,6 +51,38 @@ describe('propertiesTab', () => {
     expect(setPaused).toHaveBeenCalledWith(false);
   });
 
+  it('restores edited controls to their configured defaults', async () => {
+    const [
+      { default: PropertiesTab },
+      { listenerFns, useDevtoolsStore },
+    ] = await Promise.all([
+      import('../../src/tabs/PropertiesTab.vue'),
+      import('../../src/store'),
+    ]);
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+    store.currentValues.first = { value: false };
+    store.currentValues.second = { value: 'changed' };
+    const wrapper = mount(PropertiesTab);
+
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('Reset defaults'))
+      ?.trigger('click');
+
+    expect(store.currentValues).toEqual({
+      first: { value: true },
+      second: { value: 'b' },
+    });
+    expect(applyUserProperties).toHaveBeenCalledOnce();
+    expect(applyUserProperties).toHaveBeenCalledWith({
+      first: { value: true },
+      second: { value: 'b' },
+    });
+    expect(wrapper.text()).toContain('Reset defaults');
+  });
+
   it('renders group boundaries as animated, initially closed sections', async () => {
     window.__WE_DEVTOOLS_CONFIG__ = {
       properties: {

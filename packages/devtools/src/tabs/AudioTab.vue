@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
-import type { AudioMode } from '../audio';
+import type { AudioMode, AudioSettings } from '../audio';
 import { storeToRefs } from 'pinia';
-import { onBeforeUnmount, onMounted, shallowRef } from 'vue';
+import { computed, onBeforeUnmount, onMounted, shallowRef } from 'vue';
 import ArrowsLeftRight from '~icons/ph/arrows-left-right-duotone';
 import Heartbeat from '~icons/ph/heartbeat-duotone';
 import SpeakerSlash from '~icons/ph/speaker-slash-duotone';
 import WaveSine from '~icons/ph/wave-sine-duotone';
 import AudioLines from '~icons/ph/waveform-duotone';
 import WaveformSlash from '~icons/ph/waveform-slash-duotone';
+import { Label } from '@/components/ui/label';
+import { Slider } from '@/components/ui/slider';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   AUDIO_MODE_LABELS,
-
+  audioSettings,
   audioState,
   lastFrame,
   setAudioMode,
@@ -55,7 +57,141 @@ const modes: Array<{
     description: 'Left-right motion',
     icon: ArrowsLeftRight,
   },
+  {
+    value: 'track',
+    description: 'Kick, clap, and hats',
+    icon: AudioLines,
+  },
 ];
+
+interface AudioControl {
+  key: keyof AudioSettings;
+  label: string;
+  description: string;
+  min: number;
+  max: number;
+  step: number;
+  format: 'percent' | 'rate' | 'tempo';
+}
+
+const outputControl = {
+  key: 'output',
+  label: 'Output',
+  description: 'Final spectrum level',
+  min: 0,
+  max: 1,
+  step: 0.05,
+  format: 'percent',
+} satisfies AudioControl;
+
+const modeControls: Partial<Record<AudioMode, readonly AudioControl[]>> = {
+  random: [outputControl],
+  sine: [
+    outputControl,
+    {
+      key: 'sweepSpeed',
+      label: 'Sweep rate',
+      description: 'Frequency travel speed',
+      min: 0.25,
+      max: 2,
+      step: 0.05,
+      format: 'rate',
+    },
+  ],
+  bass: [
+    outputControl,
+    {
+      key: 'bassSpeed',
+      label: 'Pulse rate',
+      description: 'Low-end pulse speed',
+      min: 0.25,
+      max: 2,
+      step: 0.05,
+      format: 'rate',
+    },
+  ],
+  stereo: [
+    outputControl,
+    {
+      key: 'stereoSpeed',
+      label: 'Pan rate',
+      description: 'Left-right travel speed',
+      min: 0.25,
+      max: 2,
+      step: 0.05,
+      format: 'rate',
+    },
+  ],
+  track: [
+    outputControl,
+    {
+      key: 'trackTempo',
+      label: 'Tempo',
+      description: 'Track playback speed',
+      min: 60,
+      max: 180,
+      step: 5,
+      format: 'tempo',
+    },
+    {
+      key: 'trackBassline',
+      label: 'Continuous bass',
+      description: 'Sustained low-end bed',
+      min: 0,
+      max: 1.5,
+      step: 0.05,
+      format: 'percent',
+    },
+    {
+      key: 'trackKick',
+      label: 'Kick',
+      description: 'Low-frequency transient',
+      min: 0,
+      max: 1.5,
+      step: 0.05,
+      format: 'percent',
+    },
+    {
+      key: 'trackClap',
+      label: 'Clap',
+      description: 'Mid-frequency transient',
+      min: 0,
+      max: 1.5,
+      step: 0.05,
+      format: 'percent',
+    },
+    {
+      key: 'trackHiHat',
+      label: 'Hi-hat',
+      description: 'High-frequency transient',
+      min: 0,
+      max: 1.5,
+      step: 0.05,
+      format: 'percent',
+    },
+  ],
+};
+
+const activeControls = computed<readonly AudioControl[]>(
+  () => modeControls[audioState.mode] ?? [],
+);
+function updateAudioSetting(
+  key: keyof AudioSettings,
+  values: number[] | undefined,
+): void {
+  const value = values?.[0];
+  if (value !== undefined)
+    audioSettings[key] = value;
+}
+
+function formatAudioSetting(control: AudioControl): string {
+  const value = audioSettings[control.key];
+  if (control.format === 'tempo')
+    return `${Math.round(value)} BPM`;
+  if (control.format === 'rate')
+    return `${value.toFixed(2)}×`;
+  return `${Math.round(value * 100)}%`;
+}
 
 const canvas = shallowRef<HTMLCanvasElement | null>(null);
 let animationFrame = 0;
@@ -209,7 +345,7 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
         variant="outline"
         :spacing="1.5"
         :model-value="audioState.mode"
-        class="grid w-full grid-cols-3"
+        class="grid w-full grid-cols-2"
         aria-label="Audio processing mode"
         @update:model-value="
           (value) => {
@@ -244,6 +380,56 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
           </span>
         </ToggleGroupItem>
       </ToggleGroup>
+
+      <div
+        v-if="activeControls.length > 0"
+        class="mt-3 space-y-3 rounded-lg border border-we-border bg-we-panel/55 p-3"
+      >
+        <div>
+          <div class="text-[11px] font-semibold text-we-text">
+            Simulation controls
+          </div>
+          <div class="mt-0.5 text-[10px] text-we-faint">
+            Tune the selected development signal in real time.
+          </div>
+        </div>
+        <div
+          v-for="control in activeControls"
+          :key="control.key"
+          class="we-field"
+        >
+          <div>
+            <Label
+              :for="`audio-${control.key}`"
+              class="we-field-label"
+            >
+              {{ control.label }}
+            </Label>
+            <div class="mt-0.5 text-[10px] text-we-faint">
+              {{ control.description }}
+            </div>
+          </div>
+          <div class="flex min-w-0 items-center gap-3">
+            <Slider
+              :id="`audio-${control.key}`"
+              :aria-label="control.label"
+              :model-value="[audioSettings[control.key]]"
+              :min="control.min"
+              :max="control.max"
+              :step="control.step"
+              class="min-w-0 flex-1"
+              @update:model-value="
+                (values) => updateAudioSetting(control.key, values)
+              "
+            />
+            <span
+              class="min-w-14 rounded-md border border-we-border bg-we-surface px-2 py-1 text-right text-[10px] tabular-nums text-we-muted"
+            >
+              {{ formatAudioSetting(control) }}
+            </span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <div

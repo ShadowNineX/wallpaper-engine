@@ -1,15 +1,23 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { audioState, lastFrame, setAudioMode } from '../src/audio';
+import {
+  audioSettings,
+  audioState,
+  lastFrame,
+  resetAudioSettings,
+  setAudioMode,
+} from '../src/audio';
 import { listenerFns } from '../src/store';
 
 beforeEach(() => {
   vi.useFakeTimers();
   listenerFns.audio.length = 0;
   setAudioMode('off');
+  resetAudioSettings();
 });
 
 afterEach(() => {
   setAudioMode('off');
+  resetAudioSettings();
   vi.useRealTimers();
 });
 
@@ -99,6 +107,105 @@ describe('audio simulator', () => {
     expect(first.every(sample => sample >= 0 && sample <= 1)).toBe(true);
     expect(Math.abs(leftEnergy - rightEnergy)).toBeGreaterThan(1);
     expect(second).not.toEqual(first);
+  });
+
+  it('emits a repeating kick, clap, and hi-hat track pattern', () => {
+    const listener = vi.fn();
+    listenerFns.audio.push(listener);
+
+    setAudioMode('track');
+    vi.advanceTimersByTime(2_100);
+
+    const frames = listener.mock.calls.map(call => call[0] as number[]);
+    const first = frames[0] as number[];
+    const betweenKick = frames[7] as number[];
+    const clapBeat = frames[15] as number[];
+    const betweenHat = frames[3] as number[];
+    const repeated = frames[60] as number[];
+    const bandEnergy = (frame: number[], start: number, end: number) =>
+      frame
+        .slice(start, end)
+        .reduce((total, sample) => total + sample, 0);
+
+    expect(frames.length).toBeGreaterThanOrEqual(62);
+    expect(frames.every(frame => frame.length === 128)).toBe(true);
+    expect(frames.every(frame =>
+      frame.every(sample => sample >= 0 && sample <= 1),
+    )).toBe(true);
+    expect(bandEnergy(first, 0, 8)).toBeGreaterThan(
+      bandEnergy(betweenKick, 0, 8) * 4,
+    );
+    expect(bandEnergy(clapBeat, 18, 34)).toBeGreaterThan(
+      bandEnergy(first, 18, 34) * 2,
+    );
+    expect(bandEnergy(first, 48, 64)).toBeGreaterThan(
+      bandEnergy(betweenHat, 48, 64) * 2,
+    );
+    expect(repeated).toEqual(first);
+  });
+
+  it('adjusts track output and individual instrument levels', () => {
+    const listener = vi.fn();
+    listenerFns.audio.push(listener);
+    audioSettings.trackBassline = 0;
+    audioSettings.trackKick = 0;
+    audioSettings.trackClap = 0;
+    audioSettings.trackHiHat = 0;
+
+    setAudioMode('track');
+    vi.advanceTimersByTime(34);
+    const muted = listener.mock.calls[0]?.[0] as number[];
+    expect(muted.every(sample => sample === 0)).toBe(true);
+
+    setAudioMode('off');
+    listener.mockClear();
+    audioSettings.trackKick = 1;
+    audioSettings.output = 0.25;
+    setAudioMode('track');
+    vi.advanceTimersByTime(34);
+    const quietKick = listener.mock.calls[0]?.[0] as number[];
+
+    setAudioMode('off');
+    listener.mockClear();
+    audioSettings.output = 1;
+    setAudioMode('track');
+    vi.advanceTimersByTime(34);
+    const fullKick = listener.mock.calls[0]?.[0] as number[];
+
+    expect(quietKick[0]).toBeGreaterThan(0);
+    expect(fullKick[0]).toBeCloseTo((quietKick[0] ?? 0) * 4, 10);
+  });
+
+  it('moves track beats according to the configured tempo', () => {
+    const listener = vi.fn();
+    listenerFns.audio.push(listener);
+    audioSettings.trackBassline = 0;
+    audioSettings.trackKick = 0;
+    audioSettings.trackClap = 1;
+    audioSettings.trackHiHat = 0;
+    const midEnergy = (frame: number[]) =>
+      frame
+        .slice(18, 34)
+        .reduce((total, sample) => total + sample, 0);
+    const peakIndex = (frames: number[][]) => {
+      const energies = frames.map(midEnergy);
+      return energies.indexOf(Math.max(...energies));
+    };
+
+    audioSettings.trackTempo = 120;
+    setAudioMode('track');
+    vi.advanceTimersByTime(1_100);
+    const regularFrames = listener.mock.calls.map(call => call[0] as number[]);
+
+    setAudioMode('off');
+    listener.mockClear();
+    audioSettings.trackTempo = 60;
+    setAudioMode('track');
+    vi.advanceTimersByTime(1_100);
+    const slowFrames = listener.mock.calls.map(call => call[0] as number[]);
+
+    expect(peakIndex(regularFrames)).toBe(15);
+    expect(peakIndex(slowFrames)).toBe(30);
   });
 
   it('stops callbacks and clears the displayed frame when switched off', () => {

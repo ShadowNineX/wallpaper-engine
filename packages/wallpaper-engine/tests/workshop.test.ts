@@ -45,6 +45,29 @@ afterEach(async () => {
 });
 
 describe('steam Workshop project preservation', () => {
+  it('emits a configured scheme color into an empty output directory', async () => {
+    const root = await createWallpaperRoot();
+
+    await buildWallpaper(root, {
+      title: 'Generated',
+      schemeColor: '#5994ff',
+    });
+
+    const project = JSON.parse(
+      await readFile(join(root, 'dist', 'project.json'), 'utf8'),
+    );
+    expect(project.general).toEqual({
+      properties: {
+        schemecolor: {
+          order: 0,
+          text: 'ui_browse_properties_scheme_color',
+          type: 'color',
+          value: '0.34902 0.580392 1',
+        },
+      },
+    });
+  });
+
   it('survives Vite cleanup while refreshing generated core and preview output', async () => {
     const root = await createWallpaperRoot();
     const outDir = join(root, 'dist');
@@ -54,7 +77,17 @@ describe('steam Workshop project preservation', () => {
       file: 'old.html',
       title: 'Editor title',
       type: 'web',
-      general: { properties: { stale: { type: 'bool', value: false } } },
+      general: {
+        properties: {
+          stale: { type: 'bool', value: false },
+          schemecolor: {
+            order: 0,
+            text: 'ui_browse_properties_scheme_color',
+            type: 'color',
+            value: '0.34901960784313724 0.5803921568627451 1',
+          },
+        },
+      },
       description: 'Editor description',
       preview: 'previews/editor.jpg',
       workshopid: '1234567890',
@@ -101,6 +134,12 @@ describe('steam Workshop project preservation', () => {
       type: 'web',
       general: {
         properties: {
+          schemecolor: {
+            order: 0,
+            text: 'ui_browse_properties_scheme_color',
+            type: 'color',
+            value: '0.34901960784313724 0.5803921568627451 1',
+          },
           enabled: {
             index: 0,
             order: 0,

@@ -246,6 +246,18 @@ export interface WallpaperEnginePluginOptions {
   /** Wallpaper title shown in the Wallpaper Engine UI */
   title: string;
   /**
+   * Wallpaper Engine browser scheme color. Accepts any syntax supported by
+   * Color.js and emits the reserved index-free
+   * `general.properties.schemecolor` property.
+   *
+   * When omitted, a valid editor-managed value from previous output is
+   * preserved.
+   *
+   * @example
+   * schemeColor: '#5994ff'
+   */
+  schemeColor?: string;
+  /**
    * Source-controlled author metadata merged into `project.json`.
    * `undefined` fields do not override preserved values.
    *
@@ -459,9 +471,20 @@ export function wallpaperEnginePlugin(
     },
 
     generateBundle(_outputOptions, bundle) {
-      const properties = options.properties
+      let properties = options.properties
         ? assignIndices(options.properties)
         : undefined;
+      if (options.schemeColor !== undefined) {
+        properties = {
+          ...properties,
+          schemecolor: createSchemeColorProperty(options.schemeColor),
+        };
+      }
+      else {
+        const preserved = preservationState?.schemeColor;
+        if (preserved !== undefined && properties?.schemecolor === undefined)
+          properties = { schemecolor: preserved, ...properties };
+      }
 
       const general: WallpaperProjectGeneral = {};
       if (properties)
@@ -523,6 +546,7 @@ interface PreservationState {
   finalPreviewFileName?: string;
   outDir: string;
   preview?: CapturedPreview;
+  schemeColor?: WallpaperColorProperty;
   project: JsonObject;
   publicPreviewFileName?: string;
   write: boolean;
@@ -622,8 +646,43 @@ async function capturePreservationState(
     preview,
     project,
     publicPreviewFileName,
+    schemeColor: preservedSchemeColor(previousProject),
     write: config.build.write,
   };
+}
+
+function createSchemeColorProperty(color: string): WallpaperColorProperty {
+  return {
+    order: 0,
+    text: 'ui_browse_properties_scheme_color',
+    type: 'color',
+    value: colorToWallpaperColor(color),
+  };
+}
+
+function preservedSchemeColor(
+  previousProject: JsonObject | undefined,
+): WallpaperColorProperty | undefined {
+  const general = previousProject?.general;
+  if (!isJsonObject(general))
+    return;
+  const properties = general.properties;
+  if (!isJsonObject(properties))
+    return;
+  const schemeColor = properties.schemecolor;
+  if (
+    !isJsonObject(schemeColor)
+    || schemeColor.type !== 'color'
+    || typeof schemeColor.text !== 'string'
+    || typeof schemeColor.value !== 'string'
+  ) {
+    return;
+  }
+  return schemeColor as unknown as WallpaperColorProperty;
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return value !== null && !Array.isArray(value) && typeof value === 'object';
 }
 
 async function capturePreviousPreview(

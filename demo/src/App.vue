@@ -73,7 +73,6 @@ const clockFormat = ref<ClockFormat>(
 const showSeconds = ref(properties.showseconds.value);
 const showMedia = ref(properties.showmedia.value);
 const useMediaColors = ref(properties.usemediacolors.value);
-const greeting = ref(properties.greeting.value);
 const backgroundSource = ref<BackgroundSource>(
   properties.backgroundsource.value as BackgroundSource,
 );
@@ -525,32 +524,52 @@ function drawWaveVisualizer(
   glow: RgbColor,
 ): void {
   const uiScale = getUiScale(width, height);
-  const floor = height * 0.92;
+  const floor = height * 0.88;
   const gradient = context.createLinearGradient(
-    width * 0.15,
+    width * 0.12,
     0,
-    width * 0.85,
+    width * 0.88,
     0,
   );
   gradient.addColorStop(0, `rgba(${glow.join(",")}, 0)`);
-  gradient.addColorStop(0.28, `rgba(${glow.join(",")}, 0.75)`);
-  gradient.addColorStop(0.72, `rgba(${accent.join(",")}, 0.9)`);
+  gradient.addColorStop(0.22, `rgba(${glow.join(",")}, 0.58)`);
+  gradient.addColorStop(0.72, `rgba(${accent.join(",")}, 0.72)`);
   gradient.addColorStop(1, `rgba(${accent.join(",")}, 0)`);
   context.strokeStyle = gradient;
-  context.lineWidth = 2 * uiScale;
+  context.lineWidth = 1.5 * uiScale;
+  context.lineCap = "round";
+  context.lineJoin = "round";
   context.beginPath();
+  let previousX = 0;
+  let previousY = floor;
   for (let index = 0; index <= 96; index++) {
     const ratio = index / 96;
     const audioIndex = Math.min(63, Math.floor(ratio * 64));
-    const level = sampleAudio(audioIndex, time);
+    let level = 0;
+    for (let offset = -2; offset <= 2; offset++) {
+      const band = Math.max(0, Math.min(63, audioIndex + offset));
+      level +=
+        (sampleAudio(band, time) + sampleAudio(127 - band, time)) / 10;
+    }
     const x = ratio * width;
     const y =
       floor -
-      Math.sin(ratio * Math.PI * 8 + time * 0.002) *
-        (8 + level * height * 0.13);
-    if (index === 0) context.moveTo(x, y);
-    else context.lineTo(x, y);
+      Math.sin(ratio * Math.PI * 7 + time * 0.0014) *
+        (5 * uiScale + level * height * 0.085);
+    if (index === 0) {
+      context.moveTo(x, y);
+    } else {
+      context.quadraticCurveTo(
+        previousX,
+        previousY,
+        (previousX + x) / 2,
+        (previousY + y) / 2,
+      );
+    }
+    previousX = x;
+    previousY = y;
   }
+  context.lineTo(width, previousY);
   context.stroke();
 }
 
@@ -801,7 +820,6 @@ function applyOverlayProperties(values: Partial<UserProps>): void {
   if (values.usemediacolors) {
     useMediaColors.value = values.usemediacolors.value;
   }
-  if (values.greeting) greeting.value = values.greeting.value;
 }
 
 function applyBackgroundProperties(values: Partial<UserProps>): void {
@@ -973,7 +991,7 @@ onBeforeUnmount(() => {
       :glow="effectiveGlow"
       :base-accent="accentColor"
       :base-glow="glowColor"
-      :audio-data="smoothedAudio"
+      :audio-data="rawAudio"
       :sensitivity="visualSensitivity"
       :animation-speed="animationSpeed"
       :paused="paused"
@@ -995,9 +1013,14 @@ onBeforeUnmount(() => {
       autoplay
       playsinline
     />
-    <div class="source-scrim" />
-    <div class="aurora aurora-a" />
-    <div class="aurora aurora-b" />
+    <div
+      class="source-scrim"
+      :class="{ 'is-generated': backgroundSource === 'generated' }"
+    />
+    <template v-if="backgroundSource !== 'generated'">
+      <div class="aurora aurora-a" />
+      <div class="aurora aurora-b" />
+    </template>
     <div class="grain" />
     <canvas ref="canvas" class="ambient-canvas">
       Decorative audio visualization.
@@ -1005,7 +1028,6 @@ onBeforeUnmount(() => {
 
     <SystemHeader
       :show-debug-info="showDebugInfo"
-      :greeting="greeting"
       :media-linked="mediaLinked"
       :fps-limit="fpsLimit"
       :measured-fps="measuredFps"

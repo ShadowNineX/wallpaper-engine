@@ -3,6 +3,7 @@ import type { WallpaperSliderValue } from '../../../wallpaper-engine/src/types/l
 import type { WallpaperSliderProperty } from '../../../wallpaper-engine/src/types/project';
 import { computed } from 'vue';
 import { Slider } from '@/components/ui/slider';
+import { tr } from '../config';
 import { useDevtoolsStore } from '../store';
 
 const props = defineProps<{
@@ -34,6 +35,7 @@ function onSlider(values: number[] | undefined): void {
   <div class="flex items-center gap-3">
     <Slider
       :id="propKey"
+      :aria-label="tr(def.text)"
       :model-value="[runtimeValue?.value ?? def.value]"
       :min="def.min"
       :max="def.max"

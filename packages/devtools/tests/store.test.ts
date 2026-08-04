@@ -3,6 +3,18 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { toast } from 'vue-sonner';
 
+const {
+  releaseDevDirectoryMock,
+  releaseDevFileMock,
+} = vi.hoisted(() => ({
+  releaseDevDirectoryMock: vi.fn(),
+  releaseDevFileMock: vi.fn(),
+}));
+
+vi.mock('../src/dev-files', () => ({
+  releaseDevDirectory: releaseDevDirectoryMock,
+  releaseDevFile: releaseDevFileMock,
+}));
 vi.mock('vue-sonner', () => ({ toast: vi.fn() }));
 
 const properties = {
@@ -34,6 +46,8 @@ const properties = {
 
 beforeEach(() => {
   vi.resetModules();
+  releaseDevDirectoryMock.mockReset();
+  releaseDevFileMock.mockReset();
   setActivePinia(createPinia());
   window.__WE_DEVTOOLS_CONFIG__ = {
     properties,
@@ -189,6 +203,100 @@ describe('devtools property state', () => {
     const second = useDevtoolsStore();
 
     expect(second.currentValues.speed).toEqual({ value: 2 });
+  });
+
+  it('restores property defaults without resetting runtime state', async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const applyUserProperties = vi.fn();
+    const applyGeneralProperties = vi.fn();
+    const setPaused = vi.fn();
+    const removed = vi.fn();
+    listenerFns.property = {
+      applyUserProperties,
+      applyGeneralProperties,
+      setPaused,
+      userDirectoryFilesRemoved: removed,
+    };
+    const store = useDevtoolsStore();
+    store.currentValues.speed = { value: 5 };
+    store.currentValues.mode = { value: 'custom', text: 'Custom' };
+    store.setFileSelection('file', {
+      id: 'file-1',
+      name: 'picked.png',
+      path: 'picked.png',
+      relativePath: 'picked.png',
+      url: 'blob:http://localhost/picked',
+      size: 10,
+      mtimeMs: 20,
+    });
+    store.setDirectorySelection('random', {
+      id: 'random-directory',
+      path: 'Random',
+      files: [],
+    });
+    store.setDirectorySelection('gallery', {
+      id: 'gallery-directory',
+      path: 'Gallery',
+      files: [
+        {
+          id: 'gallery-file',
+          name: 'gallery.png',
+          path: 'Gallery/gallery.png',
+          relativePath: 'gallery.png',
+          url: 'blob:http://localhost/gallery',
+          size: 30,
+          mtimeMs: 40,
+        },
+      ],
+    });
+    store.general.fps = 30;
+    store.general.paused = true;
+    applyUserProperties.mockClear();
+    applyGeneralProperties.mockClear();
+    setPaused.mockClear();
+    removed.mockClear();
+
+    store.resetPropertiesToDefaults();
+
+    expect(store.currentValues).toEqual({
+      color: { value: '0.1 0.2 0.3' },
+      speed: { value: 2 },
+      enabled: { value: true },
+      mode: { value: 'bars', text: 'Spectrum bars' },
+      label: { value: 'hello' },
+      file: { value: 'C:/image.png' },
+      random: { value: 'C:/random' },
+      gallery: { value: 'C:/gallery' },
+    });
+    expect(store.propertyDisplayPaths).toEqual({
+      file: 'C:/image.png',
+      random: 'C:/random',
+      gallery: 'C:/gallery',
+    });
+    expect(store.directoryFiles).toEqual({});
+    expect(store.directorySelections).toEqual({});
+    expect(applyUserProperties).toHaveBeenCalledOnce();
+    expect(applyUserProperties.mock.calls[0]?.[0]).toEqual({
+      color: { value: '0.1 0.2 0.3' },
+      speed: { value: 2 },
+      enabled: { value: true },
+      mode: { value: 'bars', text: 'Spectrum bars' },
+      label: { value: 'hello' },
+      file: { value: 'C:/image.png' },
+      random: { value: 'C:/random' },
+    });
+    expect(removed).toHaveBeenCalledWith('gallery', [
+      'blob:http://localhost/gallery',
+    ]);
+    expect(applyGeneralProperties).not.toHaveBeenCalled();
+    expect(setPaused).not.toHaveBeenCalled();
+    expect(store.general).toEqual({ fps: 30, paused: true });
+    expect(releaseDevFileMock).toHaveBeenCalledWith(
+      'blob:http://localhost/picked',
+    );
+    expect(releaseDevDirectoryMock).toHaveBeenCalledWith('random-directory');
+    expect(releaseDevDirectoryMock).toHaveBeenCalledWith('gallery-directory');
+    expect(toast).toHaveBeenCalledWith('Properties reset to defaults.');
   });
 });
 

@@ -32,10 +32,6 @@ const fragmentShader = /* glsl */ `
   uniform float uBass;
   uniform float uMids;
   uniform float uTreble;
-  uniform float uBassHit;
-  uniform float uBassAge;
-  uniform float uClapHit;
-  uniform float uClapAge;
   uniform float uStage;
   uniform vec2 uResolution;
   uniform vec3 uBackground;
@@ -69,11 +65,11 @@ const fragmentShader = /* glsl */ `
   float fbm(vec2 point) {
     float value = 0.0;
     float amplitude = 0.52;
-    mat2 rotation = mat2(0.80, 0.60, -0.60, 0.80);
+    mat2 transform = mat2(0.80, 0.60, -0.60, 0.80);
 
     for (int octave = 0; octave < 5; octave++) {
       value += valueNoise(point) * amplitude;
-      point = rotation * point * 2.03 + 19.17;
+      point = transform * point * 2.03 + 19.17;
       amplitude *= 0.5;
     }
     return value;
@@ -86,130 +82,283 @@ const fragmentShader = /* glsl */ `
     float seed = hash21(cell);
     vec2 jitter = vec2(hash21(cell + 7.3), hash21(cell + 19.1)) - 0.5;
     float distanceToStar = length(local - jitter * 0.55);
-    float star = smoothstep(0.085, 0.0, distanceToStar);
+    float star = 1.0 - smoothstep(0.0, 0.075, distanceToStar);
     return star * smoothstep(threshold, 1.0, seed);
   }
 
   void main() {
     vec2 point = vUv - 0.5;
-    point.x *= uResolution.x / max(uResolution.y, 1.0);
+    float aspect = uResolution.x / max(uResolution.y, 1.0);
+    point.x *= aspect;
 
     float time = uTime;
-    float intensity = uAudio;
-    float stageOne = smoothstep(0.35, 0.95, uStage);
-    float stageTwo = smoothstep(1.25, 1.95, uStage);
-    float stageThree = smoothstep(2.20, 2.90, uStage);
-
-    float sourceRadius = length(point);
-    float shockRadius = uBassAge * (0.90 + uBass * 0.75);
-    float shockFront = exp(-abs(sourceRadius - shockRadius) * (42.0 - stageTwo * 10.0));
-    float shockWarp = shockFront * uBassHit * (0.025 + stageTwo * 0.035);
-    point += point / max(sourceRadius, 0.001) * shockWarp;
-
-    float firstNoise = fbm(
-      point * (1.65 + stageTwo * 0.28) +
-      vec2(time * (0.035 + intensity * 0.025), -time * 0.028)
+    float stageGlow = smoothstep(0.25, 2.8, uStage);
+    float haze = fbm(
+      point * 1.35 +
+      vec2(time * 0.018, -time * 0.012)
     );
-    vec2 warp = vec2(
-      fbm(point * 2.35 + firstNoise + vec2(time * 0.055, 1.7)),
-      fbm(point * 2.10 - firstNoise + vec2(-2.4, time * 0.045))
-    );
-    vec2 warpedPoint = point +
-      (warp - 0.5) * (0.42 + intensity * 0.20 + stageThree * 0.12);
-
-    float radius = length(warpedPoint);
-    float angle = atan(warpedPoint.y, warpedPoint.x);
-    float spiral = sin(
-      angle * (5.0 + stageTwo * 2.0) -
-      radius * (18.0 + stageThree * 8.0) +
-      time * (0.72 + intensity * 0.58) +
-      firstNoise * (5.0 + stageOne * 2.0)
-    );
-    float ribbon = pow(0.5 + 0.5 * spiral, 9.0 - stageThree * 3.0) *
-      exp(-radius * 0.72);
-
-    float crossedWaves = abs(
-      sin((warpedPoint.x + warp.y) * (10.0 + stageTwo * 5.0) - time * 0.31) *
-      cos((warpedPoint.y - warp.x) * 11.0 + time * 0.27)
-    );
-    float caustics = pow(crossedWaves, 7.0 - stageThree * 2.5);
-    float nebula = smoothstep(
-      0.18,
-      0.92,
-      fbm(warpedPoint * (3.0 + stageOne * 0.6) + time * 0.025)
+    float fineHaze = fbm(
+      point * 3.1 +
+      vec2(-time * 0.012, time * 0.016) +
+      haze
     );
 
-    float breathingRing = exp(
-      -abs(radius - (0.24 + 0.10 * sin(time * 0.55))) *
-      (30.0 - uBass * 10.0)
-    ) * uBass;
-    float bassShock = exp(
-      -abs(radius - shockRadius) * (46.0 - stageThree * 15.0)
-    ) * uBassHit;
-
-    float shardMask = pow(
-      abs(sin(angle * (7.0 + stageTwo * 5.0) + firstNoise * 2.5)),
-      18.0 - stageThree * 7.0
+    vec3 color = mix(
+      uBackground * 0.42,
+      mix(uBackground, uAccent, 0.16),
+      haze * 0.72
     );
-    float clapShards = shardMask *
-      (1.0 - smoothstep(0.12, 1.08, radius)) *
-      uClapHit;
-    float clapGrid = pow(
-      abs(sin((warpedPoint.x + warpedPoint.y) * 24.0 - uClapAge * 13.0)),
-      14.0
-    ) * uClapHit * (0.25 + stageTwo * 0.75);
+    vec2 haloPoint =
+      (point - vec2(0.28, 0.03)) * vec2(0.70, 1.05);
+    color += mix(uAccent, uGlow, 0.55) *
+      exp(-dot(haloPoint, haloPoint) * 1.45) *
+      (0.075 + stageGlow * 0.022);
 
-    float prismLattice = pow(
-      0.5 + 0.5 * sin(angle * 10.0 + radius * 34.0 - time * 1.6),
-      14.0
-    ) * stageTwo;
-    float overloadRays = pow(
-      0.5 + 0.5 * cos(angle * 18.0 - radius * 8.0 + time * 2.2),
-      22.0
-    ) * stageThree * (0.25 + uTreble);
+    float curtainField = 0.0;
+    float filamentField = 0.0;
+    for (int layer = 0; layer < 5; layer++) {
+      float layerIndex = float(layer);
+      float depth = layerIndex / 4.0;
+      float curveNoise = valueNoise(vec2(
+        point.x * (0.82 + depth * 0.20) +
+          layerIndex * 3.71 +
+          time * (0.018 + depth * 0.007),
+        layerIndex * 2.13 + time * 0.011
+      )) - 0.5;
+      float audioDrift =
+        sin(layerIndex * 1.7 + time * 0.65) * uBass * 0.032 +
+        (fineHaze - 0.5) * uMids * 0.050;
+      float curtainCenter =
+        (depth - 0.5) * 0.58 +
+        sin(
+          point.x * (0.78 + depth * 0.56) +
+          layerIndex * 1.36 +
+          time * (0.052 + depth * 0.014)
+        ) *
+        (0.105 + depth * 0.075) +
+        curveNoise * 0.17 +
+        audioDrift;
+      float distanceToCurtain = abs(point.y - curtainCenter);
+      float veil = exp(-distanceToCurtain * (5.0 + depth * 3.6));
+      float silkEdge = exp(
+        -distanceToCurtain * (92.0 + depth * 54.0)
+      );
+      float glassFringe = exp(
+        -abs(distanceToCurtain - 0.026) * (92.0 + depth * 28.0)
+      );
+      float innerRefraction = exp(
+        -abs(distanceToCurtain - 0.008) * (170.0 + depth * 58.0)
+      );
+      float weave =
+        0.72 +
+        0.28 *
+        sin(
+          point.x * (8.0 + depth * 5.0) +
+          point.y * 3.2 +
+          layerIndex * 2.4 +
+          time * 0.14
+        );
+      float colorPhase = fract(depth * 0.72 + haze * 0.24);
+      vec3 silkColor = mix(uAccent, uGlow, colorPhase);
+      vec3 pearlColor = mix(silkColor, vec3(0.86, 0.93, 1.0), 0.42);
 
-    vec3 color = uBackground * (0.46 + firstNoise * 0.36);
-    color = mix(color, uAccent, nebula * 0.54 + ribbon * (0.58 + stageOne * 0.15));
-    color = mix(color, uGlow, caustics * (0.26 + intensity * 0.38));
-    color += uAccent * breathingRing * 0.38;
-    color += mix(uAccent, uGlow, warp.x) *
-      ribbon * (0.16 + intensity * 0.36);
-    color += mix(uGlow, vec3(0.82, 0.92, 1.0), 0.45) *
-      bassShock * (0.48 + stageThree * 0.34);
-    color += mix(uAccent, vec3(1.0), 0.62) *
-      clapShards * (0.32 + uMids * 0.42);
-    color += uGlow * clapGrid * 0.24;
-    color += mix(uAccent, uGlow, 0.5) * prismLattice * 0.20;
-    color += mix(vec3(0.72, 0.86, 1.0), uGlow, 0.38) *
-      overloadRays * 0.38;
-    color += vec3(0.88, 0.94, 1.0) * uClapHit * 0.08;
+      color = mix(
+        color,
+        silkColor,
+        veil * (0.018 + depth * 0.018 + uAudio * 0.045)
+      );
+      color += pearlColor *
+        silkEdge *
+        weave *
+        (
+          0.38 +
+          depth * 0.24 +
+          stageGlow * 0.055 +
+          uBass * 0.18 +
+          uMids * 0.10
+        );
+      color += silkColor *
+        glassFringe *
+        (0.12 + depth * 0.075 + uMids * 0.08);
+      color += mix(pearlColor, uGlow, 0.32) *
+        innerRefraction *
+        (0.12 + depth * 0.075 + uTreble * 0.12);
+      curtainField += veil * (0.16 + depth * 0.08);
+      filamentField += silkEdge * weave;
+    }
+    float crystalOffset =
+      0.28 * smoothstep(1.10, 1.55, aspect);
+    float crystalWidth =
+      0.43 * min(1.0, aspect);
+    float crystalHeight =
+      mix(0.30, 0.35, smoothstep(0.80, 1.30, aspect));
+    vec2 crystalPoint = point - vec2(crystalOffset, 0.04);
+    vec2 crystalSpace =
+      crystalPoint / vec2(crystalWidth, crystalHeight);
+    float diamondDistance =
+      abs(crystalSpace.x) + abs(crystalSpace.y);
+    float crystalInside =
+      1.0 - smoothstep(0.92, 1.0, diamondDistance);
+    float crystalHalo =
+      exp(-abs(diamondDistance - 1.0) * 9.0);
+    float crystalEdge =
+      exp(-abs(diamondDistance - 1.0) * 168.0);
+    float spectralEdge = exp(
+      -abs(diamondDistance - 1.025) * 112.0
+    );
+    float ghostDiamond = exp(
+      -abs(diamondDistance / 1.22 - 1.0) * 66.0
+    );
+    float facetShade =
+      0.5 +
+      0.5 *
+      sin(
+        crystalSpace.x * 4.0 -
+        crystalSpace.y * 6.0 +
+        fineHaze * 2.4 +
+        time * 0.055
+      );
+    float rightFace = step(0.0, crystalSpace.x);
+    float upperFace = step(0.0, crystalSpace.y);
+    float diagonalFace = step(
+      crystalSpace.y * 0.56,
+      crystalSpace.x
+    );
+    float facePhase =
+      rightFace * 0.42 + upperFace * 0.18 + diagonalFace * 0.24;
+    vec3 crystalFill =
+      uBackground * 0.34 +
+      mix(uAccent, uGlow, facePhase) *
+      (0.14 + facetShade * 0.10);
+    color = mix(
+      color,
+      crystalFill,
+      crystalInside * 0.98
+    );
+    float planeReflection =
+      (
+        1.0 -
+        smoothstep(
+          0.08,
+          0.82,
+          abs(
+            crystalSpace.x * 0.72 +
+            crystalSpace.y * 0.92 +
+            sin(time * 0.045) * 0.10
+          )
+        )
+      ) *
+      crystalInside;
+    color += mix(uGlow, vec3(0.86, 0.94, 1.0), 0.42) *
+      planeReflection *
+      (0.145 + stageGlow * 0.020 + uMids * 0.12);
 
-    float starThreshold = mix(0.982, 0.938, min(1.0, uTreble + stageThree * 0.35));
+    float facetOne = exp(
+      -abs(crystalSpace.x - crystalSpace.y * 0.56) * 76.0
+    );
+    float facetTwo = exp(
+      -abs(crystalSpace.x + crystalSpace.y * 0.72) * 82.0
+    );
+    float facetThree = exp(
+      -abs(crystalSpace.x * 0.22 + crystalSpace.y) * 94.0
+    );
+    float crystalFacets =
+      (facetOne * 0.64 + facetTwo * 0.52 + facetThree * 0.28) *
+      crystalInside;
+    float coreGlint = exp(-length(crystalSpace) * 48.0);
+    vec3 crystalPearl = mix(
+      mix(uAccent, uGlow, 0.55),
+      vec3(0.91, 0.97, 1.0),
+      0.58
+    );
+    color += mix(uAccent, uGlow, 0.68) *
+      ghostDiamond *
+      0.020;
+    color += mix(uAccent, uGlow, 0.42) *
+      crystalHalo *
+      (0.060 + stageGlow * 0.018 + uBass * 0.08);
+    color += mix(uAccent, uGlow, 0.82) *
+      spectralEdge *
+      (0.075 + uTreble * 0.10);
+    color += crystalPearl *
+      crystalEdge *
+      (0.94 + stageGlow * 0.050 + uAudio * 0.12);
+    color += crystalPearl *
+      crystalFacets *
+      (0.14 + stageGlow * 0.018 + uMids * 0.18);
+    color += crystalPearl *
+      coreGlint *
+      (0.74 + stageGlow * 0.055 + uBass * 0.12);
+
+    float upperBeam = exp(
+      -abs(crystalPoint.y - crystalPoint.x * 0.24 - 0.17) * 46.0
+    );
+    float lowerBeam = exp(
+      -abs(crystalPoint.y + crystalPoint.x * 0.18 + 0.18) * 52.0
+    );
+    color += mix(uAccent, uGlow, 0.72) *
+      (upperBeam + lowerBeam) *
+      (1.0 - crystalInside) *
+      (0.030 + uTreble * 0.060);
+
+    float prismThread = pow(
+      0.5 +
+      0.5 *
+      sin(
+        point.x * 13.0 +
+        point.y * 4.2 +
+        fineHaze * 3.4 +
+        time * 0.11
+      ),
+      20.0
+    ) * min(1.0, curtainField);
+    color += mix(uAccent, vec3(0.82, 0.91, 1.0), 0.52) *
+      prismThread *
+      (1.0 - crystalInside * 0.88) *
+      (0.10 + stageGlow * 0.050 + uMids * 0.06 + uTreble * 0.24);
+
+    float horizon = exp(-abs(point.y + 0.37) * 24.0);
+    float reflectionTexture = fbm(vec2(
+      point.x * 2.2 - time * 0.018,
+      point.y * 7.0 + fineHaze * 0.7
+    ));
+    color += mix(uGlow, uAccent, reflectionTexture) *
+      horizon *
+      (1.0 - crystalInside * 0.82) *
+      (0.075 + uBass * 0.090);
+
     float stars = starLayer(
-      point + warp * 0.08 + time * 0.002,
-      56.0,
-      starThreshold
+      point + vec2(time * 0.0012, 0.0),
+      58.0,
+      0.983
     );
     stars += starLayer(
-      point - warp * 0.05 - time * 0.001,
-      91.0,
-      min(0.992, starThreshold + 0.012)
+      point * vec2(1.0, 0.82) - vec2(time * 0.0007, 0.0),
+      93.0,
+      0.991
     ) * 0.72;
-    stars += starLayer(point + warp * 0.15, 128.0, 0.987) *
-      stageThree * 0.55;
-    color += mix(vec3(0.72, 0.84, 1.0), uGlow, 0.35) *
-      stars * (0.48 + uTreble * 1.55 + stageTwo * 0.32);
+    color += mix(vec3(0.76, 0.87, 1.0), uGlow, 0.28) *
+      stars *
+      (1.0 - crystalInside * 0.90) *
+      (0.34 + uTreble * 0.50 + stageGlow * 0.06);
 
-    float vignette = smoothstep(
-      1.05 + stageThree * 0.18,
-      0.20,
-      length(point * vec2(0.76, 1.0))
-    );
-    color *= 0.36 + vignette * 0.82;
-    color *= 1.0 + intensity * 0.16 + stageThree * 0.10;
+    color *= 1.0 + uBass * 0.080;
+    color += mix(uAccent, uGlow, 0.5) *
+      filamentField *
+      uBass *
+      0.050;
+
+    float vignette =
+      1.0 -
+      smoothstep(
+        0.14,
+        1.18,
+        length(point * vec2(0.68, 1.0))
+      );
+    color *= 0.44 + vignette * 0.74;
     color += (
-      hash21(gl_FragCoord.xy + floor(time * (24.0 + uTreble * 42.0))) - 0.5
-    ) * (0.016 + uTreble * 0.025);
+      hash21(gl_FragCoord.xy + floor(time * 18.0)) - 0.5
+    ) * 0.009;
 
     gl_FragColor = vec4(max(color, 0.0), 1.0);
     #include <tonemapping_fragment>
@@ -244,10 +393,6 @@ const uniforms = {
   uBass: { value: 0 },
   uMids: { value: 0 },
   uTreble: { value: 0 },
-  uBassHit: { value: 0 },
-  uBassAge: { value: 10 },
-  uClapHit: { value: 0 },
-  uClapAge: { value: 10 },
   uStage: { value: 0 },
   uResolution: { value: new Vector2(1, 1) },
   uBackground: { value: targetBackground.clone() },
@@ -293,6 +438,18 @@ function stereoBandEnergy(start: number, end: number): number {
   return energy / ((end - start + 1) * 2);
 }
 
+function stereoBandPeak(start: number, end: number): number {
+  let peak = 0;
+  for (let index = start; index <= end; index++) {
+    const stereoValue =
+      ((props.audioData[index] ?? 0) +
+        (props.audioData[index + 64] ?? 0)) /
+      2;
+    peak = Math.max(peak, stereoValue);
+  }
+  return peak;
+}
+
 function damp(
   current: number,
   target: number,
@@ -305,15 +462,6 @@ function damp(
 }
 
 let shaderTime = 0;
-let detectorWarmup = 0;
-let bassBaseline = 0;
-let clapBaseline = 0;
-let previousBass = 0;
-let previousClap = 0;
-let bassAge = 10;
-let clapAge = 10;
-let bassCooldown = 0;
-let clapCooldown = 0;
 const { onBeforeRender } = useLoop();
 
 onBeforeRender(({ delta, sizes }) => {
@@ -322,96 +470,61 @@ onBeforeRender(({ delta, sizes }) => {
 
   const frameDelta = Math.min(0.05, delta);
   const sensitivity = props.sensitivity;
-  const bass = Math.min(1, stereoBandEnergy(0, 11) * sensitivity * 1.18);
-  const mids = Math.min(1, stereoBandEnergy(12, 39) * sensitivity * 1.08);
-  const treble = Math.min(1, stereoBandEnergy(40, 63) * sensitivity * 1.22);
-  const clap = Math.min(1, mids * 0.68 + treble * 0.62);
-  const energy = Math.min(1, bass * 0.45 + mids * 0.35 + treble * 0.28);
-
-  detectorWarmup += frameDelta;
-  bassCooldown = Math.max(0, bassCooldown - frameDelta);
-  clapCooldown = Math.max(0, clapCooldown - frameDelta);
-  bassAge = Math.min(10, bassAge + frameDelta);
-  clapAge = Math.min(10, clapAge + frameDelta);
-
-  const bassRise = bass - previousBass;
-  const clapRise = clap - previousClap;
-  if (
-    detectorWarmup > 0.3 &&
-    bassCooldown === 0 &&
-    bass > Math.max(0.11, bassBaseline * 1.30) &&
-    bassRise > Math.max(0.024, bassBaseline * 0.16)
-  ) {
-    bassAge = 0;
-    bassCooldown = 0.15;
-  }
-  if (
-    detectorWarmup > 0.3 &&
-    clapCooldown === 0 &&
-    clap > Math.max(0.10, clapBaseline * 1.34) &&
-    clapRise > Math.max(0.026, clapBaseline * 0.18) &&
-    treble + mids > bass * 0.72
-  ) {
-    clapAge = 0;
-    clapCooldown = 0.11;
-  }
-
-  const bassBaselineRate = bass > bassBaseline ? 1.20 : 0.38;
-  const clapBaselineRate = clap > clapBaseline ? 1.35 : 0.42;
-  bassBaseline +=
-    (bass - bassBaseline) * (1 - Math.exp(-frameDelta * bassBaselineRate));
-  clapBaseline +=
-    (clap - clapBaseline) * (1 - Math.exp(-frameDelta * clapBaselineRate));
-  previousBass = bass;
-  previousClap = clap;
-
-  const bassHit = Math.exp(-bassAge * 5.2);
-  const clapHit = Math.exp(-clapAge * 8.5);
-  const stageDrive = Math.min(
+  const bassInput =
+    stereoBandEnergy(0, 4) * 0.50 +
+    stereoBandEnergy(5, 11) * 0.25 +
+    stereoBandPeak(0, 11) * 0.25;
+  const bass = Math.min(
     1,
-    energy * 1.48 + Math.max(bassHit, clapHit) * 0.18,
+    Math.pow(bassInput, 0.62) * sensitivity * 1.55,
   );
-  const targetStage =
-    stageDrive > 0.72 ? 3 : stageDrive > 0.47 ? 2 : stageDrive > 0.20 ? 1 : 0;
+  const mids = Math.min(
+    1,
+    Math.pow(stereoBandEnergy(12, 39), 0.72) * sensitivity * 1.38,
+  );
+  const treble = Math.min(
+    1,
+    Math.pow(stereoBandEnergy(40, 63), 0.70) * sensitivity * 1.48,
+  );
+  const energy = Math.min(1, bass * 0.42 + mids * 0.36 + treble * 0.22);
+
+  const stageDrive = Math.min(1, energy * 1.65);
+  const targetStage = Math.min(3, Math.max(0, (stageDrive - 0.06) * 3.20));
 
   uniforms.uAudio.value = damp(
     uniforms.uAudio.value,
     energy,
     frameDelta,
-    10,
-    3.2,
+    4.0,
+    1.8,
   );
   uniforms.uBass.value = damp(
     uniforms.uBass.value,
     bass,
     frameDelta,
-    14,
-    4,
+    5.0,
+    2.2,
   );
   uniforms.uMids.value = damp(
     uniforms.uMids.value,
     mids,
     frameDelta,
-    13,
-    4.5,
+    4.0,
+    2.0,
   );
   uniforms.uTreble.value = damp(
     uniforms.uTreble.value,
     treble,
     frameDelta,
-    16,
-    6,
+    4.5,
+    2.4,
   );
-  uniforms.uBassHit.value = bassHit;
-  uniforms.uBassAge.value = bassAge;
-  uniforms.uClapHit.value = clapHit;
-  uniforms.uClapAge.value = clapAge;
   uniforms.uStage.value = damp(
     uniforms.uStage.value,
     targetStage,
     frameDelta,
-    5.5,
-    1.5,
+    3.0,
+    1.3,
   );
 
   const colorTransition = 1 - Math.exp(-frameDelta * 2.8);
@@ -422,7 +535,7 @@ onBeforeRender(({ delta, sizes }) => {
   shaderTime +=
     frameDelta *
     props.animationSpeed *
-    (1 + uniforms.uAudio.value * 0.22 + uniforms.uStage.value * 0.08);
+    (1 + uniforms.uAudio.value * 0.45 + uniforms.uStage.value * 0.12);
   uniforms.uTime.value = shaderTime;
 });
 </script>

@@ -9,23 +9,48 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+### Added
+
+- Added a deterministic devtools Track loop audio mode with adjustable output,
+  tempo, continuous bass, kick, clap, and hi-hat levels.
+  Other generated modes expose output and mode-specific rate controls.
+- Added a Properties tab action that restores configured defaults, clears local
+  file and directory selections, and delivers the reset property state.
+- Added a `schemeColor` plugin option that normalizes Color.js input into
+  Wallpaper Engine's reserved index-free `general.properties.schemecolor`,
+  with valid editor state preserved as the fallback.
+
 ### Changed
 
 - Configured the demo's written build to link into Wallpaper Engine as
   `aether-reactive-desktop` through the plugin's `projectLink` option.
+- Made the demo's Workshop description, preview, and scheme color reproducible
+  from source while retaining editor-owned upload state across rebuilds.
 - Made the demo interface and canvas effects scale proportionally across small,
   4K, ultrawide, and portrait displays.
+- Redesigned the demo overlay as an ambient TV layout with a calm split clock,
+  card-free now-playing lower third, compact idle state, and no masthead.
 - Limited demo diagnostics to development mode, added punch-reactive prism
   sparks with dark-color contrast correction, and removed persistent source and
   audio footer labels.
 - Replaced flat demo media artwork with an accessible, square-edged six-face
-  CSS perspective cube that spins and honors reduced-motion preferences.
-- Rebuilt the demo's generated backdrop with TresJS and an audio-reactive
-  procedural nebula shader with adaptive bass and clap transients,
-  treble-driven stars, escalating energy stages, resilient media palettes, and
-  motion, FPS, pause, and viewport integration.
+  CSS perspective cube that gently floats and honors reduced-motion
+  preferences.
+- Rebuilt the demo's generated backdrop with TresJS as an audio-reactive
+  crystalline monolith with faceted face planes, layered aurora ribbons,
+  non-rotating drift, responsive aspect-ratio framing, resilient media
+  palettes, and motion, FPS, pause, and viewport integration. Separate damped
+  bass, midrange, and treble envelopes now drive visible ribbon deformation,
+  crystal lighting, reflections, threads, and stars without adding rotation or
+  high-contrast percussion flashes.
+- Made the smoothed, stereo-aware Silk wave the default audio visualizer.
 - Made the demo animation loop and shader reliably resume after Wallpaper
   Engine pauses playback for fullscreen or maximized applications.
+
+### Fixed
+
+- Rewrote inverse star and vignette masks without reversed `smoothstep` edges,
+  avoiding undefined GLSL behavior across drivers.
 
 ## [1.2.0] - 2026-08-04
 
