@@ -1,4 +1,8 @@
-import type { WallpaperUserPropertiesOf } from '../src/plugin/index';
+import type { WallpaperProjectMetadata as RootWallpaperProjectMetadata } from '../src/index';
+import type {
+  WallpaperProjectMetadata,
+  WallpaperUserPropertiesOf,
+} from '../src/plugin/index';
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
   boolProperty,
@@ -266,6 +270,132 @@ describe('wallpaperEnginePlugin', () => {
     expect(project.file).toBe('main.html');
   });
 
+  it('re-exports the metadata type from both public entries', () => {
+    expectTypeOf<RootWallpaperProjectMetadata>()
+      .toEqualTypeOf<WallpaperProjectMetadata>();
+  });
+
+  it('serializes every author metadata field without interpreting values', () => {
+    const metadata: WallpaperProjectMetadata = {
+      description: '',
+      preview: 'images/preview.png',
+      tags: [],
+      contentrating: 'opaque-content-rating',
+      ratingsex: 'opaque-sex-rating',
+      ratingviolence: 'opaque-violence-rating',
+      visibility: 'opaque-visibility',
+    };
+    const { project, source } = runGenerateBundle(
+      wallpaperEnginePlugin({ title: 'T', metadata }),
+    );
+
+    expect(project).toEqual({
+      ...metadata,
+      file: 'index.html',
+      title: 'T',
+      type: 'web',
+    });
+    expect(source).toBe(JSON.stringify(project));
+  });
+
+  it('merges output, metadata file, defined options, and generated core in order', async () => {
+    readFileMock
+      .mockResolvedValueOnce(JSON.stringify({
+        file: 'old.html',
+        title: 'Old',
+        type: 'scene',
+        general: { stale: true },
+        description: 'previous',
+        visibility: 'previous-visibility',
+        workshopid: 'previous-id',
+        version: 7,
+        approved: false,
+        futureNumber: 0,
+      }))
+      .mockResolvedValueOnce(JSON.stringify({
+        file: 'file.html',
+        title: 'File',
+        type: 'video',
+        general: { staleFile: true },
+        description: 'file',
+        workshopid: 'file-id',
+        futureString: '',
+      }));
+    const plugin = wallpaperEnginePlugin({
+      title: 'Generated',
+      file: 'generated.html',
+      metadataFile: 'wallpaper-engine.metadata.json',
+      metadata: {
+        description: 'option',
+        tags: [],
+        visibility: undefined,
+      },
+      properties: {
+        enabled: boolProperty({ text: 'Enabled', value: true }),
+      },
+    });
+    if (typeof plugin.configResolved !== 'function')
+      throw new TypeError('configResolved hook is not callable');
+    await plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: '',
+      build: {
+        outDir: 'dist',
+        rollupOptions: {},
+        write: true,
+      },
+    } as never);
+
+    const { project } = runGenerateBundle(plugin);
+    expect(project).toEqual({
+      description: 'option',
+      visibility: 'previous-visibility',
+      workshopid: 'file-id',
+      version: 7,
+      approved: false,
+      futureNumber: 0,
+      futureString: '',
+      tags: [],
+      file: 'generated.html',
+      title: 'Generated',
+      type: 'web',
+      general: {
+        properties: {
+          enabled: {
+            index: 0,
+            order: 0,
+            text: 'Enabled',
+            type: 'bool',
+            value: true,
+          },
+        },
+      },
+    });
+  });
+
+  it('keeps the existing output when optional preservation sources are absent', async () => {
+    readFileMock.mockRejectedValueOnce(
+      Object.assign(new Error('missing'), { code: 'ENOENT' }),
+    );
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (typeof plugin.configResolved !== 'function')
+      throw new TypeError('configResolved hook is not callable');
+    await plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: '',
+      build: {
+        outDir: 'dist',
+        rollupOptions: {},
+        write: true,
+      },
+    } as never);
+
+    const { source } = runGenerateBundle(plugin);
+    expect(source).toBe('{"file":"index.html","title":"T","type":"web"}');
+  });
+
   it('minifies project.json by default for builds', () => {
     const { source } = runGenerateBundle(
       wallpaperEnginePlugin({ title: 'T' }),
@@ -520,7 +650,7 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     watchFileMock.mockClear();
   });
 
-  it('only injects the devtools module while Vite is serving', () => {
+  it('only injects the devtools module while Vite is serving', async () => {
     const plugin = wallpaperEnginePlugin({ title: 'T' });
     if (typeof plugin.configResolved !== 'function') {
       throw new TypeError('configResolved hook is not callable');
@@ -529,7 +659,19 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
       throw new TypeError('transformIndexHtml hook is not callable');
     }
 
-    plugin.configResolved.call({} as never, { command: 'build' } as never);
+    readFileMock.mockRejectedValueOnce(
+      Object.assign(new Error('missing'), { code: 'ENOENT' }),
+    );
+    await plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: '',
+      build: {
+        outDir: 'dist',
+        rollupOptions: {},
+        write: true,
+      },
+    } as never);
     expect(
       plugin.transformIndexHtml.call({} as never, '', {} as never),
     ).toBeUndefined();

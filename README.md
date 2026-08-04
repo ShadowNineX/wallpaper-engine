@@ -188,11 +188,75 @@ import { wallpaperEnginePlugin } from "wallpaper-engine/plugin";
 | `file` | `string` | `"index.html"` | Entry HTML file written to `project.json` |
 | `properties` | property record | `{}` | User-configurable Wallpaper Engine properties |
 | `localization` | localization record | — | BCP 47 translations for `ui_` labels |
+| `metadata` | `WallpaperProjectMetadata` | — | Source-controlled description, preview, tags, ratings, and visibility |
+| `metadataFile` | `string` | — | Root-relative or absolute JSON file containing publishing/editor state |
 | `devtools` | `boolean` | `true` | Enable the development simulator |
 | `minify` | `boolean` | production only | Override environment-based JSON formatting |
 | `supportsAudioProcessing` | `boolean` | auto-detected | Force audio support on or off |
 
 The plugin assigns missing `index` and `order` fields by insertion order. Explicit values are preserved.
+
+### Steam Workshop metadata
+
+Keep author-owned publishing values in the plugin configuration:
+
+```ts
+wallpaperEnginePlugin({
+  title: "Night Sky",
+  metadata: {
+    description: "An animated night sky.",
+    preview: "preview.jpg",
+    tags: ["Landscape"],
+  },
+});
+```
+
+`WallpaperProjectMetadata` is exported from both `wallpaper-engine` and `wallpaper-engine/plugin`. Its typed fields are `description`, `preview`, `tags`, `contentrating`, `ratingsex`, `ratingviolence`, and `visibility`. Rating and visibility values remain strings because Wallpaper Engine does not publish their complete serialized domains.
+
+Wallpaper Engine owns Workshop identity and editor state such as `workshopid`, `workshopurl`, `version`, snapshot fields, approval, and monetization. Before Vite cleans the output directory, the plugin reads the existing `project.json` and preserves every non-generated top-level field, including unknown future fields and explicit falsy values. It never writes editor state back into source files.
+
+The merge is shallow and uses this exact precedence:
+
+1. the previous output's `project.json`;
+2. the optional `metadataFile`;
+3. defined fields from `metadata`;
+4. generated `file`, `title`, `type`, and `general`.
+
+Generated core fields are always authoritative. `general` is replaced rather than recursively merged, so stale properties, localization, or audio flags cannot survive a build.
+
+For a clean clone or a separately copied editor project, point `metadataFile` at a flat JSON object:
+
+```ts
+wallpaperEnginePlugin({
+  title: "Night Sky",
+  metadataFile: "wallpaper-engine.metadata.json",
+});
+```
+
+```json
+{
+  "description": "An animated night sky.",
+  "preview": "preview.jpg",
+  "tags": ["Landscape"],
+  "workshopid": "1234567890",
+  "version": 7
+}
+```
+
+Leave `file`, `title`, `type`, and `general` out of this file because the plugin regenerates them. Unknown Wallpaper Engine fields are accepted and preserved.
+
+Put the referenced preview at `public/preview.jpg`, or the matching nested path under `public/`. This is the deterministic clean-build path. When rebuilding an existing output, the plugin caches the old preview before cleanup and restores it only if the bundle or `public` directory does not provide a newer file at the same path.
+
+The plugin fails before cleanup when an explicitly configured metadata file is missing or either JSON source is unreadable, malformed, or not a top-level object. It also rejects absolute or escaping preview paths and fails a written build when the final preview is unavailable from the bundle, `public`, or the previous output.
+
+Zero-script Workshop workflow:
+
+1. Commit the author metadata and preview.
+2. Build directly to the Vite `outDir` used as the Wallpaper Engine project.
+3. Publish that project in Wallpaper Engine.
+4. Keep building to the same directory. Generated files refresh while Workshop identity, version, editor state, and preview survive.
+
+Wallpaper Engine may copy an imported build to another directory. Automatic round-tripping works only when later builds target that editor project/output. For a clean clone or a separately copied project, use `metadataFile: "wallpaper-engine.metadata.json"` without generated core keys and keep its preview under `public/`.
 
 ### Audio detection
 

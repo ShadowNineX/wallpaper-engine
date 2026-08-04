@@ -9,6 +9,12 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+### Added
+
+- Added typed Steam Workshop author metadata, optional metadata-file merging,
+  and pre-clean preservation of editor state and preview assets across Vite
+  builds.
+
 ### Changed
 
 - Split the demo into focused UI components and expanded its color-property

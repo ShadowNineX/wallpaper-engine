@@ -44,6 +44,7 @@ export type {
   WallpaperLocalization,
   WallpaperProject,
   WallpaperProjectGeneral,
+  WallpaperProjectMetadata,
   WallpaperPropertyDefinition,
   WallpaperSliderProperty,
   WallpaperTextInputProperty,

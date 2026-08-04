@@ -1,4 +1,6 @@
-import type { Plugin } from 'vite';
+import type * as NodeFsPromises from 'node:fs/promises';
+import type * as NodePath from 'node:path';
+import type { Plugin, ResolvedConfig } from 'vite';
 import type {
   WallpaperBoolValue,
   WallpaperColorValue,
@@ -16,8 +18,8 @@ import type {
   WallpaperFileProperty,
   WallpaperGroupProperty,
   WallpaperLocalization,
-  WallpaperProject,
   WallpaperProjectGeneral,
+  WallpaperProjectMetadata,
   WallpaperPropertyDefinition,
   WallpaperSliderProperty,
   WallpaperTextInputProperty,
@@ -32,13 +34,17 @@ export type {
   WallpaperFileProperty,
   WallpaperGroupProperty,
   WallpaperLocalization,
-  WallpaperProject,
   WallpaperProjectGeneral,
+  WallpaperProjectMetadata,
   WallpaperPropertyDefinition,
   WallpaperSliderProperty,
   WallpaperTextInputProperty,
 };
-export type { WallpaperComboOption, WallpaperFileType } from '../types/project';
+export type {
+  WallpaperComboOption,
+  WallpaperFileType,
+  WallpaperProject,
+} from '../types/project';
 
 // ---------------------------------------------------------------------------
 // Property builder helpers
@@ -237,6 +243,27 @@ export interface WallpaperEnginePluginOptions {
   /** Wallpaper title shown in the Wallpaper Engine UI */
   title: string;
   /**
+   * Source-controlled author metadata merged into `project.json`.
+   * `undefined` fields do not override preserved values.
+   *
+   * @example
+   * metadata: {
+   *   description: 'An animated night sky.',
+   *   preview: 'preview.jpg',
+   *   tags: ['Landscape'],
+   * }
+   */
+  metadata?: WallpaperProjectMetadata;
+  /**
+   * JSON file containing a flat top-level metadata/state object. Relative
+   * paths are resolved from Vite's final project root. Generated `file`,
+   * `title`, `type`, and `general` fields always take precedence.
+   *
+   * @example
+   * metadataFile: 'wallpaper-engine.metadata.json'
+   */
+  metadataFile?: string;
+  /**
    * Emit `project.json` without indentation or line breaks. Defaults to
    * enabled for production builds and disabled during development.
    *
@@ -316,6 +343,7 @@ export function wallpaperEnginePlugin(
   const RESOLVED_ID = `\0${VIRTUAL_ID}`;
   let isServe = false;
   let cachedClientCode: Promise<string> | undefined;
+  let preservationState: PreservationState | undefined;
   const loadClientCode = (): Promise<string> => {
     cachedClientCode ??= (async () => {
       // Reads the bundled Vue UI asynchronously. Dynamic imports keep this
@@ -335,6 +363,15 @@ export function wallpaperEnginePlugin(
 
     configResolved(config) {
       isServe = config.command === 'serve';
+      if (isServe)
+        return;
+      return capturePreservationState(
+        config,
+        options.metadata,
+        options.metadataFile,
+      ).then((state) => {
+        preservationState = state;
+      });
     },
 
     async configureServer(server) {
@@ -416,14 +453,25 @@ export function wallpaperEnginePlugin(
         general.supportsaudioprocessing = true;
       }
 
-      const project: WallpaperProject = {
+      const project: JsonObject = {
+        ...(preservationState?.project
+          ?? mergePreservationSources(undefined, undefined, options.metadata)),
         file: options.file ?? 'index.html',
         title: options.title,
         type: 'web',
       };
-
-      if (Object.keys(general).length > 0) {
+      if (Object.keys(general).length > 0)
         project.general = general;
+
+      const restoredPreview = preservationState === undefined
+        ? undefined
+        : previewToRestore(project, bundle, preservationState);
+      if (restoredPreview) {
+        this.emitFile({
+          type: 'asset',
+          fileName: restoredPreview.fileName,
+          source: restoredPreview.source,
+        });
       }
 
       this.emitFile({
@@ -441,9 +489,290 @@ export function wallpaperEnginePlugin(
 // ---------------------------------------------------------------------------
 // Internal helpers
 // ---------------------------------------------------------------------------
+type JsonObject = Record<string, unknown>;
+
+interface CapturedPreview {
+  fileName: string;
+  path: string;
+  source: Uint8Array;
+}
+
+interface PreservationState {
+  finalPreviewFileName?: string;
+  outDir: string;
+  preview?: CapturedPreview;
+  project: JsonObject;
+  publicPreviewFileName?: string;
+  write: boolean;
+}
+
+function previewToRestore(
+  project: JsonObject,
+  bundle: Record<string, BundleOutput>,
+  state: PreservationState,
+): CapturedPreview | undefined {
+  const finalPreview = project.preview;
+  if (typeof finalPreview !== 'string' || finalPreview.length === 0)
+    return;
+
+  const finalPreviewFileName = state.finalPreviewFileName;
+  const previewInBundle = finalPreviewFileName !== undefined
+    && Object.values(bundle).some(
+      output =>
+        output.fileName.replaceAll('\\', '/') === finalPreviewFileName,
+    );
+  const previewInPublicDir = state.write
+    && state.publicPreviewFileName === finalPreviewFileName;
+  if (previewInBundle || previewInPublicDir)
+    return;
+
+  const capturedPreview = state.preview;
+  if (
+    capturedPreview?.path === finalPreview
+    && capturedPreview.fileName === finalPreviewFileName
+  ) {
+    return capturedPreview;
+  }
+  if (state.write) {
+    throw new Error(
+      `Wallpaper Engine preview "${finalPreview}" is not available in the Vite bundle, publicDir, or the previous output. Place it under publicDir at "${finalPreviewFileName}" before building.`,
+    );
+  }
+}
+
+async function capturePreservationState(
+  config: ResolvedConfig,
+  metadata: WallpaperProjectMetadata | undefined,
+  metadataFileOption: string | undefined,
+): Promise<PreservationState> {
+  const [fs, path] = await Promise.all([
+    import(/* @vite-ignore */ 'node:fs/promises'),
+    import(/* @vite-ignore */ 'node:path'),
+  ]);
+  const outDir = path.resolve(config.root, config.build.outDir);
+  const projectPath = path.join(outDir, 'project.json');
+  const metadataPath = metadataFileOption === undefined
+    ? undefined
+    : path.resolve(config.root, metadataFileOption);
+  const [previousProject, metadataFile] = await Promise.all([
+    readJsonObject(fs.readFile, projectPath, false),
+    metadataPath === undefined
+      ? undefined
+      : readJsonObject(fs.readFile, metadataPath, true),
+  ]);
+  const project = mergePreservationSources(
+    previousProject,
+    metadataFile,
+    metadata,
+  );
+  const preview = await capturePreviousPreview(
+    fs,
+    path,
+    outDir,
+    projectPath,
+    previousProject,
+  );
+
+  const finalPreview = project.preview;
+  let finalPreviewFileName: string | undefined;
+  if (typeof finalPreview === 'string' && finalPreview.length > 0) {
+    finalPreviewFileName = resolveProjectFile(
+      path,
+      outDir,
+      finalPreview,
+      projectPath,
+    ).fileName;
+  }
+  const publicDir = config.publicDir === ''
+    ? undefined
+    : path.resolve(config.root, config.publicDir);
+  const publicPreviewFileName = await findPublicPreviewFileName(
+    fs,
+    path,
+    publicDir,
+    finalPreview,
+    projectPath,
+  );
+
+  return {
+    finalPreviewFileName,
+    outDir,
+    preview,
+    project,
+    publicPreviewFileName,
+    write: config.build.write,
+  };
+}
+
+async function capturePreviousPreview(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  outDir: string,
+  projectPath: string,
+  previousProject: JsonObject | undefined,
+): Promise<CapturedPreview | undefined> {
+  const previewPath = previousProject?.preview;
+  if (typeof previewPath !== 'string' || previewPath.length === 0)
+    return;
+
+  const resolvedPreview = resolveProjectFile(
+    path,
+    outDir,
+    previewPath,
+    projectPath,
+  );
+  try {
+    return {
+      fileName: resolvedPreview.fileName,
+      path: previewPath,
+      source: await fs.readFile(resolvedPreview.absolutePath),
+    };
+  }
+  catch (error) {
+    if (isFileNotFound(error))
+      return;
+    throw new Error(
+      `Unable to read Wallpaper Engine preview "${resolvedPreview.absolutePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function findPublicPreviewFileName(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  publicDir: string | undefined,
+  previewPath: unknown,
+  projectPath: string,
+): Promise<string | undefined> {
+  if (
+    publicDir === undefined
+    || typeof previewPath !== 'string'
+    || previewPath.length === 0
+  ) {
+    return;
+  }
+
+  const publicPreview = resolveProjectFile(
+    path,
+    publicDir,
+    previewPath,
+    projectPath,
+  );
+  try {
+    return (await fs.stat(publicPreview.absolutePath)).isFile()
+      ? publicPreview.fileName
+      : undefined;
+  }
+  catch (error) {
+    if (isFileNotFound(error))
+      return;
+    throw new Error(
+      `Unable to inspect Wallpaper Engine preview "${publicPreview.absolutePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function mergePreservationSources(
+  previousProject: JsonObject | undefined,
+  metadataFile: JsonObject | undefined,
+  metadata: WallpaperProjectMetadata | undefined,
+): JsonObject {
+  const project = { ...previousProject, ...metadataFile };
+  for (const [key, value] of Object.entries(metadata ?? {})) {
+    if (value !== undefined)
+      project[key] = value;
+  }
+  delete project.file;
+  delete project.title;
+  delete project.type;
+  delete project.general;
+  return project;
+}
+
+async function readJsonObject(
+  readFile: typeof NodeFsPromises.readFile,
+  filePath: string,
+  required: boolean,
+): Promise<JsonObject | undefined> {
+  let source: string;
+  try {
+    source = await readFile(filePath, 'utf8');
+  }
+  catch (error) {
+    if (isFileNotFound(error)) {
+      if (!required)
+        return;
+      throw new Error(
+        `Wallpaper Engine metadata file not found: "${filePath}".`,
+      );
+    }
+    throw new Error(
+      `Unable to read Wallpaper Engine metadata "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+
+  let value: unknown;
+  try {
+    value = JSON.parse(source);
+  }
+  catch (error) {
+    throw new Error(
+      `Invalid JSON in Wallpaper Engine metadata "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (value === null || Array.isArray(value) || typeof value !== 'object') {
+    throw new TypeError(
+      `Wallpaper Engine metadata "${filePath}" must contain a top-level JSON object.`,
+    );
+  }
+  return value as JsonObject;
+}
+
+function resolveProjectFile(
+  path: typeof NodePath,
+  root: string,
+  projectPath: string,
+  sourcePath: string,
+): { absolutePath: string; fileName: string } {
+  const fileName = projectPath.replaceAll('\\', '/');
+  if (
+    path.posix.isAbsolute(fileName)
+    || path.win32.isAbsolute(projectPath)
+    || /^[A-Z]:/i.test(projectPath)
+    || fileName.startsWith('//')
+  ) {
+    throw new RangeError(
+      `Unsafe preview path "${projectPath}" in "${sourcePath}": expected a project-relative file inside "${root}".`,
+    );
+  }
+
+  const normalizedFileName = path.posix.normalize(fileName);
+  const absolutePath = path.resolve(root, ...normalizedFileName.split('/'));
+  const relativePath = path.relative(root, absolutePath);
+  if (
+    normalizedFileName === '.'
+    || relativePath === '..'
+    || relativePath.startsWith(`..${path.sep}`)
+    || path.isAbsolute(relativePath)
+  ) {
+    throw new RangeError(
+      `Unsafe preview path "${projectPath}" in "${sourcePath}": expected a project-relative file inside "${root}".`,
+    );
+  }
+  return { absolutePath, fileName: normalizedFileName };
+}
+
+function isFileNotFound(error: unknown): error is NodeJS.ErrnoException {
+  return (
+    typeof error === 'object'
+    && error !== null
+    && 'code' in error
+    && error.code === 'ENOENT'
+  );
+}
 
 type BundleOutput
-  = | { type: 'chunk'; code: string }
+  = | { type: 'chunk'; code: string; fileName: string }
     | { type: 'asset'; fileName: string; source: string | Uint8Array };
 
 const AUDIO_LISTENER_CALLS = [
