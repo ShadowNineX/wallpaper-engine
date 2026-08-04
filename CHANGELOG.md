@@ -9,6 +9,8 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-08-04
+
 ### Added
 
 - Added typed Steam Workshop author metadata, optional metadata-file merging,
@@ -125,7 +127,8 @@ migration); tags are used where they exist.
   canvas encoding, and FPS-limited animation loops.
 - Added an example wallpaper, automated tests, build configuration, and CI.
 
-[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.1.1...HEAD
+[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.1.0...v1.1.1
 [1.1.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.0.3...v1.1.0
 [1.0.3]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.0.2...v1.0.3

@@ -1,7 +1,7 @@
 {
   "name": "wallpaper-engine",
   "type": "module",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "TypeScript types, Vite plugin, and runtime helpers for Wallpaper Engine web wallpapers",
   "author": "ShadowNineX",
   "license": "MIT",
