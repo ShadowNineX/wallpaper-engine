@@ -4,18 +4,22 @@
   "type": "module",
   "workspaces": [
     "packages/*",
-    "demo"
+    "demo",
+    "docs"
   ],
   "scripts": {
     "build": "bun run --filter=@wallpaper-engine/devtools build && bun run --filter=wallpaper-engine build",
     "build:devtools": "bun run --filter=@wallpaper-engine/devtools build",
     "build:lib": "bun run --filter=wallpaper-engine build:lib",
+    "build:docs": "bun run --filter=docs build",
     "dev": "bun run --filter=@wallpaper-engine/devtools dev",
     "dev:devtools": "bun run --filter=@wallpaper-engine/devtools dev:ui",
     "dev:demo": "bun run --filter=demo dev",
-    "lint": "bun run --filter=@wallpaper-engine/devtools lint && bun run --filter=wallpaper-engine lint",
-    "lint:fix": "bun run --filter=@wallpaper-engine/devtools lint:fix && bun run --filter=wallpaper-engine lint:fix",
-    "typecheck": "bun run --filter=@wallpaper-engine/devtools typecheck && bun run --filter=wallpaper-engine typecheck && bun run --filter=demo typecheck",
+    "dev:docs": "bun run --filter=docs dev",
+    "preview:docs": "bun run --filter=docs preview",
+    "lint": "bun run --filter=@wallpaper-engine/devtools lint && bun run --filter=wallpaper-engine lint && bun run --filter=docs lint",
+    "lint:fix": "bun run --filter=@wallpaper-engine/devtools lint:fix && bun run --filter=wallpaper-engine lint:fix && bun run --filter=docs lint:fix",
+    "typecheck": "bun run --filter=@wallpaper-engine/devtools typecheck && bun run --filter=wallpaper-engine typecheck && bun run --filter=demo typecheck && bun run --filter=docs typecheck",
     "test": "bun run --filter='*' test",
     "test:run": "bun run --filter=@wallpaper-engine/devtools test:run && bun run --filter=wallpaper-engine test:run",
     "test:coverage": "bun run --filter=@wallpaper-engine/devtools test:coverage && bun run --filter=wallpaper-engine test:coverage"
@@ -27,9 +31,6 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "@vue/server-renderer": "3.5.40",
-    "esbuild": "^0.28.1",
-    "postcss": "^8.5.25",
     "vite": "^8.2.0",
     "vue": "3.5.40"
   }

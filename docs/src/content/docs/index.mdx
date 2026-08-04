@@ -1,0 +1,74 @@
+---
+title: wallpaper-engine
+description: Typed host contracts, Vite tooling, runtime helpers, and a development simulator for Wallpaper Engine web wallpapers.
+template: splash
+hero:
+  image:
+    html: '<img src="./favicon.svg" alt="wallpaper-engine logo" width="256" height="256" style="width: 100%; height: auto;">'
+  tagline: Build Wallpaper Engine web wallpapers with one typed property schema, host-aware runtime APIs, and a simulator that runs in Vite.
+  actions:
+    - text: Install
+      link: ./getting-started/installation/
+      icon: right-arrow
+    - text: Quick start
+      link: ./getting-started/quick-start/
+      variant: minimal
+---
+
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+## One schema from editor to runtime
+
+Define a shared property record with `wallpaper-engine/plugin`. The Vite plugin turns it into Wallpaper Engine metadata while TypeScript derives the callback values consumed by your wallpaper.
+
+```text
+shared property schema
+└── Vite plugin
+    ├── build → generated project.json
+    └── serve → development simulator (default; `devtools: false` disables it)
+
+Wallpaper Engine or development simulator
+└── module-scope host listeners
+    └── application + helpers
+```
+
+<CardGrid>
+  <LinkCard
+    title="Typed host contracts"
+    description="Model properties, audio, media, plugins, hardware integrations, and ambient browser globals."
+    href="./guides/host-listeners/"
+  />
+  <LinkCard
+    title="Vite build integration"
+    description="Generate project.json, validate previews, and link builds into Wallpaper Engine projects."
+    href="./build/project-metadata/"
+  />
+  <LinkCard
+    title="Development simulator"
+    description="Drive property, runtime, audio, and media callbacks without launching Wallpaper Engine."
+    href="./devtools/simulation/"
+  />
+  <LinkCard
+    title="Tree-shakeable helpers"
+    description="Handle Wallpaper Engine colors, files, audio, media, LED frames, and render pacing."
+    href="./helpers/"
+  />
+</CardGrid>
+
+## Start building
+
+- [Install the package](./getting-started/installation/) and choose the entry points your wallpaper needs.
+- [Complete the typed quick start](./getting-started/quick-start/).
+- Browse the [API reference](./reference/) for exact public signatures.
+- Study the [consumer demo source](https://github.com/ShadowNineX/wallpaper-engine/tree/main/demo/src).
+
+## Project links
+
+- [npm package](https://www.npmjs.com/package/wallpaper-engine)
+- [GitHub repository](https://github.com/ShadowNineX/wallpaper-engine)
+- [Issue tracker](https://github.com/ShadowNineX/wallpaper-engine/issues)
+- [MIT license](https://github.com/ShadowNineX/wallpaper-engine/blob/main/LICENSE)
+
+## Next steps
+
+Start with [installation](./getting-started/installation/), then follow the [quick start](./getting-started/quick-start/) to connect one property schema to Vite and your runtime listener.

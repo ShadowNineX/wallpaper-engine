@@ -16,6 +16,10 @@ migration); tags are used where they exist.
   builds.
 - Added opt-in `projectLink` support that discovers Wallpaper Engine
   installations and safely links a written Vite output into `projects/myprojects`.
+- Added a comprehensive Astro Starlight documentation site covering all public
+  entry points, host workflows, simulator behavior, build integration, and API
+  references, with root-path local development and shared favicon branding.
+- Added GitHub Pages publishing for the documentation site on pushes to `main`.
 
 ### Changed
 
@@ -23,6 +27,8 @@ migration); tags are used where they exist.
   examples with HSL, hex, and LCH defaults.
 - Added Antfu ESLint configurations, workspace lint scripts, and matching editor
   settings for the library and devtools.
+- Reduced the root and npm README to a durable package overview and quick start,
+  with the Starlight site as the canonical long-form documentation.
 
 ## [1.1.1] - 2026-08-01
 
