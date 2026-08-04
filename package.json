@@ -25,7 +25,6 @@
     "test:coverage": "bun run --filter=@wallpaper-engine/devtools test:coverage && bun run --filter=wallpaper-engine test:coverage"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.2.0",
     "@types/bun": "^1.3.14",
     "eslint": "^10.8.0",
     "typescript": "^6.0.3"
