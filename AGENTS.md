@@ -1,61 +1,120 @@
-# Agent Instructions
+# Repository Guidelines
 
-Bun workspaces monorepo. Publishes a single npm package (`wallpaper-engine`) providing types, a Vite plugin, and runtime helpers for [Wallpaper Engine](https://www.wallpaperengine.io/) web wallpapers. See [README.md](README.md) for the full public API surface.
+## Project Overview
 
-## Runtime & Commands (run at repo root)
+This Bun workspaces monorepo builds tooling for Wallpaper Engine web wallpapers. It contains one published npm package, `wallpaper-engine`, plus a private Vue devtools host simulator and a private Vue consumer demo.
 
-- **Bun** is the package manager and script runner. Use `bun install`, `bun run <script>`.
-- Root scripts delegate to workspaces via `bun run --filter=<name> <script>`.
-- Build: `bun run build` — builds `@wallpaper-engine/devtools` first, then `wallpaper-engine` (tsdown's `build:done` hook copies the devtools client artifact into the published dist).
-- Watch: `bun run dev`
-- Typecheck: `bun run typecheck`
-- Tests: `bun run test` (watch) / `bun run test:run` (single)
+The published package has three independent entry points:
 
-## Monorepo Layout
+- `wallpaper-engine`: types and Wallpaper Engine global augmentation; no runtime API.
+- `wallpaper-engine/plugin`: Vite integration, property builders, inferred property types, and `project.json` generation. This is the only entry allowed to import Vite.
+- `wallpaper-engine/helpers`: side-effect-free browser utilities; keep helpers individually tree-shakeable.
 
+Do not cross-import between public entry points or add runtime dependencies to the published package.
+
+## Architecture & Data Flow
+
+1. A wallpaper defines one property record with builders from `wallpaper-engine/plugin` (see `demo/src/wallpaper.ts`).
+2. `WallpaperUserPropertiesOf<typeof properties>` derives the runtime callback shape from that record.
+3. During development, `wallpaperEnginePlugin()` injects the bundled devtools client. During production builds, it emits `project.json` and omits the simulator.
+4. The devtools client installs Wallpaper Engine-compatible globals, stores simulated state in Pinia, and delivers property/audio/media callbacks to the wallpaper.
+5. Wallpaper runtime code registers host listeners immediately at module scope and maps callback payloads into local Vue state. Do not defer host registration to `onMounted`, `window.onload`, or a timer; startup events may otherwise be missed.
+
+The build order is load-bearing: devtools produces `packages/devtools/dist/client.js`; the library plugin build copies it to `packages/wallpaper-engine/dist/plugin/devtools/client.js`. Always use the root build for publishable output.
+
+Runtime property callbacks are partial after initial delivery. Type them as `Partial<WallpaperUserPropertiesOf<...>>` and guard each key before reading it. Playback integers are host-defined; compare them through `window.wallpaperMediaIntegration` or `getMediaPlaybackStatus()`, never hard-code numbers.
+
+## Key Directories
+
+- `packages/wallpaper-engine/src/`: published types, helpers, property builders, and Vite plugin.
+- `packages/wallpaper-engine/tests/`: public helper and plugin contracts.
+- `packages/devtools/src/`: private Vue 3/Pinia host simulator.
+- `packages/devtools/src/components/ui/`: reusable UI primitives; feature controls belong outside this directory.
+- `packages/devtools/src/tabs/`: Properties, Runtime, Audio, and Media panels.
+- `packages/devtools/tests/`: module, store, global-adapter, component, and tab tests.
+- `demo/src/`: end-to-end consumer wallpaper. `wallpaper.ts` is the shared property schema; `App.vue` owns host integration and animation; `components/` is presentational.
+- `.github/workflows/`: test/build and tag-based npm publication.
+
+Generated `dist/`, coverage, tarballs, and the copied package README are not source. Use the root `bun.lock` as authoritative; do not install independently inside `demo/`.
+
+## Development Commands
+
+Run commands from the repository root with Bun:
+
+```bash
+bun install
+bun run build          # devtools first, then the published package
+bun run build:devtools
+bun run build:lib       # unsafe as a clean standalone build if devtools dist is absent
+bun run dev             # watched devtools bundle build
+bun run dev:devtools    # interactive devtools Vite UI
+bun run dev:demo        # consumer demo Vite server
+bun run lint
+bun run lint:fix
+bun run typecheck       # devtools, library, and demo
+bun run test:run        # devtools and library once
+bun run test:coverage
 ```
-packages/
-  wallpaper-engine/   # the ONLY published package (name: "wallpaper-engine")
-  devtools/           # private workspace (name: "@wallpaper-engine/devtools")
-demo/                 # private workspace; consumes wallpaper-engine via workspace:*
+
+The root build does not build the demo. For deployable demo output, run:
+
+```bash
+bun run --filter=demo build
 ```
 
-Root [package.json](package.json) has no runtime deps — it is workspace orchestration only. Workspaces: `["packages/*", "demo"]`.
+Package-local commands use `bun run --filter=<workspace> <script>`, where workspace names are `wallpaper-engine`, `@wallpaper-engine/devtools`, and `demo`.
 
-### `packages/wallpaper-engine/` — the published package
+## Code Conventions & Common Patterns
 
-Three independent entry points in [packages/wallpaper-engine/package.json](packages/wallpaper-engine/package.json) `exports`. Keep them isolated — do not cross-import between them.
+- ESLint uses `@antfu/eslint-config` with single quotes and required semicolons. Run `bun run lint:fix` rather than introducing a second formatter; workspace VS Code settings disable Prettier.
+- TypeScript is strict with bundler resolution, `verbatimModuleSyntax`, and unchecked indexed access. Use `import type` and guard indexed values (`array[0]` is possibly `undefined`).
+- Every public exported symbol in `wallpaper-engine` requires JSDoc with an `@example`.
+- Property builders follow `xxxProperty(opts)`: inject the discriminant and pass remaining options through. Update `PropertyDefinitionToValue` for new property kinds.
+- Add host APIs to both `Window` and matching bare `var`/`function` declarations in `packages/wallpaper-engine/src/types/window.ts`.
+- Devtools uses Vue 3 `<script setup>`, setup-style Pinia stores, and thin controls: typed props, computed state lookup, direct reactive mutation, then one store delivery action.
+- Keep raw listener callbacks at module scope so host globals are independent of component lifecycles.
+- Isolate external callbacks with `try/catch` and `[WE Dev]` logging. Use `try/finally` for loading flags, extractor destruction, object-URL revocation, and other resource cleanup.
+- Library input errors should throw specific `TypeError`, `RangeError`, or `Error` values rather than silently accepting malformed data.
+- Devtools may import library source by relative path because it builds first. Consumer and demo code must use public package entry points instead.
 
-| Entry | File | Rule |
-|---|---|---|
-| `wallpaper-engine` | [packages/wallpaper-engine/src/index.ts](packages/wallpaper-engine/src/index.ts) | Re-exports types only + imports [packages/wallpaper-engine/src/types/window.ts](packages/wallpaper-engine/src/types/window.ts) for global `Window` augmentation. No runtime code. |
-| `wallpaper-engine/plugin` | [packages/wallpaper-engine/src/plugin/index.ts](packages/wallpaper-engine/src/plugin/index.ts) | The **only** file allowed to import from `vite`. `vite` is an optional peer dep. At runtime it reads the bundled devtools client from `./devtools/client.js` (relative to the built `dist/plugin/index.js`). |
-| `wallpaper-engine/helpers` | [packages/wallpaper-engine/src/helpers.ts](packages/wallpaper-engine/src/helpers.ts) | Side-effect-free, individually tree-shakeable runtime utilities. No imports from other entry points. |
+## Important Files
 
-Build is configured in [packages/wallpaper-engine/tsdown.config.ts](packages/wallpaper-engine/tsdown.config.ts): two configs — browser entries (ESM+CJS+dts) and a plugin entry (ESM only) whose `build:done` hook copies `../devtools/dist/client.js` to `dist/plugin/devtools/client.js`. Always run the root `bun run build` (not the package script directly) so devtools is built first.
+- `package.json`: workspace orchestration and root commands.
+- `packages/wallpaper-engine/package.json`: public exports, package contents, optional Vite peer, and publish hook.
+- `packages/wallpaper-engine/src/index.ts`: root type entry and global augmentation import.
+- `packages/wallpaper-engine/src/helpers.ts`: browser helper entry.
+- `packages/wallpaper-engine/src/plugin/index.ts`: builders, inferred types, devtools injection, and `project.json` emission.
+- `packages/wallpaper-engine/src/types/{project,listeners,window}.ts`: project schema and host contracts.
+- `packages/wallpaper-engine/tsdown.config.ts`: two-stage package build and devtools copy guard.
+- `packages/devtools/src/{main,globals,store}.ts`: simulator bootstrap, host adapter, and central state/event flow.
+- `packages/devtools/vite.config.ts`: single-file bundle and Shadow DOM CSS inlining.
+- `demo/src/{wallpaper,App}.ts`: use `wallpaper.ts` for definitions; note the runtime file is `App.vue`.
+- `README.md`: public API documentation; update it with public API changes.
+- `CHANGELOG.md`: Keep a Changelog release notes.
 
-Tests live in [packages/wallpaper-engine/src/__tests__/](packages/wallpaper-engine/src/__tests__/) and mirror the source structure (`plugin.test.ts`, `helpers.test.ts`).
+## Runtime/Tooling Preferences
 
-### `packages/devtools/` — private Vue UI
+- Bun is the required package manager and script runner. Use `bun install` and `bun run`; do not generate npm/pnpm lockfiles.
+- All packages are ESM. The plugin export is ESM-only; root and helpers also provide CommonJS builds.
+- Vite is an optional peer (`>=5`) and belongs only to plugin consumers.
+- Library builds use tsdown; devtools/demo use Vite; Vue workspaces use `vue-tsc`; tests use Vitest; coverage uses V8.
+- Vue, icons, fonts, Tailwind CSS, and devtools dependencies are bundled into the self-contained client. Consumers do not install Vue for devtools.
+- Tailwind v4 CSS is isolated in an open Shadow DOM and inlined into the client JavaScript. Do not assume a separate production CSS asset exists.
+- Do not reorder or parallelize the root devtools/library build stages; the library clean/copy hooks can erase or race the embedded client.
 
-Vue 3 + Tailwind v4 devtools UI built with Vite into a single self-contained ES module at `packages/devtools/dist/client.js`. Vue is **bundled**, not externalized — consumers don't need Vue installed.
+## Testing & QA
 
-- Entry: [packages/devtools/src/main.ts](packages/devtools/src/main.ts). Creates a host `<div id="we-devtools-root">`, attaches an **open Shadow DOM**, injects compiled CSS into a `<style>` element inside the shadow root (sourced from `globalThis.__WE_DEVTOOLS_CSS__`, set by the `inlineCss` rollup plugin in [packages/devtools/vite.config.ts](packages/devtools/vite.config.ts)), and mounts the Vue app inside the shadow root. Full Tailwind preflight is safe because everything is isolated.
-- Cross-package imports go to the **source** of `wallpaper-engine` via relative paths like `../../wallpaper-engine/src/types/...` (do not import from `wallpaper-engine`'s dist — devtools builds before wallpaper-engine).
-- Tokens in [packages/devtools/src/style.css](packages/devtools/src/style.css) `@theme` block use the `--color-we-*` namespace.
+Tests live only under each package's `tests/**/*.test.ts` and import Vitest APIs explicitly.
 
-### `demo/` — consumer demo
+- `packages/wallpaper-engine`: Node environment. Test public outputs, errors, boundaries, generated `project.json`, Vite hook effects, and type inference.
+- `packages/devtools`: Happy DOM plus Vue Test Utils. Mount real components, drive controls, and assert rendered/accessibility state and host-shaped callback payloads.
+- For modules that read globals or create Pinia singletons at import time: reset modules, install globals/config, activate a fresh Pinia, then dynamically import the subject.
+- Mock unavailable boundaries (Wallpaper Engine globals, canvas, URL/file pickers, filesystem, timers), not the behavior under test. Prefer deterministic fake timers and mocked randomness.
+- Avoid snapshots and source-text assertions. Tests should fail on plausible behavioral regressions and verify cleanup/failure isolation.
 
-Vue 3 demo wallpaper. Depends on `"wallpaper-engine": "workspace:*"` ([demo/package.json](demo/package.json)); `bun install` symlinks the workspace package into `demo/node_modules`. The demo has its own toolchain — never run root-level commands inside it, and never import from `demo/` in any `packages/*/src/`.
+Coverage thresholds:
 
-## Conventions
+- Library: 85% statements, 80% branches, 95% functions, 85% lines.
+- Devtools: 80% statements, 70% branches, 80% functions, 80% lines; `src/components/ui/**` and `src/main.ts` are excluded.
 
-- **TS config** is strict with `verbatimModuleSyntax`, `noUncheckedIndexedAccess`, `moduleResolution: bundler`. Always use `import type` for type-only imports. Guard array/index access (`arr[0]` is `T | undefined`).
-- **Public API docs**: every exported symbol in `wallpaper-engine` has a JSDoc block with an `@example`. Match this style for new exports.
-- **Property builders** in [packages/wallpaper-engine/src/plugin/index.ts](packages/wallpaper-engine/src/plugin/index.ts) follow the `xxxProperty(opts)` pattern that injects `type` and passes the rest through. Add new builders the same way and update the `PropertyDefinitionToValue` mapped type.
-- **No runtime dependencies in the published package.** Vite is a peer dep; everything else is dev-only.
-- Tests use `vitest` with `environment: 'node'` ([packages/wallpaper-engine/vitest.config.ts](packages/wallpaper-engine/vitest.config.ts)).
-
-## Wallpaper Engine Runtime
-
-The Wallpaper Engine host injects globals (`window.wallpaperPropertyListener`, `wallpaperRegisterAudioListener`, `wpPlugins.led`, `cue`, media listeners, etc.) — all typed in [packages/wallpaper-engine/src/types/window.ts](packages/wallpaper-engine/src/types/window.ts) via `declare global`. When adding new host APIs, augment both the `Window` interface and the matching `var`/`function` declaration so both `window.xxx` and bare `xxx` access type-check.
+Before finishing a library or devtools change, run the affected package's lint, typecheck, and targeted tests. Before publishing or changing build integration, run the root `bun run lint`, `bun run typecheck`, `bun run test:run`, and `bun run build`.
