@@ -35,13 +35,13 @@ description: Diagnose listener timing, build metadata, previews, Steam links, co
 
 **Fix:** For `mode: 'ondemand'`, request one file with the property key and callback. For `mode: 'fetchall'`, maintain state from `userDirectoryFilesAddedOrChanged` and `userDirectoryFilesRemoved`; do not issue random requests. Confirm the key matches the schema and the property has a selected directory.
 
-## Metadata file is missing or malformed
+## Metadata file is malformed or unreadable
 
-**Symptom:** The build reports a missing metadata file, invalid JSON, or a non-object top level.
+**Symptom:** The build reports invalid JSON, a non-object top level, or a filesystem error for configured metadata.
 
-**Cause:** `metadataFile` is configured, so the resolved file is required. Paths resolve from Vite's final project root, and the JSON must have a non-null, non-array top-level object. Nested values are accepted, while source precedence merges top-level keys shallowly.
+**Cause:** `metadataFile` paths resolve from Vite's final project root. A missing file is created automatically, but an existing file must have a non-null, non-array top-level object and must be readable and writable. Nested values are accepted, while source precedence merges top-level keys shallowly.
 
-**Fix:** Correct the path and JSON. Do not remove the option merely to bypass a state-preservation failure; recover the author/editor metadata first. See [Project Metadata](../build/project-metadata/).
+**Fix:** Correct the path, permissions, and JSON. Do not remove the option merely to bypass a state-preservation failure; recover the author/editor metadata first. See [Project Metadata](../build/project-metadata/).
 
 ## Preview path is unsafe
 
@@ -53,11 +53,11 @@ description: Diagnose listener timing, build metadata, previews, Steam links, co
 
 ## Preview is referenced but unavailable
 
-**Symptom:** A written build says the preview is unavailable in the Vite bundle, `publicDir`, or previous output.
+**Symptom:** A written build says the preview is unavailable in the Vite bundle, `publicDir`, previous output, or metadata preview backup.
 
 **Cause:** The final metadata references bytes that none of the allowed sources can provide. A clean clone cannot rely on prior `dist` state.
 
-**Fix:** Put the file under the final `publicDir` path or emit it through Vite. If the previous output should own it, recover the missing file before rebuilding. The plugin fails closed so cleanup cannot silently publish broken metadata.
+**Fix:** Put the file under the final `publicDir` path, emit it through Vite, or restore `<metadataFile>.assets/<preview>`. If the previous output should own it, recover the missing file and run one synchronization build, then check in the generated metadata JSON and sidecar. The plugin fails instead of emitting broken metadata.
 
 ## Steam projects directory cannot be discovered
 
