@@ -24,7 +24,7 @@ Generated core and ordinary `general` fields replace editor copies. The `schemeC
 A clean clone has no previous output to preserve:
 
 1. Install dependencies from the repository root.
-2. Keep stable author metadata in plugin options or a checked-in metadata JSON file with a non-null, non-array top-level object.
+2. Configure and check in a metadata JSON file. The first written build creates it automatically when missing; a fresh clone then restores the synchronized state from that file.
 3. Keep the preview under Vite's `publicDir` at the exact preview path, or explicitly emit/configure an asset whose final bundle `fileName` exactly matches `metadata.preview`.
 4. Configure `projectLink` if this machine should expose output to Wallpaper Engine.
 5. Run the written Vite build.
@@ -55,8 +55,8 @@ wallpaperEnginePlugin({
 For a project already edited through Wallpaper Engine:
 
 1. Point `projectLink.name` at a new or already-correct link to the Vite output.
-2. Before cleanup, the plugin reads the existing output `project.json` and captures its referenced preview bytes when available.
-3. The build regenerates core fields and `general` while preserving other top-level editor state.
+2. Before cleanup, the plugin reads the existing output `project.json`, synchronizes its editor-managed and unknown top-level state into `metadataFile`, and captures its referenced preview bytes when available.
+3. The build regenerates core fields and `general` while preserving other top-level editor state. Existing author-owned fields in the metadata file and explicit Vite metadata options keep their precedence.
 4. The preview is restored byte-for-byte when it is not already supplied by the bundle or public directory.
 5. Wallpaper Engine sees the rebuilt files through the same persistent link.
 
@@ -97,7 +97,7 @@ This prevents a stale editor preview from being mislabeled. Put the new preview 
 
 Previous output is an optimization and editor-state preservation source, not a reproducibility guarantee. CI and fresh clones should succeed from source alone:
 
-- Check in the metadata file when editor-owned top-level values are required in every build.
+- Check in the auto-created metadata file so editor-owned top-level values survive clean builds.
 - Check in or generate the preview through Vite's public/bundle inputs.
 - Set `projectLink` only where linking is intended; omit it in portable CI configuration or provide a valid environment-specific absolute parent.
 - Never depend on an ignored `dist/project.json` as the only copy of publication metadata.

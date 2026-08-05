@@ -270,9 +270,11 @@ export interface WallpaperEnginePluginOptions {
    */
   metadata?: WallpaperProjectMetadata;
   /**
-   * JSON file containing a flat top-level metadata/state object. Relative
-   * paths are resolved from Vite's final project root. Generated `file`,
-   * `title`, `type`, and `general` fields always take precedence.
+   * JSON file containing a flat top-level metadata/state object. The file is
+   * created when missing and synchronized with Wallpaper Engine-managed state
+   * from the previous output before Vite cleans it. Relative paths are
+   * resolved from Vite's final project root. Generated `file`, `title`,
+   * `type`, and `general` fields always take precedence.
    *
    * @example
    * metadataFile: 'wallpaper-engine.metadata.json'
@@ -601,14 +603,21 @@ async function capturePreservationState(
     ? undefined
     : path.resolve(config.root, metadataFileOption);
   const [previousProject, metadataFile] = await Promise.all([
-    readJsonObject(fs.readFile, projectPath, false),
+    readJsonObject(fs.readFile, projectPath),
     metadataPath === undefined
       ? undefined
-      : readJsonObject(fs.readFile, metadataPath, true),
+      : readJsonObject(fs.readFile, metadataPath),
   ]);
-  const project = mergePreservationSources(
+  const synchronizedMetadata = synchronizeMetadataFile(
     previousProject,
     metadataFile,
+  );
+  if (metadataPath !== undefined && config.build.write) {
+    await writeMetadataFile(fs, path, metadataPath, synchronizedMetadata);
+  }
+  const project = mergePreservationSources(
+    previousProject,
+    synchronizedMetadata,
     metadata,
   );
   const preview = await capturePreviousPreview(
@@ -770,23 +779,64 @@ function mergePreservationSources(
   return project;
 }
 
+const AUTHOR_METADATA_KEYS = new Set<keyof WallpaperProjectMetadata>([
+  'contentrating',
+  'description',
+  'preview',
+  'ratingsex',
+  'ratingviolence',
+  'tags',
+  'visibility',
+]);
+
+function synchronizeMetadataFile(
+  previousProject: JsonObject | undefined,
+  metadataFile: JsonObject | undefined,
+): JsonObject {
+  const synchronized = { ...metadataFile };
+  const previousMetadata = mergePreservationSources(
+    previousProject,
+    undefined,
+    undefined,
+  );
+  for (const [key, value] of Object.entries(previousMetadata)) {
+    if (AUTHOR_METADATA_KEYS.has(key as keyof WallpaperProjectMetadata)
+      && Object.hasOwn(synchronized, key)) {
+      continue;
+    }
+    synchronized[key] = value;
+  }
+  return synchronized;
+}
+
+async function writeMetadataFile(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  filePath: string,
+  metadata: JsonObject,
+): Promise<void> {
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, `${JSON.stringify(metadata, null, '\t')}\n`);
+  }
+  catch (error) {
+    throw new Error(
+      `Unable to write Wallpaper Engine metadata "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 async function readJsonObject(
   readFile: typeof NodeFsPromises.readFile,
   filePath: string,
-  required: boolean,
 ): Promise<JsonObject | undefined> {
   let source: string;
   try {
     source = await readFile(filePath, 'utf8');
   }
   catch (error) {
-    if (isFileNotFound(error)) {
-      if (!required)
-        return;
-      throw new Error(
-        `Wallpaper Engine metadata file not found: "${filePath}".`,
-      );
-    }
+    if (isFileNotFound(error))
+      return;
     throw new Error(
       `Unable to read Wallpaper Engine metadata "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
     );

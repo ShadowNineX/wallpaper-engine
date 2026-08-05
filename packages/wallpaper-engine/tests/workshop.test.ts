@@ -2,7 +2,7 @@ import type { BuildOptions, Rolldown } from 'vite';
 import type { WallpaperEnginePluginOptions } from '../src/plugin/index';
 import { lstat, mkdir, mkdtemp, readFile, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { build } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -319,14 +319,105 @@ describe('steam Workshop project preservation', () => {
     expect(await readFile(projectPath, 'utf8')).toBe(JSON.stringify(value));
   });
 
-  it('rejects a missing explicitly configured metadata file', async () => {
+  it('creates a missing metadata file and populates it from previous output', async () => {
     const root = await createWallpaperRoot();
-    const metadataPath = resolve(root, 'missing.metadata.json');
+    const outDir = join(root, 'dist');
+    const metadataPath = join(root, 'config', 'metadata.json');
+    await mkdir(outDir);
+    await writeFile(join(outDir, 'project.json'), JSON.stringify({
+      file: 'old.html',
+      title: 'Editor title',
+      type: 'web',
+      general: { stale: true },
+      workshopid: '1234567890',
+      workshopurl: 'steam://url/CommunityFilePage/1234567890',
+      version: 40,
+      approved: false,
+      futureEditorField: { retained: true },
+    }));
 
-    await expect(buildWallpaper(root, {
-      title: 'T',
-      metadataFile: 'missing.metadata.json',
-    })).rejects.toThrow(metadataPath);
+    await buildWallpaper(root, {
+      title: 'Generated',
+      metadataFile: 'config/metadata.json',
+    });
+
+    expect(JSON.parse(await readFile(metadataPath, 'utf8'))).toEqual({
+      workshopid: '1234567890',
+      workshopurl: 'steam://url/CommunityFilePage/1234567890',
+      version: 40,
+      approved: false,
+      futureEditorField: { retained: true },
+    });
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toEqual({
+        workshopid: '1234567890',
+        workshopurl: 'steam://url/CommunityFilePage/1234567890',
+        version: 40,
+        approved: false,
+        futureEditorField: { retained: true },
+        file: 'index.html',
+        title: 'Generated',
+        type: 'web',
+      });
+  });
+
+  it('syncs editor state without replacing source-owned metadata or option precedence', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const metadataPath = join(root, 'metadata.json');
+    await mkdir(outDir);
+    await writeFile(metadataPath, JSON.stringify({
+      description: 'Checked-in description',
+      tags: ['Checked-in'],
+      workshopid: 'stale-id',
+      futureEditorField: { revision: 1 },
+      sourceOnlyField: false,
+    }));
+    await writeFile(join(outDir, 'project.json'), JSON.stringify({
+      description: 'Editor description',
+      tags: ['Editor'],
+      workshopid: 'current-id',
+      workshopurl: 'steam://url/CommunityFilePage/current-id',
+      version: 12,
+      futureEditorField: { revision: 2 },
+    }));
+
+    await buildWallpaper(root, {
+      title: 'Generated',
+      metadataFile: 'metadata.json',
+      metadata: { description: 'Vite option description' },
+    });
+
+    expect(JSON.parse(await readFile(metadataPath, 'utf8'))).toEqual({
+      description: 'Checked-in description',
+      tags: ['Checked-in'],
+      workshopid: 'current-id',
+      futureEditorField: { revision: 2 },
+      sourceOnlyField: false,
+      workshopurl: 'steam://url/CommunityFilePage/current-id',
+      version: 12,
+    });
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toMatchObject({
+        description: 'Vite option description',
+        tags: ['Checked-in'],
+        workshopid: 'current-id',
+        futureEditorField: { revision: 2 },
+      });
+
+    await rm(outDir, { recursive: true });
+    await buildWallpaper(root, {
+      title: 'Clean rebuild',
+      metadataFile: 'metadata.json',
+      metadata: { description: 'Vite option description' },
+    });
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toMatchObject({
+        workshopid: 'current-id',
+        workshopurl: 'steam://url/CommunityFilePage/current-id',
+        version: 12,
+        futureEditorField: { revision: 2 },
+      });
   });
 
   it('rejects a non-object explicitly configured metadata file', async () => {

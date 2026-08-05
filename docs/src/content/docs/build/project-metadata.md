@@ -30,7 +30,7 @@ wallpaperEnginePlugin({
 | `localization` | Localization map | Labels written under `general.localization` |
 | `supportsAudioProcessing` | `boolean` | Defined value overrides bundle-call detection |
 | `metadata` | `WallpaperProjectMetadata` | Source-controlled description, preview, tags, ratings, and visibility |
-| `metadataFile` | `string` | Non-null, non-array top-level JSON object resolved from Vite's final project root |
+| `metadataFile` | `string` | Auto-created, synchronized top-level JSON object resolved from Vite's final project root |
 | `projectLink` | `WallpaperProjectLinkOptions` | Persistent link to written output; see [Project Links](../project-links/) |
 | `minify` | `boolean` | Build output defaults to minified JSON; `false` uses tab indentation |
 | `devtools` | `boolean` | Development overlay; defaults to `true`, always omitted from production |
@@ -72,7 +72,7 @@ previous output < metadata file < defined metadata options < generated fields
 ```
 
 - Existing `dist/project.json` is the lowest-priority preservation source.
-- `metadataFile` replaces colliding top-level keys from previous output.
+- `metadataFile` replaces colliding author-owned fields from previous output.
 - Each `metadata` field replaces lower-priority values only when it is not `undefined`.
 - Generated `file`, `title`, `type`, and ordinary `general` fields always win.
 - A defined `schemeColor` option wins over every previous `general.properties.schemecolor` value. When the option is omitted and the source property schema does not define that key, a valid editor-managed value is carried into regenerated properties.
@@ -90,7 +90,9 @@ wallpaperEnginePlugin({
 });
 ```
 
-The path resolves from Vite's final `root`. The file is required when configured and must contain valid JSON with a non-null, non-array top-level object. Missing, unreadable, malformed, or wrong-shaped input fails the build with a specific error rather than silently discarding publishing state.
+The path resolves from Vite's final `root`. Before a written build cleans the output directory, the plugin creates a missing file (including parent directories) and synchronizes non-generated fields from the previous `project.json`. Existing author-owned fields (`description`, `preview`, `tags`, ratings, and visibility) stay authoritative in the metadata file. Wallpaper Engine-managed and unknown fields are updated from the editor output, including `workshopid`, `workshopurl`, and `version`. This makes the file a source-controlled handoff for clean builds on another machine.
+
+An existing file must contain valid JSON with a non-null, non-array top-level object. Unreadable, malformed, wrong-shaped, or unwritable metadata fails before output cleanup rather than silently discarding publishing state. Generated core keys are ignored during project generation even if an existing metadata file contains them.
 
 ## Preview paths and restoration
 

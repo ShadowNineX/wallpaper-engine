@@ -9,6 +9,12 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+### Fixed
+
+- Made configured metadata files self-initializing and synchronized Workshop
+  identity, version, editor state, and unknown top-level fields from the
+  previous output before Vite cleans it.
+
 ## [1.3.0] - 2026-08-04
 
 ### Added
