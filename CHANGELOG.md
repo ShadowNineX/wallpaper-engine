@@ -9,6 +9,22 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+### Added
+
+- Added `analyzeAudioFrame()` and `createAudioAnalyzer()` helpers for
+  allocation-free normalized loudness, stereo, ordered-spectrum, decaying-peak,
+  spectrum-transient kick, clap, hi-hat, beat, and onset analysis, plus
+  rolling onset-envelope autocorrelation BPM estimation. The consumer demo now
+  drives shader bands, peak envelopes, kick effects, and visible
+  RMS/peak/beat/BPM diagnostics from the shared analyzer.
+
+### Fixed
+
+- Improved BPM estimation with log-spectral flux, a four-second analysis start,
+  rolling eight-second analysis window, evidence-based octave correction, and
+  confirmed tempo transitions. Low-confidence non-silent passages now retain
+  the last accepted BPM instead of flickering between a value and `0`.
+
 ## [1.3.1] - 2026-08-06
 
 ### Fixed

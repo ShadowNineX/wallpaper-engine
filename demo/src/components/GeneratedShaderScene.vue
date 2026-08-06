@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { useLoop, useTres } from "@tresjs/core";
 import { Color, Vector2, Vector3 } from "three";
+import type { AudioAnalyzer } from "wallpaper-engine/helpers";
 import { watch } from "vue";
 
 const props = defineProps<{
@@ -9,7 +10,7 @@ const props = defineProps<{
   glow: string;
   baseAccent: string;
   baseGlow: string;
-  audioData: Float32Array;
+  analyzer: AudioAnalyzer;
   sensitivity: number;
   animationSpeed: number;
   paused: boolean;
@@ -429,27 +430,6 @@ watch(
     updateColor(targetGlow, uniforms.uGlow.value, color, fallback),
 );
 
-function stereoBandEnergy(start: number, end: number): number {
-  let energy = 0;
-  for (let index = start; index <= end; index++) {
-    energy +=
-      (props.audioData[index] ?? 0) + (props.audioData[index + 64] ?? 0);
-  }
-  return energy / ((end - start + 1) * 2);
-}
-
-function stereoBandPeak(start: number, end: number): number {
-  let peak = 0;
-  for (let index = start; index <= end; index++) {
-    const stereoValue =
-      ((props.audioData[index] ?? 0) +
-        (props.audioData[index + 64] ?? 0)) /
-      2;
-    peak = Math.max(peak, stereoValue);
-  }
-  return peak;
-}
-
 function damp(
   current: number,
   target: number,
@@ -470,26 +450,42 @@ onBeforeRender(({ delta, sizes }) => {
 
   const frameDelta = Math.min(0.05, delta);
   const sensitivity = props.sensitivity;
-  const bassInput =
-    stereoBandEnergy(0, 4) * 0.50 +
-    stereoBandEnergy(5, 11) * 0.25 +
-    stereoBandPeak(0, 11) * 0.25;
   const bass = Math.min(
     1,
-    Math.pow(bassInput, 0.62) * sensitivity * 1.55,
+    Math.pow(props.analyzer.bass, 0.62) * sensitivity * 1.55,
   );
   const mids = Math.min(
     1,
-    Math.pow(stereoBandEnergy(12, 39), 0.72) * sensitivity * 1.38,
+    Math.pow(props.analyzer.midrange, 0.72) * sensitivity * 1.38,
   );
   const treble = Math.min(
     1,
-    Math.pow(stereoBandEnergy(40, 63), 0.70) * sensitivity * 1.48,
+    Math.pow(props.analyzer.treble, 0.7) * sensitivity * 1.48,
   );
-  const energy = Math.min(1, bass * 0.42 + mids * 0.36 + treble * 0.22);
+  const level = Math.min(
+    1,
+    Math.pow(props.analyzer.rmsVolume, 0.72) * sensitivity * 1.4,
+  );
+  const envelope = Math.min(
+    1,
+    props.analyzer.decayingPeakVolume * sensitivity,
+  );
+  const transient = Math.min(
+    1,
+    (props.analyzer.beat * 0.7 + props.analyzer.onset * 0.3) * sensitivity,
+  );
+  const energy = Math.min(
+    1,
+    level * 0.58 +
+      envelope * 0.18 +
+      bass * 0.12 +
+      mids * 0.08 +
+      treble * 0.04 +
+      transient * 0.18,
+  );
 
-  const stageDrive = Math.min(1, energy * 1.65);
-  const targetStage = Math.min(3, Math.max(0, (stageDrive - 0.06) * 3.20));
+  const stageDrive = Math.min(1, energy * 1.45 + transient * 0.65);
+  const targetStage = Math.min(3, Math.max(0, (stageDrive - 0.06) * 3.2));
 
   uniforms.uAudio.value = damp(
     uniforms.uAudio.value,

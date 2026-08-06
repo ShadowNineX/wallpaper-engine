@@ -11,6 +11,7 @@ import {
 import type { WallpaperMediaPlaybackState } from "wallpaper-engine";
 import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
 import {
+  createAudioAnalyzer,
   createFpsLimiter,
   toFileUrl,
   wallpaperColorToHex,
@@ -116,17 +117,24 @@ const paused = ref(false);
 const fpsLimit = ref(60);
 const measuredFps = ref(0);
 const lastFrameDelta = ref(0);
+const audioRmsVolume = ref(0);
+const audioDecayingPeakVolume = ref(0);
+const audioBeat = ref(0);
+const audioBpm = ref(0);
 const canvas = ref<HTMLCanvasElement | null>(null);
 const backgroundVideo = ref<HTMLVideoElement | null>(null);
 const rawAudio = new Float32Array(128);
 const smoothedAudio = new Float32Array(128);
+const audioAnalyzer = createAudioAnalyzer({
+  sensitivity: 0.65,
+  eventCooldown: 0.13,
+  peakDecayPerSecond: 1.5,
+});
 const particles: Particle[] = [];
 const prismSparks: PrismSpark[] = [];
 const PRISM_BAR_COUNT = 56;
-let bassEnergyBaseline = 0;
-let previousBassEnergy = 0;
+let previousAudioCallbackTime: number | undefined;
 let pendingPrismBurst = 0;
-let lastPrismBurstAt = Number.NEGATIVE_INFINITY;
 let animationRunning = false;
 let fpsSampleStart = 0;
 let renderedFrames = 0;
@@ -340,43 +348,41 @@ function getUiScale(width: number, height: number): number {
   return Math.min(4, Math.max(0.75, Math.min(width, height) / 1_080));
 }
 
-function detectBassPunch(time = performance.now()): void {
-  let bassEnergy = 0;
-  for (let index = 1; index <= 10; index++) {
-    bassEnergy += (rawAudio[index] ?? 0) + (rawAudio[index + 64] ?? 0);
-  }
-  bassEnergy = Math.min(1, (bassEnergy / 20) * visualSensitivity.value);
+function processAudioFrame(
+  data: ArrayLike<number>,
+  time = performance.now(),
+): void {
+  const deltaSeconds =
+    previousAudioCallbackTime === undefined
+      ? undefined
+      : Math.max(0, (time - previousAudioCallbackTime) / 1_000);
+  previousAudioCallbackTime = time;
+  audioAnalyzer.process(data, deltaSeconds);
 
-  const baseline = bassEnergyBaseline;
-  const rise = bassEnergy - previousBassEnergy;
-  bassEnergyBaseline +=
-    (bassEnergy - bassEnergyBaseline) * (bassEnergy > baseline ? 0.08 : 0.025);
-  previousBassEnergy = bassEnergy;
+  audioRmsVolume.value = audioAnalyzer.rmsVolume;
+  audioDecayingPeakVolume.value = audioAnalyzer.decayingPeakVolume;
+  audioBeat.value = audioAnalyzer.beat;
+  audioBpm.value = Math.round(audioAnalyzer.bpm);
 
-  const riseThreshold = Math.max(0.035, baseline * 0.2);
-  if (
-    visualStyle.value !== "bars" ||
-    time - lastPrismBurstAt < 140 ||
-    bassEnergy < Math.max(0.12, baseline * 1.28) ||
-    rise < riseThreshold
-  ) {
-    return;
-  }
-
+  if (visualStyle.value !== "bars" || audioAnalyzer.kick === 0) return;
   pendingPrismBurst = Math.max(
     pendingPrismBurst,
-    Math.min(1, bassEnergy * 0.7 + rise * 1.8),
+    Math.min(1, audioAnalyzer.kick * visualSensitivity.value),
   );
-  lastPrismBurstAt = time;
 }
 
-function clearPrismSparks(resetDetector = false): void {
+function clearPrismSparks(resetAnalyzer = false): void {
   prismSparks.length = 0;
   pendingPrismBurst = 0;
-  if (!resetDetector) return;
-  bassEnergyBaseline = 0;
-  previousBassEnergy = 0;
-  lastPrismBurstAt = Number.NEGATIVE_INFINITY;
+  if (!resetAnalyzer) return;
+  audioAnalyzer.reset();
+  previousAudioCallbackTime = undefined;
+  rawAudio.fill(0);
+  smoothedAudio.fill(0);
+  audioRmsVolume.value = 0;
+  audioDecayingPeakVolume.value = 0;
+  audioBeat.value = 0;
+  audioBpm.value = 0;
 }
 
 function sampleAudio(index: number, time: number): number {
@@ -922,10 +928,13 @@ function applyUserPropertyUpdate(values: Partial<UserProps>): void {
 // events before mounted hooks and only sends changed properties thereafter.
 globalThis.wallpaperRegisterAudioListener((data) => {
   if (paused.value) return;
+  processAudioFrame(data);
   for (let index = 0; index < 128; index++) {
-    rawAudio[index] = Math.max(0, Math.min(1, data[index] ?? 0));
+    const sample = data[index] ?? 0;
+    rawAudio[index] = Number.isFinite(sample)
+      ? Math.max(0, Math.min(1, sample))
+      : 0;
   }
-  detectBassPunch();
 });
 
 globalThis.wallpaperPropertyListener = {
@@ -1031,7 +1040,7 @@ onBeforeUnmount(() => {
       :glow="effectiveGlow"
       :base-accent="accentColor"
       :base-glow="glowColor"
-      :audio-data="rawAudio"
+      :analyzer="audioAnalyzer"
       :sensitivity="visualSensitivity"
       :animation-speed="animationSpeed"
       :paused="paused"
@@ -1072,6 +1081,10 @@ onBeforeUnmount(() => {
       :fps-limit="fpsLimit"
       :measured-fps="measuredFps"
       :last-frame-delta="lastFrameDelta"
+      :audio-rms-volume="audioRmsVolume"
+      :audio-decaying-peak-volume="audioDecayingPeakVolume"
+      :audio-beat="audioBeat"
+      :audio-bpm="audioBpm"
     />
 
     <main class="stage">
@@ -1095,6 +1108,7 @@ onBeforeUnmount(() => {
         :playback-state="playbackState"
         :timeline-position="timelinePosition"
         :timeline-duration="timelineDuration"
+        :bpm="audioBpm"
       />
     </main>
 

@@ -17,6 +17,7 @@ const props = defineProps<{
   playbackState: number;
   timelinePosition: number;
   timelineDuration: number;
+  bpm: number;
 }>();
 
 const cubeFaces = ["front", "back", "right", "left", "top", "bottom"] as const;
@@ -44,6 +45,9 @@ const playbackIcon = computed(() => {
   if (playbackStatus.value === "paused") return Pause;
   return Square;
 });
+const bpmLabel = computed(() =>
+  props.bpm > 0 ? `${Math.round(props.bpm)} BPM` : "BPM --",
+);
 
 function formatDuration(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
@@ -102,6 +106,9 @@ function formatDuration(seconds: number): string {
               <component :is="playbackIcon" :size="12" fill="currentColor" />
               NOW {{ playbackLabel }}
             </span>
+            <span title="Estimated from captured audio-spectrum transients">
+              {{ bpmLabel }}
+            </span>
           </div>
           <h2>{{ heading }}</h2>
           <p v-if="byline" class="media-byline">{{ byline }}</p>
@@ -120,6 +127,9 @@ function formatDuration(seconds: number): string {
       <div v-else class="media-idle">
         <Radio :size="13" />
         <span>MEDIA STANDBY</span>
+        <span title="Estimated from captured audio-spectrum transients">
+          {{ bpmLabel }}
+        </span>
       </div>
     </section>
   </Transition>

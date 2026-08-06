@@ -7,6 +7,15 @@
  * import { colorToWallpaperColor, getAverageColor, wallpaperColorToRgb, toFileUrl } from 'wallpaper-engine/helpers';
  */
 
+import { clampAudioSample } from './audio/frame';
+
+export { analyzeAudioFrame, createAudioAnalyzer } from './audio';
+export type {
+  AudioAnalyzer,
+  AudioAnalyzerOptions,
+  AudioFrameAnalysis,
+} from './audio';
+
 export { colorToWallpaperColor } from './color';
 export { createAverageColorExtractor, getAverageColor } from './image-color';
 export type {
@@ -115,9 +124,7 @@ export function toFileUrl(path: string): string {
  * });
  */
 export function clampAudio(audioArray: number[]): number[] {
-  return audioArray.map(value =>
-    Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0,
-  );
+  return audioArray.map(clampAudioSample);
 }
 
 /**

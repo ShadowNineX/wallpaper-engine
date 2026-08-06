@@ -167,7 +167,123 @@ function toFileUrl(path: string): string;
 
 Returns `''` unchanged. Preserves strings beginning with `/` or `http:`, `https:`, `data:`, `blob:`, or `file:` (scheme check is case-insensitive). Otherwise allocates `file:///${path}`. Performs no encoding, parsing, filesystem access, or mutation and intentionally does not throw for malformed-but-string inputs.
 
+## Audio types (3)
+
+### `AudioFrameAnalysis`
+
+```ts
+interface AudioFrameAnalysis {
+  readonly averageVolume: number;
+  readonly rmsVolume: number;
+  readonly peakVolume: number;
+  readonly leftVolume: number;
+  readonly rightVolume: number;
+  readonly stereoBalance: number;
+  readonly bass: number;
+  readonly midrange: number;
+  readonly treble: number;
+}
+```
+
+All values are calculated from clamped normalized spectrum magnitudes.
+`stereoBalance` ranges from left-only `-1` through equal/silent `0` to
+right-only `1`. Bass, midrange, and treble average stereo-combined ordered
+bins 0–5, 6–23, and 24–63; the names do not promise fixed-Hz ranges.
+
+### `AudioAnalyzerOptions`
+
+```ts
+interface AudioAnalyzerOptions {
+  sensitivity?: number;
+  eventCooldown?: number;
+  peakDecayPerSecond?: number;
+}
+```
+
+`sensitivity` defaults to `0.65` and must be finite within 0–1.
+`eventCooldown` defaults to `0.13` seconds and must be finite and
+non-negative. `peakDecayPerSecond` defaults to `1.5` normalized units per
+second and must be finite and non-negative.
+
+### `AudioAnalyzer`
+
+```ts
+interface AudioAnalyzer extends AudioFrameAnalysis {
+  readonly decayingPeakVolume: number;
+  readonly kick: number;
+  readonly clap: number;
+  readonly hiHat: number;
+  readonly beat: number;
+  readonly bpm: number;
+  readonly onset: number;
+  process: (audioArray: ArrayLike<number>, deltaSeconds?: number) => void;
+  reset: () => void;
+}
+```
+
+Current frame and envelope fields remain valid during the first three
+warm-up calls. Event strengths are 0–1 values describing only the latest
+call and remain `0` during warm-up. `beat` is `max(kick, clap)`; `onset`
+also reports active transients that do not match an instrument heuristic.
+Kick may coexist with clap, while clap and hi-hat are mutually exclusive.
+
+`bpm` is a smoothed 40–240 BPM estimate derived from periodicity in a
+continuous positive log-spectral-flux onset envelope with an adaptive
+baseline. Analysis starts after four seconds and expands across a rolling
+eight-second window. The estimator scores fractional BPM candidates using
+autocorrelation at one through four beat-length lags. Long-range harmonic
+scoring, a broad tempo prior, and faster-octave evidence reduce meter
+ambiguity. Initial candidates require three consecutive agreements. After
+acquisition, low-confidence non-silent frames retain the last accepted BPM,
+while a substantially different candidate must remain strong and consistent
+before replacing it. The estimate clears after four seconds without a
+significant onset or on `reset()`. Tempo analysis assumes Wallpaper Engine's
+nominal 30 Hz callback cadence; `deltaSeconds` still controls cooldown, peak
+decay, and the real-time silence timeout.
+
 ## Audio functions
+
+### `analyzeAudioFrame()`
+
+```ts
+function analyzeAudioFrame(
+  audioArray: ArrayLike<number>,
+): AudioFrameAnalysis;
+```
+
+Requires exactly 128 samples and allocates a fresh result without mutating the
+input. Samples use `clampAudio()` semantics. It scans both channels once,
+calculating arithmetic mean, RMS, peak, channel means, stereo balance, and
+the three spectrum regions. Every other length throws
+`RangeError('Wallpaper Engine audio frames must contain exactly 128 samples.')`.
+
+### `createAudioAnalyzer()`
+
+```ts
+function createAudioAnalyzer(
+  options?: AudioAnalyzerOptions,
+): AudioAnalyzer;
+```
+
+Validates options once and allocates reusable spectrum and detector buffers.
+`process()` requires a 128-sample `ArrayLike<number>` and accepts elapsed
+seconds, defaulting to `1 / 30`. A supplied delta must be finite and
+non-negative; large values are not capped. Processing updates current metrics,
+a linearly decaying peak, half-wave spectral-flux baselines, per-band
+cooldowns, and current-call events without allocating arrays or objects.
+`reset()` also allocates nothing and clears all state while preserving options.
+
+Invalid values throw these exact errors:
+
+- `Audio analyzer sensitivity must be a finite number from 0 to 1.`
+- `Audio analyzer eventCooldown must be a finite non-negative number.`
+- `Audio analyzer peakDecayPerSecond must be a finite non-negative number.`
+- `Audio analyzer deltaSeconds must be a finite non-negative number.`
+
+Instrument fields are spectrum-based transient estimates, not source
+separation. Level fields do not represent Windows master volume or a media
+player's volume slider; Wallpaper Engine exposes neither value to web
+wallpapers.
 
 ### `clampAudio()`
 
@@ -175,7 +291,9 @@ Returns `''` unchanged. Preserves strings beginning with `/` or `http:`, `https:
 function clampAudio(audioArray: number[]): number[];
 ```
 
-Allocates a same-length array with each finite sample clamped to 0–1 and every non-finite sample replaced with `0`. Does not mutate input or require exactly 128 elements.
+Allocates a same-length array with each finite sample clamped to 0–1 and every
+non-finite sample replaced with `0`. Does not mutate input or require exactly
+128 elements.
 
 ### `leftChannel()`
 
@@ -183,7 +301,8 @@ Allocates a same-length array with each finite sample clamped to 0–1 and every
 function leftChannel(audioArray: number[]): number[];
 ```
 
-Allocates `audioArray.slice(0, 64)`. Short input yields a shorter result; extra input is ignored.
+Allocates `audioArray.slice(0, 64)`. Short input yields a shorter result; extra
+input is ignored.
 
 ### `rightChannel()`
 
@@ -191,9 +310,11 @@ Allocates `audioArray.slice(0, 64)`. Short input yields a shorter result; extra 
 function rightChannel(audioArray: number[]): number[];
 ```
 
-Allocates `audioArray.slice(64, 128)`. Short input may yield an empty/short result; extra input is ignored.
+Allocates `audioArray.slice(64, 128)`. Short input may yield an empty/short
+result; extra input is ignored.
 
-See [Audio](../../guides/audio/) for the host's 128-sample stereo contract.
+See [Audio](../../guides/audio/) for registration, metrics, transient
+semantics, timing, pause handling, and simulator profiles.
 
 ## `getMediaPlaybackStatus()`
 
@@ -231,7 +352,7 @@ The callback receives elapsed seconds since the last draw, clamped to 0–1. Und
 
 ## Export inventory check
 
-The exact 13 functions are:
+The exact 15 functions are:
 
 1. `colorToWallpaperColor`
 2. `createAverageColorExtractor`
@@ -240,14 +361,19 @@ The exact 13 functions are:
 5. `wallpaperColorToRgb`
 6. `wallpaperColorToHex`
 7. `toFileUrl`
-8. `clampAudio`
-9. `leftChannel`
-10. `rightChannel`
-11. `getMediaPlaybackStatus`
-12. `encodeCanvasForLed`
-13. `createFpsLimiter`
+8. `analyzeAudioFrame`
+9. `createAudioAnalyzer`
+10. `clampAudio`
+11. `leftChannel`
+12. `rightChannel`
+13. `getMediaPlaybackStatus`
+14. `encodeCanvasForLed`
+15. `createFpsLimiter`
 
-The exact four types are `AverageColorSource`, `AverageColorOptions`, `AverageColorResult`, and `AverageColorExtractor`. Public re-exports are defined by [`src/helpers.ts`](https://github.com/ShadowNineX/wallpaper-engine/blob/main/packages/wallpaper-engine/src/helpers.ts).
+The exact seven types are `AverageColorSource`, `AverageColorOptions`,
+`AverageColorResult`, `AverageColorExtractor`, `AudioFrameAnalysis`,
+`AudioAnalyzerOptions`, and `AudioAnalyzer`. Public re-exports are defined by
+[`src/helpers.ts`](https://github.com/ShadowNineX/wallpaper-engine/blob/main/packages/wallpaper-engine/src/helpers.ts).
 
 ## Next steps
 

@@ -91,6 +91,50 @@ Written builds preserve prior top-level Workshop metadata and preview bytes whil
 | `wallpaper-engine/plugin` | Vite integration, property builders, inferred runtime types, metadata, and project links | ESM only |
 | `wallpaper-engine/helpers` | Side-effect-free, tree-shakeable browser utilities | ESM + CommonJS |
 
+### Audio spectrum analysis
+
+`wallpaper-engine/helpers` includes one-shot frame metrics and a reusable,
+allocation-free stateful analyzer for Wallpaper Engine's 128-value stereo
+spectrum callback:
+
+```ts
+import { analyzeAudioFrame, createAudioAnalyzer } from 'wallpaper-engine/helpers';
+
+const analyzer = createAudioAnalyzer({
+  sensitivity: 0.65,
+  eventCooldown: 0.13,
+  peakDecayPerSecond: 1.5,
+});
+let previousTime = performance.now();
+
+window.wallpaperRegisterAudioListener((audioArray) => {
+  const now = performance.now();
+  analyzer.process(audioArray, (now - previousTime) / 1000);
+  previousTime = now;
+
+  const current = analyzeAudioFrame(audioArray);
+  renderLevel(current.rmsVolume, analyzer.decayingPeakVolume);
+  if (analyzer.beat > 0)
+    pulse(analyzer.beat);
+});
+```
+
+`analyzeAudioFrame()` reports `averageVolume`, `rmsVolume`, `peakVolume`,
+left/right volume and stereo balance, plus ordered-spectrum `bass`,
+`midrange`, and `treble` averages. `createAudioAnalyzer()` retains those
+current metrics and adds a decaying peak envelope, a log-flux autocorrelation
+`bpm` estimate, and per-frame `kick`, `clap`, `hiHat`, `beat`, and general
+`onset` strengths. BPM estimation starts after four seconds, expands to a
+rolling eight-second window, and holds the last accepted tempo through
+low-confidence passages instead of flickering back to zero. Configure detector
+strictness with `sensitivity` (0–1), same-band retrigger delay with
+`eventCooldown` (seconds), and envelope decay with `peakDecayPerSecond`.
+
+All volume values are normalized magnitudes derived from the spectrum captured
+by Wallpaper Engine. They do not expose Windows master volume or a media
+player's volume slider. Instrument detections are spectrum-based transient
+estimates, not source separation.
+
 Full guides and exhaustive API references: **[shadowninex.github.io/wallpaper-engine](https://shadowninex.github.io/wallpaper-engine/)**.
 
 ## Development

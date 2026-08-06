@@ -22,6 +22,7 @@ import {
 | Extract an average or dominant color from images, videos, canvases, or raw pixels | [Average-color extraction](./colors-and-media/#average-color-extraction) |
 | Normalize host filesystem paths and simulator object URLs | [`toFileUrl`](./files-led-and-frames/#file-urls) |
 | Clamp and split the 128-sample audio spectrum | [Audio guide](../guides/audio/) |
+| Analyze loudness, stereo balance, frequency regions, peak envelopes, and spectrum transients | [Audio analysis](../guides/audio/#analyze-one-frame) |
 | Resolve host-defined playback constants | [Media guide](../guides/media/#compare-playback-through-host-constants) |
 | Encode canvas RGB bytes for LED or iCUE APIs | [LED canvas encoding](./files-led-and-frames/#led-canvas-encoding) |
 | Apply Wallpaper Engine's FPS limit and pause/resume behavior | [Frame limiting](./files-led-and-frames/#frame-limiting) |
@@ -30,7 +31,7 @@ import {
 
 - The helpers entry is side-effect-free and independently tree-shakeable.
 - Browser-specific helpers accept native DOM objects but do not register Wallpaper Engine listeners for you.
-- `clampAudio()`, `leftChannel()`, and `rightChannel()` allocate new arrays. Color result and URL/string behavior is documented per API; `getColorFromArray4()` may return the supplied `defaultColor` tuple for undersized input.
+- `analyzeAudioFrame()` allocates one result object. `createAudioAnalyzer()` allocates reusable buffers once; its `process()` and `reset()` methods allocate no arrays or result objects. `clampAudio()`, `leftChannel()`, and `rightChannel()` allocate new arrays.
 - Import build-time builders and Vite integration from `wallpaper-engine/plugin`, not this entry.
 - Import host contracts and ambient global declarations from `wallpaper-engine`.
 

@@ -8,6 +8,10 @@ const props = defineProps<{
   fpsLimit: number;
   measuredFps: number;
   lastFrameDelta: number;
+  audioRmsVolume: number;
+  audioDecayingPeakVolume: number;
+  audioBeat: number;
+  audioBpm: number;
 }>();
 
 const fpsLimitLabel = computed(() =>
@@ -15,6 +19,14 @@ const fpsLimitLabel = computed(() =>
 );
 const frameDeltaLabel = computed(() =>
   (props.lastFrameDelta * 1_000).toFixed(1),
+);
+const audioRmsLabel = computed(() => props.audioRmsVolume.toFixed(3));
+const audioPeakLabel = computed(() =>
+  props.audioDecayingPeakVolume.toFixed(3),
+);
+const audioBeatLabel = computed(() => props.audioBeat.toFixed(3));
+const audioBpmLabel = computed(() =>
+  props.audioBpm > 0 ? String(Math.round(props.audioBpm)) : "--",
 );
 </script>
 
@@ -32,6 +44,13 @@ const frameDeltaLabel = computed(() =>
         <Waves :size="13" />
         LIMIT {{ fpsLimitLabel }} · ACTUAL {{ measuredFps }} · Δ
         {{ frameDeltaLabel }} MS
+      </span>
+      <span
+        class="system-pill"
+        title="Current RMS level · decaying peak envelope · latest beat strength"
+      >
+        AUDIO RMS {{ audioRmsLabel }} · PEAK {{ audioPeakLabel }} · BEAT
+        {{ audioBeatLabel }} · BPM {{ audioBpmLabel }}
       </span>
     </div>
   </header>

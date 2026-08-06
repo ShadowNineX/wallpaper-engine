@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { TresCanvas } from "@tresjs/core";
+import type { AudioAnalyzer } from "wallpaper-engine/helpers";
 import GeneratedShaderScene from "./GeneratedShaderScene.vue";
 
 const props = defineProps<{
@@ -8,7 +9,7 @@ const props = defineProps<{
   glow: string;
   baseAccent: string;
   baseGlow: string;
-  audioData: Float32Array;
+  analyzer: AudioAnalyzer;
   sensitivity: number;
   animationSpeed: number;
   paused: boolean;
@@ -39,7 +40,7 @@ const props = defineProps<{
         :glow="props.glow"
         :base-accent="props.baseAccent"
         :base-glow="props.baseGlow"
-        :audio-data="props.audioData"
+        :analyzer="props.analyzer"
         :sensitivity="props.sensitivity"
         :animation-speed="props.animationSpeed"
         :paused="props.paused"
