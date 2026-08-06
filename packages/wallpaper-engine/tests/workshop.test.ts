@@ -2,7 +2,7 @@ import type { BuildOptions, Rolldown } from 'vite';
 import type { WallpaperEnginePluginOptions } from '../src/plugin/index';
 import { lstat, mkdir, mkdtemp, readFile, readlink, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { build } from 'vite';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -254,6 +254,106 @@ describe('steam Workshop project preservation', () => {
       .toEqual([...previewBytes]);
   });
 
+  it('rebuilds editor metadata and nested preview bytes after deleting all output', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const metadataPath = join(root, 'config', 'metadata.json');
+    const previewBytes = new Uint8Array([137, 80, 78, 71, 0, 255, 17]);
+    await mkdir(join(outDir, 'previews', 'workshop'), { recursive: true });
+    await writeFile(join(outDir, 'project.json'), JSON.stringify({
+      file: 'editor.html',
+      title: 'Editor title',
+      type: 'web',
+      preview: 'previews/workshop/editor.png',
+      workshopid: '1234567890',
+      workshopurl: 'steam://url/CommunityFilePage/1234567890',
+      version: 41,
+      futureEditorField: { retained: true },
+    }));
+    await writeFile(
+      join(outDir, 'previews', 'workshop', 'editor.png'),
+      previewBytes,
+    );
+
+    const options: WallpaperEnginePluginOptions = {
+      title: 'Reproducible wallpaper',
+      metadataFile: 'config/metadata.json',
+    };
+    await buildWallpaper(root, options);
+
+    expect(JSON.parse(await readFile(metadataPath, 'utf8'))).toMatchObject({
+      preview: 'previews/workshop/editor.png',
+      workshopid: '1234567890',
+      workshopurl: 'steam://url/CommunityFilePage/1234567890',
+      version: 41,
+      futureEditorField: { retained: true },
+    });
+    expect([
+      ...await readFile(join(
+        root,
+        'config',
+        'metadata.json.assets',
+        'previews',
+        'workshop',
+        'editor.png',
+      )),
+    ]).toEqual([...previewBytes]);
+
+    await rm(outDir, { recursive: true });
+    await buildWallpaper(root, options);
+
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toMatchObject({
+        preview: 'previews/workshop/editor.png',
+        workshopid: '1234567890',
+        workshopurl: 'steam://url/CommunityFilePage/1234567890',
+        version: 41,
+        futureEditorField: { retained: true },
+      });
+    expect([
+      ...await readFile(join(
+        outDir,
+        'previews',
+        'workshop',
+        'editor.png',
+      )),
+    ]).toEqual([...previewBytes]);
+  });
+
+  it('normalizes Windows separators when matching output to a metadata preview', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const previewBytes = new Uint8Array([11, 22, 33]);
+    await mkdir(join(outDir, 'previews'), { recursive: true });
+    await writeFile(
+      join(root, 'metadata.json'),
+      JSON.stringify({ preview: 'previews/editor.jpg' }),
+    );
+    await writeFile(
+      join(outDir, 'project.json'),
+      JSON.stringify({ preview: 'previews\\editor.jpg' }),
+    );
+    await writeFile(join(outDir, 'previews', 'editor.jpg'), previewBytes);
+
+    await buildWallpaper(root, {
+      title: 'Portable separators',
+      metadataFile: 'metadata.json',
+    });
+
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toMatchObject({ preview: 'previews/editor.jpg' });
+    expect([
+      ...await readFile(join(
+        root,
+        'metadata.json.assets',
+        'previews',
+        'editor.jpg',
+      )),
+    ]).toEqual([...previewBytes]);
+    expect([...await readFile(join(outDir, 'previews', 'editor.jpg'))])
+      .toEqual([...previewBytes]);
+  });
+
   it('keeps cached preview bytes in an in-memory build', async () => {
     const root = await createWallpaperRoot();
     const outDir = join(root, 'dist');
@@ -319,14 +419,150 @@ describe('steam Workshop project preservation', () => {
     expect(await readFile(projectPath, 'utf8')).toBe(JSON.stringify(value));
   });
 
-  it('rejects a missing explicitly configured metadata file', async () => {
+  it('creates a missing metadata file and populates it from previous output', async () => {
     const root = await createWallpaperRoot();
-    const metadataPath = resolve(root, 'missing.metadata.json');
+    const outDir = join(root, 'dist');
+    const metadataPath = join(root, 'config', 'metadata.json');
+    await mkdir(outDir);
+    await writeFile(join(outDir, 'project.json'), JSON.stringify({
+      file: 'old.html',
+      title: 'Editor title',
+      type: 'web',
+      general: { stale: true },
+      workshopid: '1234567890',
+      workshopurl: 'steam://url/CommunityFilePage/1234567890',
+      version: 40,
+      approved: false,
+      futureEditorField: { retained: true },
+    }));
+
+    await buildWallpaper(root, {
+      title: 'Generated',
+      metadataFile: 'config/metadata.json',
+    });
+
+    expect(JSON.parse(await readFile(metadataPath, 'utf8'))).toEqual({
+      workshopid: '1234567890',
+      workshopurl: 'steam://url/CommunityFilePage/1234567890',
+      version: 40,
+      approved: false,
+      futureEditorField: { retained: true },
+    });
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toEqual({
+        workshopid: '1234567890',
+        workshopurl: 'steam://url/CommunityFilePage/1234567890',
+        version: 40,
+        approved: false,
+        futureEditorField: { retained: true },
+        file: 'index.html',
+        title: 'Generated',
+        type: 'web',
+      });
+  });
+
+  it('rejects a metadata file inside output before cleanup', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const projectPath = join(outDir, 'project.json');
+    const previousProject = JSON.stringify({
+      workshopid: 'preserved-id',
+      version: 12,
+    });
+    await mkdir(outDir);
+    await writeFile(projectPath, previousProject);
 
     await expect(buildWallpaper(root, {
-      title: 'T',
-      metadataFile: 'missing.metadata.json',
-    })).rejects.toThrow(metadataPath);
+      title: 'Unsafe overlap',
+      metadataFile: 'dist/metadata.json',
+    })).rejects.toThrow('metadata file');
+
+    expect(await readFile(projectPath, 'utf8')).toBe(previousProject);
+    await expect(lstat(join(outDir, 'metadata.json'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
+
+  it('rejects a metadata preview backup inside output before cleanup', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'metadata.json.assets');
+    const projectPath = join(outDir, 'project.json');
+    const metadataPath = join(root, 'metadata.json');
+    const metadata = JSON.stringify({ preview: 'preview.jpg' });
+    await mkdir(outDir);
+    await writeFile(projectPath, '{}');
+    await writeFile(metadataPath, metadata);
+
+    await expect(buildWallpaper(
+      root,
+      {
+        title: 'Unsafe sidecar overlap',
+        metadataFile: 'metadata.json',
+      },
+      { outDir: 'metadata.json.assets' },
+    )).rejects.toThrow('metadata preview backup');
+
+    expect(await readFile(projectPath, 'utf8')).toBe('{}');
+    expect(await readFile(metadataPath, 'utf8')).toBe(metadata);
+  });
+
+  it('syncs editor state without replacing source-owned metadata or option precedence', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const metadataPath = join(root, 'metadata.json');
+    await mkdir(outDir);
+    await writeFile(metadataPath, JSON.stringify({
+      description: 'Checked-in description',
+      tags: ['Checked-in'],
+      workshopid: 'stale-id',
+      futureEditorField: { revision: 1 },
+      sourceOnlyField: false,
+    }));
+    await writeFile(join(outDir, 'project.json'), JSON.stringify({
+      description: 'Editor description',
+      tags: ['Editor'],
+      workshopid: 'current-id',
+      workshopurl: 'steam://url/CommunityFilePage/current-id',
+      version: 12,
+      futureEditorField: { revision: 2 },
+    }));
+
+    await buildWallpaper(root, {
+      title: 'Generated',
+      metadataFile: 'metadata.json',
+      metadata: { description: 'Vite option description' },
+    });
+
+    expect(JSON.parse(await readFile(metadataPath, 'utf8'))).toEqual({
+      description: 'Checked-in description',
+      tags: ['Checked-in'],
+      workshopid: 'current-id',
+      futureEditorField: { revision: 2 },
+      sourceOnlyField: false,
+      workshopurl: 'steam://url/CommunityFilePage/current-id',
+      version: 12,
+    });
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toMatchObject({
+        description: 'Vite option description',
+        tags: ['Checked-in'],
+        workshopid: 'current-id',
+        futureEditorField: { revision: 2 },
+      });
+
+    await rm(outDir, { recursive: true });
+    await buildWallpaper(root, {
+      title: 'Clean rebuild',
+      metadataFile: 'metadata.json',
+      metadata: { description: 'Vite option description' },
+    });
+    expect(JSON.parse(await readFile(join(outDir, 'project.json'), 'utf8')))
+      .toMatchObject({
+        workshopid: 'current-id',
+        workshopurl: 'steam://url/CommunityFilePage/current-id',
+        version: 12,
+        futureEditorField: { revision: 2 },
+      });
   });
 
   it('rejects a non-object explicitly configured metadata file', async () => {
@@ -353,9 +589,13 @@ describe('steam Workshop project preservation', () => {
       JSON.stringify({ preview }),
     );
 
-    await expect(buildWallpaper(root, { title: 'T' })).rejects.toThrow(
-      'Unsafe preview path',
-    );
+    await expect(buildWallpaper(root, {
+      title: 'T',
+      metadataFile: 'metadata.json',
+    })).rejects.toThrow('Unsafe preview path');
+    await expect(lstat(join(root, 'metadata.json.assets'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
   });
 
   it('rejects a preview unavailable from output, public, or the bundle', async () => {
@@ -365,5 +605,23 @@ describe('steam Workshop project preservation', () => {
       title: 'T',
       metadata: { preview: 'missing.jpg' },
     })).rejects.toThrow('publicDir');
+  });
+
+  it('reports a missing configured metadata preview backup', async () => {
+    const root = await createWallpaperRoot();
+    const metadataPath = join(root, 'metadata.json');
+    await writeFile(metadataPath, JSON.stringify({
+      preview: 'previews/missing.jpg',
+    }));
+
+    await expect(buildWallpaper(root, {
+      title: 'T',
+      metadataFile: 'metadata.json',
+    })).rejects.toThrow(join(
+      root,
+      'metadata.json.assets',
+      'previews',
+      'missing.jpg',
+    ));
   });
 });

@@ -19,17 +19,23 @@ import {
 
 } from '../src/plugin/index';
 
-const { readFileMock, unwatchFileMock, watchFileMock } = vi.hoisted(() => ({
+const { mkdirMock, readFileMock, unwatchFileMock, watchFileMock, writeFileMock } = vi.hoisted(() => ({
+  mkdirMock: vi.fn(),
   readFileMock: vi.fn(async () => 'globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;'),
   unwatchFileMock: vi.fn(),
   watchFileMock: vi.fn(),
+  writeFileMock: vi.fn(),
 }));
 
 vi.mock('node:fs', () => ({
   unwatchFile: unwatchFileMock,
   watchFile: watchFileMock,
 }));
-vi.mock('node:fs/promises', () => ({ readFile: readFileMock }));
+vi.mock('node:fs/promises', () => ({
+  mkdir: mkdirMock,
+  readFile: readFileMock,
+  writeFile: writeFileMock,
+}));
 
 // ---------------------------------------------------------------------------
 // Property builders
@@ -317,7 +323,7 @@ describe('wallpaperEnginePlugin', () => {
     expect(source).toBe(JSON.stringify(project));
   });
 
-  it('merges output, metadata file, defined options, and generated core in order', async () => {
+  it('syncs editor state before merging file, options, and generated core', async () => {
     readFileMock
       .mockResolvedValueOnce(JSON.stringify({
         file: 'old.html',
@@ -380,7 +386,7 @@ describe('wallpaperEnginePlugin', () => {
     expect(project).toEqual({
       description: 'option',
       visibility: 'previous-visibility',
-      workshopid: 'file-id',
+      workshopid: 'previous-id',
       version: 7,
       approved: false,
       futureNumber: 0,

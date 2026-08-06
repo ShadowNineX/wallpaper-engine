@@ -9,6 +9,16 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+### Fixed
+
+- Made configured metadata files self-initializing and synchronized Workshop
+  identity, version, editor state, and unknown top-level fields from the
+  previous output before Vite cleans it. Matching editor preview bytes are now
+  synchronized under `<metadataFile>.assets/<preview>` so deleting output or
+  cloning the checked-in sources still produces the published preview exactly.
+  Metadata and preview backup paths that overlap `build.outDir` are rejected
+  before Vite cleanup can erase the preservation source.
+
 ## [1.3.0] - 2026-08-04
 
 ### Added

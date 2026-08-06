@@ -270,9 +270,14 @@ export interface WallpaperEnginePluginOptions {
    */
   metadata?: WallpaperProjectMetadata;
   /**
-   * JSON file containing a flat top-level metadata/state object. Relative
-   * paths are resolved from Vite's final project root. Generated `file`,
-   * `title`, `type`, and `general` fields always take precedence.
+   * JSON file containing a flat top-level metadata/state object. The file is
+   * created when missing and synchronized with Wallpaper Engine-managed state
+   * from the previous output before Vite cleans it. Referenced preview bytes
+   * are synchronized under `<metadataFile>.assets/<preview>` so clean clones
+   * can reproduce editor previews. Relative paths are resolved from Vite's
+   * final project root; the metadata file and resolved preview backup must
+   * remain outside the final `build.outDir`. Generated `file`, `title`, `type`,
+   * and `general` fields always take precedence.
    *
    * @example
    * metadataFile: 'wallpaper-engine.metadata.json'
@@ -538,7 +543,6 @@ type JsonObject = Record<string, unknown>;
 
 interface CapturedPreview {
   fileName: string;
-  path: string;
   source: Uint8Array;
 }
 
@@ -546,6 +550,7 @@ interface PreservationState {
   finalPreviewFileName?: string;
   outDir: string;
   preview?: CapturedPreview;
+  previewBackupPath?: string;
   schemeColor?: WallpaperColorProperty;
   project: JsonObject;
   publicPreviewFileName?: string;
@@ -573,15 +578,15 @@ function previewToRestore(
     return;
 
   const capturedPreview = state.preview;
-  if (
-    capturedPreview?.path === finalPreview
-    && capturedPreview.fileName === finalPreviewFileName
-  ) {
+  if (capturedPreview?.fileName === finalPreviewFileName) {
     return capturedPreview;
   }
   if (state.write) {
+    const backupHint = state.previewBackupPath === undefined
+      ? ''
+      : `, or the metadata preview backup at "${state.previewBackupPath}"`;
     throw new Error(
-      `Wallpaper Engine preview "${finalPreview}" is not available in the Vite bundle, publicDir, or the previous output. Place it under publicDir at "${finalPreviewFileName}" before building.`,
+      `Wallpaper Engine preview "${finalPreview}" is not available in the Vite bundle, publicDir, the previous output${backupHint}. Place it under publicDir at "${finalPreviewFileName}" before building.`,
     );
   }
 }
@@ -600,18 +605,30 @@ async function capturePreservationState(
   const metadataPath = metadataFileOption === undefined
     ? undefined
     : path.resolve(config.root, metadataFileOption);
+  if (metadataPath !== undefined) {
+    assertPreservationPathOutsideOutput(
+      path,
+      outDir,
+      metadataPath,
+      'metadata file',
+    );
+  }
   const [previousProject, metadataFile] = await Promise.all([
-    readJsonObject(fs.readFile, projectPath, false),
+    readJsonObject(fs.readFile, projectPath),
     metadataPath === undefined
       ? undefined
-      : readJsonObject(fs.readFile, metadataPath, true),
+      : readJsonObject(fs.readFile, metadataPath),
   ]);
-  const project = mergePreservationSources(
+  const synchronizedMetadata = synchronizeMetadataFile(
     previousProject,
     metadataFile,
+  );
+  const project = mergePreservationSources(
+    previousProject,
+    synchronizedMetadata,
     metadata,
   );
-  const preview = await capturePreviousPreview(
+  const previousPreview = await capturePreviousPreview(
     fs,
     path,
     outDir,
@@ -629,6 +646,39 @@ async function capturePreservationState(
       projectPath,
     ).fileName;
   }
+  const previewBackup = metadataPath === undefined
+    || finalPreviewFileName === undefined
+    ? undefined
+    : resolveMetadataPreviewBackup(
+        path,
+        metadataPath,
+        finalPreviewFileName,
+      );
+  if (previewBackup !== undefined) {
+    assertPreservationPathOutsideOutput(
+      path,
+      outDir,
+      previewBackup.absolutePath,
+      'metadata preview backup',
+    );
+  }
+  const previousPreviewMatches = previousPreview !== undefined
+    && previousPreview.fileName === finalPreviewFileName;
+  const preview = previousPreviewMatches
+    ? previousPreview
+    : await captureMetadataPreviewBackup(fs, previewBackup);
+
+  if (metadataPath !== undefined && config.build.write) {
+    if (previousPreviewMatches && previewBackup !== undefined) {
+      await writeMetadataPreviewBackup(
+        fs,
+        path,
+        previewBackup,
+        previousPreview.source,
+      );
+    }
+    await writeMetadataFile(fs, path, metadataPath, synchronizedMetadata);
+  }
   const publicDir = config.publicDir === ''
     ? undefined
     : path.resolve(config.root, config.publicDir);
@@ -644,6 +694,7 @@ async function capturePreservationState(
     finalPreviewFileName,
     outDir,
     preview,
+    previewBackupPath: previewBackup?.absolutePath,
     project,
     publicPreviewFileName,
     schemeColor: preservedSchemeColor(previousProject),
@@ -705,7 +756,6 @@ async function capturePreviousPreview(
   try {
     return {
       fileName: resolvedPreview.fileName,
-      path: previewPath,
       source: await fs.readFile(resolvedPreview.absolutePath),
     };
   }
@@ -714,6 +764,78 @@ async function capturePreviousPreview(
       return;
     throw new Error(
       `Unable to read Wallpaper Engine preview "${resolvedPreview.absolutePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+interface ResolvedPreviewBackup {
+  absolutePath: string;
+  fileName: string;
+}
+
+function assertPreservationPathOutsideOutput(
+  path: typeof NodePath,
+  outDir: string,
+  preservationPath: string,
+  description: string,
+): void {
+  const relative = path.relative(outDir, preservationPath);
+  const isInsideOutput = relative === ''
+    || (
+      relative !== '..'
+      && !relative.startsWith(`..${path.sep}`)
+      && !path.isAbsolute(relative)
+    );
+  if (isInsideOutput) {
+    throw new RangeError(
+      `Wallpaper Engine ${description} "${preservationPath}" must be outside Vite build.outDir "${outDir}" so output cleanup cannot delete preserved state.`,
+    );
+  }
+}
+
+function resolveMetadataPreviewBackup(
+  path: typeof NodePath,
+  metadataPath: string,
+  previewFileName: string,
+): ResolvedPreviewBackup {
+  const root = `${metadataPath}.assets`;
+  return resolveProjectFile(path, root, previewFileName, metadataPath);
+}
+
+async function captureMetadataPreviewBackup(
+  fs: typeof NodeFsPromises,
+  backup: ResolvedPreviewBackup | undefined,
+): Promise<CapturedPreview | undefined> {
+  if (backup === undefined)
+    return;
+  try {
+    return {
+      fileName: backup.fileName,
+      source: await fs.readFile(backup.absolutePath),
+    };
+  }
+  catch (error) {
+    if (isFileNotFound(error))
+      return;
+    throw new Error(
+      `Unable to read Wallpaper Engine preview backup "${backup.absolutePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+async function writeMetadataPreviewBackup(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  backup: ResolvedPreviewBackup,
+  source: Uint8Array,
+): Promise<void> {
+  try {
+    await fs.mkdir(path.dirname(backup.absolutePath), { recursive: true });
+    await fs.writeFile(backup.absolutePath, source);
+  }
+  catch (error) {
+    throw new Error(
+      `Unable to write Wallpaper Engine preview backup "${backup.absolutePath}": ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 }
@@ -770,23 +892,64 @@ function mergePreservationSources(
   return project;
 }
 
+const AUTHOR_METADATA_KEYS = new Set<keyof WallpaperProjectMetadata>([
+  'contentrating',
+  'description',
+  'preview',
+  'ratingsex',
+  'ratingviolence',
+  'tags',
+  'visibility',
+]);
+
+function synchronizeMetadataFile(
+  previousProject: JsonObject | undefined,
+  metadataFile: JsonObject | undefined,
+): JsonObject {
+  const synchronized = { ...metadataFile };
+  const previousMetadata = mergePreservationSources(
+    previousProject,
+    undefined,
+    undefined,
+  );
+  for (const [key, value] of Object.entries(previousMetadata)) {
+    if (AUTHOR_METADATA_KEYS.has(key as keyof WallpaperProjectMetadata)
+      && Object.hasOwn(synchronized, key)) {
+      continue;
+    }
+    synchronized[key] = value;
+  }
+  return synchronized;
+}
+
+async function writeMetadataFile(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  filePath: string,
+  metadata: JsonObject,
+): Promise<void> {
+  try {
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, `${JSON.stringify(metadata, null, '\t')}\n`);
+  }
+  catch (error) {
+    throw new Error(
+      `Unable to write Wallpaper Engine metadata "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 async function readJsonObject(
   readFile: typeof NodeFsPromises.readFile,
   filePath: string,
-  required: boolean,
 ): Promise<JsonObject | undefined> {
   let source: string;
   try {
     source = await readFile(filePath, 'utf8');
   }
   catch (error) {
-    if (isFileNotFound(error)) {
-      if (!required)
-        return;
-      throw new Error(
-        `Wallpaper Engine metadata file not found: "${filePath}".`,
-      );
-    }
+    if (isFileNotFound(error))
+      return;
     throw new Error(
       `Unable to read Wallpaper Engine metadata "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
     );
