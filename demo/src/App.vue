@@ -122,6 +122,7 @@ const rawAudio = new Float32Array(128);
 const smoothedAudio = new Float32Array(128);
 const particles: Particle[] = [];
 const prismSparks: PrismSpark[] = [];
+const PRISM_BAR_COUNT = 56;
 let bassEnergyBaseline = 0;
 let previousBassEnergy = 0;
 let pendingPrismBurst = 0;
@@ -387,6 +388,14 @@ function sampleAudio(index: number, time: number): number {
   return Math.max(real, idle);
 }
 
+function samplePrismBarLevel(index: number, time: number): number {
+  const audioIndex = Math.round((index / (PRISM_BAR_COUNT - 1)) * 63);
+  const mirrorIndex = 127 - audioIndex;
+  return Math.sqrt(
+    (sampleAudio(audioIndex, time) + sampleAudio(mirrorIndex, time)) / 2,
+  );
+}
+
 function drawBarsVisualizer(
   context: CanvasRenderingContext2D,
   width: number,
@@ -396,17 +405,13 @@ function drawBarsVisualizer(
   glow: RgbColor,
 ): void {
   const uiScale = getUiScale(width, height);
-  const count = 56;
+  const count = PRISM_BAR_COUNT;
   const floor = height * 0.92;
   const span = width * 0.72;
   const start = (width - span) / 2;
   const slot = span / count;
   for (let index = 0; index < count; index++) {
-    const audioIndex = Math.round((index / (count - 1)) * 63);
-    const mirrorIndex = 127 - audioIndex;
-    const level = Math.sqrt(
-      (sampleAudio(audioIndex, time) + sampleAudio(mirrorIndex, time)) / 2,
-    );
+    const level = samplePrismBarLevel(index, time);
     const barHeight = 5 * uiScale + level * height * 0.19;
     const barWidth = Math.max(1, slot * 0.54);
     const x = start + index * slot;
@@ -432,7 +437,7 @@ function spawnPrismSparks(
   intensity: number,
 ): void {
   const uiScale = getUiScale(width, height);
-  const count = 56;
+  const count = PRISM_BAR_COUNT;
   const floor = height * 0.92;
   const span = width * 0.72;
   const start = (width - span) / 2;
@@ -444,11 +449,7 @@ function spawnPrismSparks(
 
   for (let index = 0; index < burstSize; index++) {
     const barIndex = Math.floor(randomUnit() * count);
-    const audioIndex = Math.round((barIndex / (count - 1)) * 63);
-    const mirrorIndex = 127 - audioIndex;
-    const level = Math.sqrt(
-      (sampleAudio(audioIndex, time) + sampleAudio(mirrorIndex, time)) / 2,
-    );
+    const level = samplePrismBarLevel(barIndex, time);
     const barHeight = 5 * uiScale + level * height * 0.19;
     const direction = (barIndex / (count - 1) - 0.5) * 2;
     const life = 0.28 + randomUnit() * 0.42;
@@ -628,30 +629,23 @@ function drawVisualizer(
   drawRingVisualizer(context, width, height, time, accent, glow);
 }
 
-function drawScene(time: number, deltaSeconds: number): void {
-  const element = canvas.value;
-  if (!element) return;
-  const context = element.getContext("2d");
-  if (!context) return;
-  const ratio = Math.min(devicePixelRatio || 1, 2);
-  const width = element.width / ratio;
-  const height = element.height / ratio;
-  context.setTransform(ratio, 0, 0, ratio, 0, 0);
-  context.clearRect(0, 0, width, height);
-  const uiScale = getUiScale(width, height);
-
+function smoothAudioFrame(): void {
   for (let index = 0; index < 128; index++) {
     const current = smoothedAudio[index] ?? 0;
     smoothedAudio[index] = current + ((rawAudio[index] ?? 0) - current) * 0.18;
   }
-  ensureParticles();
+}
 
-  const accent = parseHex(effectiveAccent.value);
-  const glow = parseHex(effectiveGlow.value);
-  const visualAccent =
-    visualStyle.value === "bars" ? ensurePrismContrast(accent) : accent;
-  const visualGlow =
-    visualStyle.value === "bars" ? ensurePrismContrast(glow) : glow;
+function drawSceneParticles(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  time: number,
+  deltaSeconds: number,
+  accent: RgbColor,
+  glow: RgbColor,
+): void {
+  const uiScale = getUiScale(width, height);
   const bass = sampleAudio(4, time) + sampleAudio(68, time);
   context.globalCompositeOperation = "lighter";
   for (const particle of particles) {
@@ -680,22 +674,68 @@ function drawScene(time: number, deltaSeconds: number): void {
     );
     context.fill();
   }
-  drawVisualizer(context, width, height, time, visualAccent, visualGlow);
+}
+
+function drawPrismEffects(
+  context: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  time: number,
+  deltaSeconds: number,
+  accent: RgbColor,
+  glow: RgbColor,
+): void {
+  const uiScale = getUiScale(width, height);
   if (visualStyle.value === "bars") {
     if (pendingPrismBurst > 0) {
       spawnPrismSparks(width, height, time, pendingPrismBurst);
       pendingPrismBurst = 0;
     }
-    drawPrismSparks(
-      context,
-      deltaSeconds,
-      uiScale,
-      visualAccent,
-      visualGlow,
-    );
-  } else if (prismSparks.length > 0 || pendingPrismBurst > 0) {
-    clearPrismSparks();
+    drawPrismSparks(context, deltaSeconds, uiScale, accent, glow);
+    return;
   }
+  if (prismSparks.length > 0 || pendingPrismBurst > 0) clearPrismSparks();
+}
+
+function drawScene(time: number, deltaSeconds: number): void {
+  const element = canvas.value;
+  if (!element) return;
+  const context = element.getContext("2d");
+  if (!context) return;
+  const ratio = Math.min(devicePixelRatio || 1, 2);
+  const width = element.width / ratio;
+  const height = element.height / ratio;
+  context.setTransform(ratio, 0, 0, ratio, 0, 0);
+  context.clearRect(0, 0, width, height);
+
+  smoothAudioFrame();
+  ensureParticles();
+
+  const accent = parseHex(effectiveAccent.value);
+  const glow = parseHex(effectiveGlow.value);
+  const visualAccent =
+    visualStyle.value === "bars" ? ensurePrismContrast(accent) : accent;
+  const visualGlow =
+    visualStyle.value === "bars" ? ensurePrismContrast(glow) : glow;
+  drawSceneParticles(
+    context,
+    width,
+    height,
+    time,
+    deltaSeconds,
+    accent,
+    glow,
+  );
+  drawVisualizer(context, width, height, time, visualAccent, visualGlow);
+  drawPrismEffects(
+    context,
+    width,
+    height,
+    time,
+    deltaSeconds,
+    visualAccent,
+    visualGlow,
+  );
   context.globalCompositeOperation = "source-over";
 }
 
