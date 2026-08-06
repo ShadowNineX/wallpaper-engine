@@ -81,7 +81,7 @@ Register host listeners immediately at module scope. Wallpaper Engine may send s
 
 By default, the Vite plugin injects the simulator during development and emits `project.json` during production builds. Set `devtools: false` to disable development injection.
 
-Written builds preserve prior top-level Workshop metadata and preview bytes while regenerating ordinary properties, localization, and audio configuration. When `metadataFile` is configured, editor preview bytes are also synchronized to the source-controlled `<metadataFile>.assets/<preview>` sidecar for clean-clone rebuilds. Configure Wallpaper Engine's browser color with `schemeColor`; when omitted, a valid editor-managed value from previous output is preserved.
+Written builds preserve prior top-level Workshop metadata and preview bytes while regenerating ordinary properties, localization, and audio configuration. When `metadataFile` is configured, editor preview bytes are also synchronized to the source-controlled sibling `<metadata stem>.assets/<preview>` sidecar for clean-clone rebuilds. Configure Wallpaper Engine's browser color with `schemeColor`; when omitted, a valid editor-managed value from previous output is preserved.
 
 ## Public entry points
 

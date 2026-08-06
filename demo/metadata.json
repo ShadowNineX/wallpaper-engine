@@ -1,0 +1,16 @@
+{
+	"contentrating": "Everyone",
+	"description": "[h1]Aether // Reactive Desktop[/h1]\n\nAether is the official test and showcase wallpaper for the open-source [b]wallpaper-engine[/b] TypeScript\nproject. It demonstrates the project’s typed host APIs, Vite plugin, property system, runtime helpers, media\nintegration, and development simulator in a complete Wallpaper Engine web wallpaper.\n\nSource code and project documentation:\n[url=https://github.com/ShadowNineX/wallpaper-engine]github.com/ShadowNineX/wallpaper-engine[/url]\n\n[h2]About the Wallpaper[/h2]\n\nA calm, futuristic desktop centered around an audio-reactive crystalline monolith, layered aurora ribbons,\ndrifting particles, and a deep atmospheric starfield.\n\nMusic brings the scene to life: bass moves the surrounding ribbons and strengthens the crystal’s glow,\nmidrange reveals its internal facets and reflections, and treble energizes the fine light threads and stars.\nThe response is smoothly damped for visible movement without frantic rotation or harsh percussion flashes.\n\n[h2]Features[/h2]\n\n[list]\n[*][b]Audio-reactive crystal scene[/b] with separate bass, midrange, and treble responses\n[*][b]Three visualizer styles:[/b] Silk Wave, Prism Bars, and Halo Ring\n[*][b]Now-playing display[/b] with track information, timeline, and animated album artwork\n[*][b]Artwork-derived colors[/b] that can automatically tint the wallpaper\n[*][b]Custom backgrounds[/b] using an image, video, random directory, or timed gallery\n[*][b]Customizable appearance[/b] with background, accent, and secondary glow colors\n[*][b]Adjustable audio sensitivity, animation speed, and particle density[/b]\n[*][b]12-hour or 24-hour clock[/b] with optional seconds\n[*][b]Responsive layout[/b] for 16:9, ultrawide, 4K, portrait, and smaller displays\n[*]Automatically respects Wallpaper Engine playback pausing\n[/list]\n\n[h2]Recommended Setup[/h2]\n\nFor the full effect, make sure audio recording is enabled in Wallpaper Engine. Start with the default [b]Silk\nWave[/b] visualizer and adjust [b]Audio sensitivity[/b] until the crystal and aurora respond comfortably to\nyour system volume.\n\nThe audio visualizer, clock, media display, and album-art color sampling can each be disabled independently.\n\n[h2]Background Options[/h2]\n\nChoose the generated Aether atmosphere or personalize the wallpaper with:\n\n[list]\n[*]A custom image\n[*]A custom video\n[*]A randomly selected image or video directory\n[*]A rotating image or video gallery with an adjustable interval\n[/list]\n\nThis wallpaper is primarily maintained as a real-world integration test and example for the project, but it is\nalso designed to work as a polished everyday desktop.\n\nIssues, feedback, and contributions are welcome on GitHub:\n[url=https://github.com/ShadowNineX/wallpaper-engine]ShadowNineX/wallpaper-engine[/url]",
+	"preview": "preview.jpg",
+	"ratingsex": "none",
+	"ratingviolence": "none",
+	"snapshotformat": -1,
+	"snapshotoverlay": "",
+	"tags": [
+		"Abstract"
+	],
+	"version": 3,
+	"visibility": "public",
+	"workshopid": "3777477065",
+	"workshopurl": "steam://url/CommunityFilePage/3777477065"
+}

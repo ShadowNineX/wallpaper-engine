@@ -358,7 +358,7 @@ describe('wallpaperEnginePlugin', () => {
     const plugin = wallpaperEnginePlugin({
       title: 'Generated',
       file: 'generated.html',
-      metadataFile: 'wallpaper-engine.metadata.json',
+      metadataFile: 'metadata.json',
       metadata: {
         description: 'option',
         tags: [],

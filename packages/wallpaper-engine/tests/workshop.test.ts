@@ -217,7 +217,7 @@ describe('steam Workshop project preservation', () => {
     const previewBytes = new Uint8Array([9, 8, 7, 6]);
     await mkdir(join(root, 'public', 'previews'), { recursive: true });
     await writeFile(
-      join(root, 'wallpaper-engine.metadata.json'),
+      join(root, 'metadata.json'),
       JSON.stringify({
         description: 'File description',
         preview: 'previews/clean.png',
@@ -231,7 +231,7 @@ describe('steam Workshop project preservation', () => {
 
     await buildWallpaper(root, {
       title: 'Clean clone',
-      metadataFile: 'wallpaper-engine.metadata.json',
+      metadataFile: 'metadata.json',
       metadata: { description: 'Option description', tags: [] },
     });
 
@@ -257,7 +257,7 @@ describe('steam Workshop project preservation', () => {
   it('rebuilds editor metadata and nested preview bytes after deleting all output', async () => {
     const root = await createWallpaperRoot();
     const outDir = join(root, 'dist');
-    const metadataPath = join(root, 'config', 'metadata.json');
+    const metadataPath = join(root, 'config', 'project.state.json');
     const previewBytes = new Uint8Array([137, 80, 78, 71, 0, 255, 17]);
     await mkdir(join(outDir, 'previews', 'workshop'), { recursive: true });
     await writeFile(join(outDir, 'project.json'), JSON.stringify({
@@ -277,7 +277,7 @@ describe('steam Workshop project preservation', () => {
 
     const options: WallpaperEnginePluginOptions = {
       title: 'Reproducible wallpaper',
-      metadataFile: 'config/metadata.json',
+      metadataFile: 'config/project.state.json',
     };
     await buildWallpaper(root, options);
 
@@ -292,7 +292,7 @@ describe('steam Workshop project preservation', () => {
       ...await readFile(join(
         root,
         'config',
-        'metadata.json.assets',
+        'project.state.assets',
         'previews',
         'workshop',
         'editor.png',
@@ -345,7 +345,7 @@ describe('steam Workshop project preservation', () => {
     expect([
       ...await readFile(join(
         root,
-        'metadata.json.assets',
+        'metadata.assets',
         'previews',
         'editor.jpg',
       )),
@@ -485,7 +485,7 @@ describe('steam Workshop project preservation', () => {
 
   it('rejects a metadata preview backup inside output before cleanup', async () => {
     const root = await createWallpaperRoot();
-    const outDir = join(root, 'metadata.json.assets');
+    const outDir = join(root, 'metadata.assets');
     const projectPath = join(outDir, 'project.json');
     const metadataPath = join(root, 'metadata.json');
     const metadata = JSON.stringify({ preview: 'preview.jpg' });
@@ -499,7 +499,7 @@ describe('steam Workshop project preservation', () => {
         title: 'Unsafe sidecar overlap',
         metadataFile: 'metadata.json',
       },
-      { outDir: 'metadata.json.assets' },
+      { outDir: 'metadata.assets' },
     )).rejects.toThrow('metadata preview backup');
 
     expect(await readFile(projectPath, 'utf8')).toBe('{}');
@@ -567,12 +567,12 @@ describe('steam Workshop project preservation', () => {
 
   it('rejects a non-object explicitly configured metadata file', async () => {
     const root = await createWallpaperRoot();
-    const metadataPath = join(root, 'wallpaper-engine.metadata.json');
+    const metadataPath = join(root, 'metadata.json');
     await writeFile(metadataPath, 'null');
 
     await expect(buildWallpaper(root, {
       title: 'T',
-      metadataFile: 'wallpaper-engine.metadata.json',
+      metadataFile: 'metadata.json',
     })).rejects.toThrow(metadataPath);
   });
 
@@ -593,7 +593,7 @@ describe('steam Workshop project preservation', () => {
       title: 'T',
       metadataFile: 'metadata.json',
     })).rejects.toThrow('Unsafe preview path');
-    await expect(lstat(join(root, 'metadata.json.assets'))).rejects.toMatchObject({
+    await expect(lstat(join(root, 'metadata.assets'))).rejects.toMatchObject({
       code: 'ENOENT',
     });
   });
@@ -619,7 +619,7 @@ describe('steam Workshop project preservation', () => {
       metadataFile: 'metadata.json',
     })).rejects.toThrow(join(
       root,
-      'metadata.json.assets',
+      'metadata.assets',
       'previews',
       'missing.jpg',
     ));

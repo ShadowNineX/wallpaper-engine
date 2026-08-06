@@ -46,7 +46,7 @@ interface WallpaperEnginePluginOptions {
 | `title` | Required generated project title |
 | `schemeColor` | Color.js input normalized into the reserved index-free `general.properties.schemecolor`; explicit configuration overrides preserved editor state |
 | `metadata` | Defined author fields override metadata-file and previous-output values |
-| `metadataFile` | Auto-created non-null, non-array top-level JSON object outside `build.outDir`; synchronizes editor state and preview bytes under `<metadataFile>.assets/<preview>` for portable builds |
+| `metadataFile` | Auto-created non-null, non-array top-level JSON object outside `build.outDir`; synchronizes editor state and preview bytes under the sibling `<metadata stem>.assets/<preview>` directory for portable builds |
 | `projectLink` | Creates/validates a persistent link only when `build.write` is true |
 | `minify` | Build output defaults to minified JSON; `false` uses tab indentation |
 | `supportsAudioProcessing` | Defined value overrides direct-call detection; only true emits the general flag |

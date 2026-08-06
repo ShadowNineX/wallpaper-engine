@@ -273,14 +273,15 @@ export interface WallpaperEnginePluginOptions {
    * JSON file containing a flat top-level metadata/state object. The file is
    * created when missing and synchronized with Wallpaper Engine-managed state
    * from the previous output before Vite cleans it. Referenced preview bytes
-   * are synchronized under `<metadataFile>.assets/<preview>` so clean clones
-   * can reproduce editor previews. Relative paths are resolved from Vite's
-   * final project root; the metadata file and resolved preview backup must
-   * remain outside the final `build.outDir`. Generated `file`, `title`, `type`,
-   * and `general` fields always take precedence.
+   * are synchronized under the sibling `<metadata basename>.assets/<preview>`
+   * directory so clean clones can reproduce editor previews. Relative paths
+   * are resolved from Vite's final project root; the metadata file and
+   * resolved preview backup must remain outside the final `build.outDir`.
+   * Generated `file`, `title`, `type`, and `general` fields always take
+   * precedence.
    *
    * @example
-   * metadataFile: 'wallpaper-engine.metadata.json'
+   * metadataFile: 'metadata.json'
    */
   metadataFile?: string;
   /**
@@ -798,7 +799,8 @@ function resolveMetadataPreviewBackup(
   metadataPath: string,
   previewFileName: string,
 ): ResolvedPreviewBackup {
-  const root = `${metadataPath}.assets`;
+  const parsed = path.parse(metadataPath);
+  const root = path.join(parsed.dir, `${parsed.name}.assets`);
   return resolveProjectFile(path, root, previewFileName, metadataPath);
 }
 

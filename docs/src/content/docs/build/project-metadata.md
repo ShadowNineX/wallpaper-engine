@@ -30,7 +30,7 @@ wallpaperEnginePlugin({
 | `localization` | Localization map | Labels written under `general.localization` |
 | `supportsAudioProcessing` | `boolean` | Defined value overrides bundle-call detection |
 | `metadata` | `WallpaperProjectMetadata` | Source-controlled description, preview, tags, ratings, and visibility |
-| `metadataFile` | `string` | Auto-created, synchronized top-level JSON object plus a `<metadataFile>.assets/` preview sidecar, resolved from Vite's final project root |
+| `metadataFile` | `string` | Auto-created, synchronized top-level JSON object plus a sibling `<metadata stem>.assets/` preview sidecar, resolved from Vite's final project root |
 | `projectLink` | `WallpaperProjectLinkOptions` | Persistent link to written output; see [Project Links](../project-links/) |
 | `minify` | `boolean` | Build output defaults to minified JSON; `false` uses tab indentation |
 | `devtools` | `boolean` | Development overlay; defaults to `true`, always omitted from production |
@@ -86,7 +86,7 @@ Unknown top-level fields survive from previous output or a metadata file unless 
 ```ts
 wallpaperEnginePlugin({
   title: 'Night Sky',
-  metadataFile: 'wallpaper-engine.metadata.json',
+  metadataFile: 'metadata.json',
 });
 ```
 
@@ -97,11 +97,11 @@ The metadata file and each resolved sidecar preview must remain outside Vite's f
 When the synchronized final preview path matches a preview captured from previous output, the same pre-clean step writes its exact bytes beneath a sibling directory named by appending `.assets` to the complete metadata filename. The project-relative preview path is retained below that directory. For example:
 
 ```text
-config/wallpaper-engine.metadata.json
-config/wallpaper-engine.metadata.json.assets/previews/editor.jpg
+config/metadata.json
+config/metadata.assets/previews/editor.jpg
 ```
 
-This convention applies only when `metadataFile` is configured and `build.write` is true. Check in both the JSON file and its `.assets/` directory. A metadata file at another path gets its own adjacent `<metadataFile>.assets/` directory; no global cache or `dist` file is consulted by a clean clone.
+This convention applies only when `metadataFile` is configured and `build.write` is true. Check in both the JSON file and its sidecar directory. The sidecar replaces the metadata filename's final extension with `.assets`: `metadata.json` uses `metadata.assets/`, while `project.state.json` uses `project.state.assets/`. No global cache or `dist` file is consulted by a clean clone.
 
 An existing file must contain valid JSON with a non-null, non-array top-level object. Unreadable, malformed, wrong-shaped, or unwritable metadata fails before output cleanup rather than silently discarding publishing state. Generated core keys are ignored during project generation even if an existing metadata file contains them.
 
@@ -118,7 +118,7 @@ Backslashes are normalized for preview lookup and emitted asset filenames, but t
 1. An asset already emitted into the Vite bundle at the final path.
 2. A matching file under Vite's final `publicDir`.
 3. The previous build output, captured before Vite cleans `outDir`.
-4. The matching `<metadataFile>.assets/<preview>` sidecar.
+4. The matching `<metadata stem>.assets/<preview>` sidecar.
 
 Bundle and `publicDir` sources retain output precedence. Otherwise the plugin prefers a matching current capture over the persistent sidecar, synchronizes that capture into the sidecar, and emits the selected bytes back to the same normalized relative path. It does not decode, resize, or re-encode the preview. A changed higher-priority preview path never relabels bytes captured under a different path.
 
@@ -126,7 +126,7 @@ Bundle and `publicDir` sources retain output precedence. Otherwise the plugin pr
 Metadata and prior preview state are read during Vite configuration, before output cleanup. Unsafe paths, unreadable metadata or preview backups, and filesystem inspection failures stop the build before destructive cleanup. Preview paths are normalized and confined independently beneath both `outDir` and the metadata sidecar directory. If the final preview is referenced but unavailable from bundle, public directory, captured output, or the configured sidecar, the written build fails instead of emitting a broken project.
 :::
 
-A clean clone or CI job has no previous output. With `metadataFile`, check in `<metadataFile>.assets/<preview>` after one synchronization build. Alternatively, keep the preview under `publicDir` at the exact final path or explicitly emit/configure an asset whose final bundle `fileName` exactly matches `metadata.preview`.
+A clean clone or CI job has no previous output. With `metadataFile`, check in `<metadata stem>.assets/<preview>` after one synchronization build. Alternatively, keep the preview under `publicDir` at the exact final path or explicitly emit/configure an asset whose final bundle `fileName` exactly matches `metadata.preview`.
 
 The build lifecycle follows Vite's resolved `root`, `publicDir`, `build.outDir`, and `build.write` configuration. See [Vite's build guide](https://vite.dev/guide/build.html) for those host-owned settings.
 

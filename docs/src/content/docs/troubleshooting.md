@@ -39,7 +39,7 @@ description: Diagnose listener timing, build metadata, previews, Steam links, co
 
 **Symptom:** The build reports invalid JSON, a non-object top level, a filesystem error, or an overlap with `build.outDir` for configured metadata.
 
-**Cause:** `metadataFile` paths resolve from Vite's final project root. A missing file is created automatically, but an existing file must have a non-null, non-array top-level object and must be readable and writable. The metadata file and resolved `<metadataFile>.assets/<preview>` backup must stay outside the final output directory so Vite cleanup cannot delete them. Nested values are accepted, while source precedence merges top-level keys shallowly.
+**Cause:** `metadataFile` paths resolve from Vite's final project root. A missing file is created automatically, but an existing file must have a non-null, non-array top-level object and must be readable and writable. The metadata file and resolved sibling `<metadata stem>.assets/<preview>` backup must stay outside the final output directory so Vite cleanup cannot delete them. Nested values are accepted, while source precedence merges top-level keys shallowly.
 
 **Fix:** Correct the path, permissions, and JSON. Move overlapping metadata and its sidecar outside `build.outDir`; do not disable output cleanup or remove the option to bypass state preservation. Recover the author/editor metadata first. See [Project Metadata](../build/project-metadata/).
 
@@ -57,7 +57,7 @@ description: Diagnose listener timing, build metadata, previews, Steam links, co
 
 **Cause:** The final metadata references bytes that none of the allowed sources can provide. A clean clone cannot rely on prior `dist` state.
 
-**Fix:** Put the file under the final `publicDir` path, emit it through Vite, or restore `<metadataFile>.assets/<preview>`. If the previous output should own it, recover the missing file and run one synchronization build, then check in the generated metadata JSON and sidecar. The plugin fails instead of emitting broken metadata.
+**Fix:** Put the file under the final `publicDir` path, emit it through Vite, or restore `<metadata stem>.assets/<preview>`. If the previous output should own it, recover the missing file and run one synchronization build, then check in the generated metadata JSON and sidecar. The plugin fails instead of emitting broken metadata.
 
 ## Steam projects directory cannot be discovered
 

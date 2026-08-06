@@ -14,7 +14,7 @@ The build plugin supports two preservation sources: source-controlled metadata f
 | `general.properties.schemecolor` | Author/build, then editor fallback | Source-owned `schemeColor`; a valid previous editor property is preserved only when the option and source schema key are absent |
 | `description`, `preview`, `tags`, ratings, visibility | Author/build | `metadata` or a checked-in `metadataFile` |
 | Unknown Workshop/editor top-level fields | Wallpaper Engine editor | Preserved previous `project.json` or checked-in metadata file after review |
-| Preview image bytes | Author/editor | Checked-in `<metadataFile>.assets/<preview>`, Vite `publicDir`, emitted asset, or previous linked output |
+| Preview image bytes | Author/editor | Checked-in `<metadata stem>.assets/<preview>`, Vite `publicDir`, emitted asset, or previous linked output |
 | `project.json` in `outDir` | Generated artifact | Never hand-maintain as the only source of truth |
 
 Generated core and ordinary `general` fields replace editor copies. The `schemeColor` option emits the special index-free `general.properties.schemecolor`; otherwise a valid editor-managed value and other top-level fields can round-trip through previous output.
@@ -25,7 +25,7 @@ A clean clone has no previous output to preserve:
 
 1. Install dependencies from the repository root.
 2. Configure and check in a metadata JSON file. The first written build creates it automatically when missing; a fresh clone then restores the synchronized state from that file.
-3. Check in the adjacent `<metadataFile>.assets/` directory produced by a synchronization build. You may instead keep the preview under Vite's `publicDir` at the exact preview path or emit an asset whose final bundle `fileName` matches `metadata.preview`.
+3. Check in the adjacent `<metadata stem>.assets/` directory produced by a synchronization build. You may instead keep the preview under Vite's `publicDir` at the exact preview path or emit an asset whose final bundle `fileName` matches `metadata.preview`.
 4. Configure `projectLink` if this machine should expose output to Wallpaper Engine.
 5. Run the written Vite build.
 6. Open the linked project in Wallpaper Engine and verify it before publishing.
@@ -33,14 +33,14 @@ A clean clone has no previous output to preserve:
 ```ts
 wallpaperEnginePlugin({
   title: 'Night Sky',
-  metadataFile: 'wallpaper-engine.metadata.json',
+  metadataFile: 'metadata.json',
   projectLink: {
     name: 'night-sky',
   },
 });
 ```
 
-`wallpaper-engine.metadata.json` is a top-level object. Nested object and array values are accepted, but source precedence merges only top-level keys:
+`metadata.json` is a top-level object. Nested object and array values are accepted, but source precedence merges only top-level keys:
 
 ```json
 {
@@ -50,14 +50,14 @@ wallpaperEnginePlugin({
 }
 ```
 
-For that example, an editor preview at `preview.jpg` is persisted as `wallpaper-engine.metadata.json.assets/preview.jpg`. A nested path such as `previews/workshop/editor.png` becomes `wallpaper-engine.metadata.json.assets/previews/workshop/editor.png`.
+For that example, an editor preview at `preview.jpg` is persisted as `metadata.assets/preview.jpg`. A nested path such as `previews/workshop/editor.png` becomes `metadata.assets/previews/workshop/editor.png`.
 
 ## Existing project flow
 
 For a project already edited through Wallpaper Engine:
 
 1. Point `projectLink.name` at a new or already-correct link to the Vite output.
-2. Before cleanup, the plugin reads the existing output `project.json`, synchronizes its editor-managed and unknown top-level state into `metadataFile`, captures its referenced preview bytes, and writes matching bytes beneath `<metadataFile>.assets/`.
+2. Before cleanup, the plugin reads the existing output `project.json`, synchronizes its editor-managed and unknown top-level state into `metadataFile`, captures its referenced preview bytes, and writes matching bytes beneath `<metadata stem>.assets/`.
 3. The build regenerates core fields and `general` while preserving other top-level editor state. Existing author-owned fields in the metadata file and explicit Vite metadata options keep their precedence.
 4. The preview is restored byte-for-byte when it is not already supplied by the bundle or public directory; a clean later build can use the checked-in sidecar even after all output is deleted.
 5. Wallpaper Engine sees the rebuilt files through the same persistent link.
@@ -91,7 +91,7 @@ The plugin does not generally merge `general`; it regenerates that object. Confi
 
 ## Preview restoration rules
 
-The final `preview` path comes from metadata precedence. The build then accepts a matching bundled asset, `publicDir` file, byte capture from previous output, or `<metadataFile>.assets/<preview>` file. Bundle and public files retain their existing output precedence. A matching current output capture is synchronized into the sidecar before cleanup. If a higher-priority metadata source changes the path, old preview bytes are not silently written under the new name.
+The final `preview` path comes from metadata precedence. The build then accepts a matching bundled asset, `publicDir` file, byte capture from previous output, or `<metadata stem>.assets/<preview>` file. Bundle and public files retain their existing output precedence. A matching current output capture is synchronized into the sidecar before cleanup. If a higher-priority metadata source changes the path, old preview bytes are not silently written under the new name.
 
 This prevents a stale editor preview from being mislabeled. Put the new preview at its final project-relative path before building.
 
@@ -100,7 +100,7 @@ This prevents a stale editor preview from being mislabeled. Put the new preview 
 Previous output is an optimization and editor-state preservation source, not a reproducibility guarantee. CI and fresh clones should succeed from source alone:
 
 - Check in the auto-created metadata file so editor-owned top-level values survive clean builds.
-- Check in the adjacent `<metadataFile>.assets/` preview created by one synchronization build, or generate the preview through Vite's public/bundle inputs.
+- Check in the adjacent `<metadata stem>.assets/` preview created by one synchronization build, or generate the preview through Vite's public/bundle inputs.
 - Set `projectLink` only where linking is intended; omit it in portable CI configuration or provide a valid environment-specific absolute parent.
 - Never depend on an ignored `dist/project.json` as the only copy of publication metadata.
 
