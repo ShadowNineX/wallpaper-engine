@@ -23,6 +23,9 @@ export interface WallpaperProjectLinkOptions {
 }
 
 const DISCOVERY_ERROR = 'Unable to find Wallpaper Engine\'s projects/myprojects directory. Set projectLink.projectsDirectory explicitly.';
+// Windows junction creation briefly exposes a real directory. Serialize work
+// per destination so another call cannot inspect that transient state.
+const projectLinkOperations = new Map<string, Promise<void>>();
 
 /**
  * Find the local Wallpaper Engine `projects/myprojects` directory.
@@ -100,23 +103,48 @@ export async function ensureWallpaperProjectLink(
     requestedProjectsDirectory,
   );
   const normalizePath = pathNormalizerForPlatform(nodeProcess.platform);
-  const { linkPath, targetPath } = await prepareProjectLinkPaths(
-    fs,
-    path,
-    requestedTargetPath,
-    projectsDirectory,
-    options.name,
-    normalizePath,
-  );
-  const created = await createProjectLink(
-    fs,
-    path,
-    linkPath,
-    targetPath,
-    directoryLinkTypeForPlatform(nodeProcess.platform),
-    normalizePath,
-  );
-  return { created, linkPath, targetPath };
+  const linkPath = path.join(projectsDirectory, options.name);
+  const operationKey = normalizePath(linkPath);
+  return await serializeProjectLinkOperation(operationKey, async () => {
+    const targetPath = await prepareProjectLinkTarget(
+      fs,
+      path,
+      requestedTargetPath,
+      linkPath,
+      normalizePath,
+    );
+    const created = await createProjectLink(
+      fs,
+      path,
+      linkPath,
+      targetPath,
+      directoryLinkTypeForPlatform(nodeProcess.platform),
+      normalizePath,
+    );
+    return { created, linkPath, targetPath };
+  });
+}
+
+async function serializeProjectLinkOperation<T>(
+  key: string,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const previous = projectLinkOperations.get(key);
+  let release!: () => void;
+  const current = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  projectLinkOperations.set(key, current);
+  try {
+    if (previous !== undefined)
+      await previous;
+    return await operation();
+  }
+  finally {
+    release();
+    if (projectLinkOperations.get(key) === current)
+      projectLinkOperations.delete(key);
+  }
 }
 
 function assertAutomaticDiscoverySupported(
@@ -283,15 +311,13 @@ async function resolveProjectsDirectory(
   }
 }
 
-async function prepareProjectLinkPaths(
+async function prepareProjectLinkTarget(
   fs: NodeFs,
   path: NodePath,
   requestedTargetPath: string,
-  projectsDirectory: string,
-  name: string,
+  linkPath: string,
   normalizePath: PathNormalizer,
-): Promise<Pick<ProjectLinkResult, 'linkPath' | 'targetPath'>> {
-  const linkPath = path.join(projectsDirectory, name);
+): Promise<string> {
   assertPathsDoNotOverlap(path, requestedTargetPath, linkPath, normalizePath);
   try {
     await fs.mkdir(requestedTargetPath, { recursive: true });
@@ -308,7 +334,7 @@ async function prepareProjectLinkPaths(
     throw linkFilesystemError(linkPath, requestedTargetPath, error);
   }
   assertPathsDoNotOverlap(path, targetPath, linkPath, normalizePath);
-  return { linkPath, targetPath };
+  return targetPath;
 }
 
 async function createProjectLink(

@@ -130,17 +130,23 @@ describe('ensureWallpaperProjectLink', () => {
     expect(await realpath(linkPath)).toBe(await realpath(join(root, 'dist')));
   });
 
-  it('accepts concurrent creation with one created result', async () => {
+  it('accepts a burst of concurrent creation with one created result', async () => {
     const root = await createTemporaryRoot('wallpaper-engine-race-');
     const projectsDirectory = await createProjectsDirectory(root);
     const options = { name: 'wallpaper', projectsDirectory };
+    const concurrency = 16;
 
-    const results = await Promise.all([
-      ensureWallpaperProjectLink(root, 'dist', true, options),
-      ensureWallpaperProjectLink(root, 'dist', true, options),
-    ]);
+    const results = await Promise.all(
+      Array.from(
+        { length: concurrency },
+        () => ensureWallpaperProjectLink(root, 'dist', true, options),
+      ),
+    );
+    const creationStates = results.map(result => result?.created);
 
-    expect(results.map(result => result?.created).sort()).toEqual([false, true]);
+    expect(creationStates.filter(created => created === true)).toHaveLength(1);
+    expect(creationStates.filter(created => created === false))
+      .toHaveLength(concurrency - 1);
     expect(await realpath(join(projectsDirectory, 'wallpaper')))
       .toBe(await realpath(join(root, 'dist')));
   });
