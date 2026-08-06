@@ -9,6 +9,8 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-06
+
 ### Fixed
 
 - Made configured metadata files self-initializing and synchronized Workshop
