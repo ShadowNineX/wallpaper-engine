@@ -8,7 +8,10 @@ import {
   watch,
   type CSSProperties,
 } from "vue";
-import type { WallpaperMediaPlaybackState } from "wallpaper-engine";
+import type {
+  WallpaperMediaPlaybackState,
+  WallpaperMediaPropertiesEvent,
+} from "wallpaper-engine";
 import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
 import {
   createAudioAnalyzer,
@@ -110,6 +113,7 @@ const playbackState = ref<WallpaperMediaPlaybackState>(
 );
 const timelinePosition = ref(0);
 const timelineDuration = ref(0);
+let mediaIdentity: string | undefined;
 
 const showDebugInfo = import.meta.env.DEV;
 const now = ref(new Date());
@@ -383,6 +387,16 @@ function clearPrismSparks(resetAnalyzer = false): void {
   audioDecayingPeakVolume.value = 0;
   audioBeat.value = 0;
   audioBpm.value = 0;
+}
+
+function createMediaIdentity(event: WallpaperMediaPropertiesEvent): string {
+  return JSON.stringify([
+    event.contentType,
+    event.title.trim().toLowerCase(),
+    event.artist.trim().toLowerCase(),
+    event.subTitle?.trim().toLowerCase() ?? "",
+    event.albumTitle?.trim().toLowerCase() ?? "",
+  ]);
 }
 
 function sampleAudio(index: number, time: number): number {
@@ -953,7 +967,12 @@ globalThis.wallpaperPropertyListener = {
 };
 
 globalThis.wallpaperRegisterMediaStatusListener((event) => {
+  const statusChanged = mediaEnabled.value !== event.enabled;
   mediaEnabled.value = event.enabled;
+  if (statusChanged) {
+    mediaIdentity = undefined;
+    clearPrismSparks(true);
+  }
   if (event.enabled) return;
   mediaTitle.value = "";
   mediaArtist.value = "";
@@ -973,6 +992,14 @@ globalThis.wallpaperRegisterMediaStatusListener((event) => {
 });
 
 globalThis.wallpaperRegisterMediaPropertiesListener((event) => {
+  const nextMediaIdentity = createMediaIdentity(event);
+  if (
+    mediaIdentity !== undefined
+    && mediaIdentity !== nextMediaIdentity
+  ) {
+    clearPrismSparks(true);
+  }
+  mediaIdentity = nextMediaIdentity;
   mediaTitle.value = event.title ?? "";
   mediaArtist.value = event.artist ?? "";
   mediaSubtitle.value = event.subTitle ?? "";
