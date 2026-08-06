@@ -92,6 +92,8 @@ wallpaperEnginePlugin({
 
 The path resolves from Vite's final `root`. Before a written build cleans the output directory, the plugin creates a missing file (including parent directories) and synchronizes non-generated fields from the previous `project.json`. Existing author-owned fields (`description`, `preview`, `tags`, ratings, and visibility) stay authoritative in the metadata file. Wallpaper Engine-managed and unknown fields are updated from the editor output, including `workshopid`, `workshopurl`, and `version`. This makes the file a source-controlled handoff for clean builds on another machine.
 
+The metadata file and each resolved sidecar preview must remain outside Vite's final `build.outDir`. Overlapping paths are rejected before output cleanup because Vite would otherwise delete the preservation source during the same build.
+
 When the synchronized final preview path matches a preview captured from previous output, the same pre-clean step writes its exact bytes beneath a sibling directory named by appending `.assets` to the complete metadata filename. The project-relative preview path is retained below that directory. For example:
 
 ```text

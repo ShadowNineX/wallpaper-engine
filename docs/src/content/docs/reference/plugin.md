@@ -46,7 +46,7 @@ interface WallpaperEnginePluginOptions {
 | `title` | Required generated project title |
 | `schemeColor` | Color.js input normalized into the reserved index-free `general.properties.schemecolor`; explicit configuration overrides preserved editor state |
 | `metadata` | Defined author fields override metadata-file and previous-output values |
-| `metadataFile` | Auto-created non-null, non-array top-level JSON object; synchronizes editor state and preview bytes under `<metadataFile>.assets/<preview>` for portable builds |
+| `metadataFile` | Auto-created non-null, non-array top-level JSON object outside `build.outDir`; synchronizes editor state and preview bytes under `<metadataFile>.assets/<preview>` for portable builds |
 | `projectLink` | Creates/validates a persistent link only when `build.write` is true |
 | `minify` | Build output defaults to minified JSON; `false` uses tab indentation |
 | `supportsAudioProcessing` | Defined value overrides direct-call detection; only true emits the general flag |
@@ -61,6 +61,7 @@ Generated `file`, `title`, `type`, and ordinary `general` fields replace preserv
 The plugin fails rather than accepting unsafe or ambiguous state:
 
 - Configured metadata file or preview backup unreadable, invalid JSON, non-object top level, or unwritable.
+- Metadata file or resolved preview backup overlapping `build.outDir`.
 - Unsafe absolute/traversing preview path.
 - Unreadable previous preview or public preview inspection failure.
 - Final written preview unavailable from bundle, public directory, captured output, or configured metadata sidecar.
@@ -69,7 +70,7 @@ The plugin fails rather than accepting unsafe or ambiguous state:
 - Link/output overlap, existing wrong destination, permissions, or filesystem failure.
 - Missing embedded devtools client when serve injection attempts to read package build output.
 
-Specific error classes include `TypeError` for wrong metadata/link option shape and `RangeError` for unsafe preview paths; filesystem and generation failures use `Error` with path context.
+Specific error classes include `TypeError` for wrong metadata/link option shape and `RangeError` for unsafe preview or preservation paths; filesystem and generation failures use `Error` with path context.
 
 ## Property builders
 

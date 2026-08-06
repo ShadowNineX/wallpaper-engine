@@ -37,11 +37,11 @@ description: Diagnose listener timing, build metadata, previews, Steam links, co
 
 ## Metadata file is malformed or unreadable
 
-**Symptom:** The build reports invalid JSON, a non-object top level, or a filesystem error for configured metadata.
+**Symptom:** The build reports invalid JSON, a non-object top level, a filesystem error, or an overlap with `build.outDir` for configured metadata.
 
-**Cause:** `metadataFile` paths resolve from Vite's final project root. A missing file is created automatically, but an existing file must have a non-null, non-array top-level object and must be readable and writable. Nested values are accepted, while source precedence merges top-level keys shallowly.
+**Cause:** `metadataFile` paths resolve from Vite's final project root. A missing file is created automatically, but an existing file must have a non-null, non-array top-level object and must be readable and writable. The metadata file and resolved `<metadataFile>.assets/<preview>` backup must stay outside the final output directory so Vite cleanup cannot delete them. Nested values are accepted, while source precedence merges top-level keys shallowly.
 
-**Fix:** Correct the path, permissions, and JSON. Do not remove the option merely to bypass a state-preservation failure; recover the author/editor metadata first. See [Project Metadata](../build/project-metadata/).
+**Fix:** Correct the path, permissions, and JSON. Move overlapping metadata and its sidecar outside `build.outDir`; do not disable output cleanup or remove the option to bypass state preservation. Recover the author/editor metadata first. See [Project Metadata](../build/project-metadata/).
 
 ## Preview path is unsafe
 

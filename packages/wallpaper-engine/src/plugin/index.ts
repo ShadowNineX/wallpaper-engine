@@ -275,8 +275,9 @@ export interface WallpaperEnginePluginOptions {
    * from the previous output before Vite cleans it. Referenced preview bytes
    * are synchronized under `<metadataFile>.assets/<preview>` so clean clones
    * can reproduce editor previews. Relative paths are resolved from Vite's
-   * final project root. Generated `file`, `title`, `type`, and `general`
-   * fields always take precedence.
+   * final project root; the metadata file and resolved preview backup must
+   * remain outside the final `build.outDir`. Generated `file`, `title`, `type`,
+   * and `general` fields always take precedence.
    *
    * @example
    * metadataFile: 'wallpaper-engine.metadata.json'
@@ -604,6 +605,14 @@ async function capturePreservationState(
   const metadataPath = metadataFileOption === undefined
     ? undefined
     : path.resolve(config.root, metadataFileOption);
+  if (metadataPath !== undefined) {
+    assertPreservationPathOutsideOutput(
+      path,
+      outDir,
+      metadataPath,
+      'metadata file',
+    );
+  }
   const [previousProject, metadataFile] = await Promise.all([
     readJsonObject(fs.readFile, projectPath),
     metadataPath === undefined
@@ -645,6 +654,14 @@ async function capturePreservationState(
         metadataPath,
         finalPreviewFileName,
       );
+  if (previewBackup !== undefined) {
+    assertPreservationPathOutsideOutput(
+      path,
+      outDir,
+      previewBackup.absolutePath,
+      'metadata preview backup',
+    );
+  }
   const previousPreviewMatches = previousPreview !== undefined
     && previousPreview.fileName === finalPreviewFileName;
   const preview = previousPreviewMatches
@@ -754,6 +771,26 @@ async function capturePreviousPreview(
 interface ResolvedPreviewBackup {
   absolutePath: string;
   fileName: string;
+}
+
+function assertPreservationPathOutsideOutput(
+  path: typeof NodePath,
+  outDir: string,
+  preservationPath: string,
+  description: string,
+): void {
+  const relative = path.relative(outDir, preservationPath);
+  const isInsideOutput = relative === ''
+    || (
+      relative !== '..'
+      && !relative.startsWith(`..${path.sep}`)
+      && !path.isAbsolute(relative)
+    );
+  if (isInsideOutput) {
+    throw new RangeError(
+      `Wallpaper Engine ${description} "${preservationPath}" must be outside Vite build.outDir "${outDir}" so output cleanup cannot delete preserved state.`,
+    );
+  }
 }
 
 function resolveMetadataPreviewBackup(

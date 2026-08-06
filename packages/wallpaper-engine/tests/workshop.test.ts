@@ -461,6 +461,51 @@ describe('steam Workshop project preservation', () => {
       });
   });
 
+  it('rejects a metadata file inside output before cleanup', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const projectPath = join(outDir, 'project.json');
+    const previousProject = JSON.stringify({
+      workshopid: 'preserved-id',
+      version: 12,
+    });
+    await mkdir(outDir);
+    await writeFile(projectPath, previousProject);
+
+    await expect(buildWallpaper(root, {
+      title: 'Unsafe overlap',
+      metadataFile: 'dist/metadata.json',
+    })).rejects.toThrow('metadata file');
+
+    expect(await readFile(projectPath, 'utf8')).toBe(previousProject);
+    await expect(lstat(join(outDir, 'metadata.json'))).rejects.toMatchObject({
+      code: 'ENOENT',
+    });
+  });
+
+  it('rejects a metadata preview backup inside output before cleanup', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'metadata.json.assets');
+    const projectPath = join(outDir, 'project.json');
+    const metadataPath = join(root, 'metadata.json');
+    const metadata = JSON.stringify({ preview: 'preview.jpg' });
+    await mkdir(outDir);
+    await writeFile(projectPath, '{}');
+    await writeFile(metadataPath, metadata);
+
+    await expect(buildWallpaper(
+      root,
+      {
+        title: 'Unsafe sidecar overlap',
+        metadataFile: 'metadata.json',
+      },
+      { outDir: 'metadata.json.assets' },
+    )).rejects.toThrow('metadata preview backup');
+
+    expect(await readFile(projectPath, 'utf8')).toBe('{}');
+    expect(await readFile(metadataPath, 'utf8')).toBe(metadata);
+  });
+
   it('syncs editor state without replacing source-owned metadata or option precedence', async () => {
     const root = await createWallpaperRoot();
     const outDir = join(root, 'dist');
