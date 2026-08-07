@@ -9,6 +9,8 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-08-07
+
 ### Added
 
 - Added `analyzeAudioFrame()` and `createAudioAnalyzer()` helpers for
@@ -24,10 +26,6 @@ migration); tags are used where they exist.
   rolling eight-second analysis window, evidence-based octave correction, and
   confirmed tempo transitions. Low-confidence non-silent passages now retain
   the last accepted BPM instead of flickering between a value and `0`.
-
-## [1.3.1] - 2026-08-06
-
-### Fixed
 
 - Made configured metadata files self-initializing and synchronized Workshop
   identity, version, editor state, and unknown top-level fields from the
@@ -204,7 +202,8 @@ migration); tags are used where they exist.
   canvas encoding, and FPS-limited animation loops.
 - Added an example wallpaper, automated tests, build configuration, and CI.
 
-[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.1.1...v1.2.0
 [1.1.1]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.1.0...v1.1.1
