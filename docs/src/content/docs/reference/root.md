@@ -59,7 +59,7 @@ Source: [`src/types/project.ts`](https://github.com/ShadowNineX/wallpaper-engine
 
 ```ts
 interface WallpaperPropertyListener {
-  applyUserProperties?: (properties: WallpaperUserProperties) => void;
+  applyUserProperties?: (properties: Partial<WallpaperUserProperties>) => void;
   applyGeneralProperties?: (properties: WallpaperGeneralProperties) => void;
   setPaused?: (isPaused: boolean) => void;
   userDirectoryFilesAddedOrChanged?: (
@@ -73,7 +73,7 @@ interface WallpaperPropertyListener {
 }
 ```
 
-The host contract is open-ended. Application callbacks inferred from a schema should use `Partial<WallpaperUserPropertiesOf<...>>` after narrowing because post-startup deliveries contain only changed keys.
+The host contract is open-ended. The default callback makes each key optional, even without TypeScript's `noUncheckedIndexedAccess` setting. Application callbacks inferred from a schema should use `Partial<WallpaperUserPropertiesOf<...>>` and guard each key because post-startup deliveries contain only changed keys.
 
 `WallpaperPluginListener.onPluginLoaded?: (name: string, version: string) => void` reports `led` or `cue` integration readiness.
 

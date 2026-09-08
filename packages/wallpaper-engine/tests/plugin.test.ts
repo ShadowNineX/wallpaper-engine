@@ -1,10 +1,14 @@
-import type { WallpaperProjectMetadata as RootWallpaperProjectMetadata } from '../src/index';
+import type {
+  WallpaperProjectMetadata as RootWallpaperProjectMetadata,
+  WallpaperPropertyListener,
+  WallpaperUserProperties,
+} from '../src/index';
 import type {
   WallpaperProjectMetadata,
   WallpaperUserPropertiesOf,
 } from '../src/plugin/index';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
   boolProperty,
@@ -19,9 +23,11 @@ import {
 
 } from '../src/plugin/index';
 
-const { mkdirMock, readFileMock, unwatchFileMock, watchFileMock, writeFileMock } = vi.hoisted(() => ({
+const { mkdirMock, readFileMock, realpathMock, statMock, unwatchFileMock, watchFileMock, writeFileMock } = vi.hoisted(() => ({
   mkdirMock: vi.fn(),
   readFileMock: vi.fn(async () => 'globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;'),
+  realpathMock: vi.fn(async (filePath: string) => filePath),
+  statMock: vi.fn(),
   unwatchFileMock: vi.fn(),
   watchFileMock: vi.fn(),
   writeFileMock: vi.fn(),
@@ -34,6 +40,8 @@ vi.mock('node:fs', () => ({
 vi.mock('node:fs/promises', () => ({
   mkdir: mkdirMock,
   readFile: readFileMock,
+  realpath: realpathMock,
+  stat: statMock,
   writeFile: writeFileMock,
 }));
 
@@ -216,6 +224,17 @@ describe('groupProperty', () => {
   });
 });
 
+describe('wallpaper property listener', () => {
+  it('types user-property updates as partial records', () => {
+    type ApplyUserProperties = NonNullable<
+      WallpaperPropertyListener['applyUserProperties']
+    >;
+
+    expectTypeOf<Parameters<ApplyUserProperties>[0]>()
+      .toEqualTypeOf<Partial<WallpaperUserProperties>>();
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Vite plugin — generateBundle output
 // ---------------------------------------------------------------------------
@@ -234,27 +253,51 @@ function runGenerateBundle(
   plugin: GenerateBundlePlugin,
   bundle: TestOutputBundle = {},
 ) {
-  let emitted: { fileName: string; source: string } | undefined;
+  const emitted: { fileName: string; source: string | Uint8Array }[] = [];
 
   (plugin.generateBundle as any).call(
     {
-      emitFile: (f: typeof emitted) => {
-        emitted = f;
+      emitFile: (file: { fileName: string; source: string | Uint8Array }) => {
+        emitted.push(file);
       },
     },
     {},
     bundle,
   );
-  if (!emitted)
+  const projectFile = emitted.find(file => file.fileName === 'project.json');
+  if (!projectFile || typeof projectFile.source !== 'string')
     throw new Error('emitFile was not called');
   return {
-    fileName: emitted.fileName,
-    source: emitted.source,
-    project: JSON.parse(emitted.source),
+    emitted,
+    fileName: projectFile.fileName,
+    source: projectFile.source,
+    project: JSON.parse(projectFile.source),
   };
 }
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
+
 describe('wallpaperEnginePlugin', () => {
+  beforeEach(() => {
+    mkdirMock.mockClear();
+    readFileMock.mockClear();
+    realpathMock.mockClear();
+    realpathMock.mockImplementation(async (filePath: string) => filePath);
+    statMock.mockClear();
+    unwatchFileMock.mockClear();
+    watchFileMock.mockClear();
+    writeFileMock.mockClear();
+  });
+
   it('emits a file named project.json', () => {
     const { fileName } = runGenerateBundle(
       wallpaperEnginePlugin({ title: 'T' }),
@@ -438,6 +481,160 @@ describe('wallpaperEnginePlugin', () => {
     expect(source).toBe(
       '{"file":"index.html","title":"T","type":"web","general":{"properties":{}}}',
     );
+  });
+
+  it('emits public previews when Vite public copying is disabled', async () => {
+    const preview = new Uint8Array([137, 80, 78, 71]);
+    readFileMock.mockClear();
+    statMock.mockClear();
+    readFileMock
+      .mockRejectedValueOnce(Object.assign(new Error('missing'), { code: 'ENOENT' }))
+      .mockResolvedValueOnce(preview as never);
+    statMock.mockResolvedValue({ isFile: () => true });
+    const plugin = wallpaperEnginePlugin({
+      title: 'T',
+      metadata: { preview: 'images/preview.png' },
+    });
+    if (typeof plugin.configResolved !== 'function')
+      throw new TypeError('configResolved hook is not callable');
+    await plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: 'public',
+      build: {
+        copyPublicDir: false,
+        outDir: 'dist',
+        rollupOptions: {},
+        write: true,
+      },
+    } as never);
+
+    const { emitted } = runGenerateBundle(plugin);
+    expect(emitted.find(file => file.fileName === 'images/preview.png'))
+      .toMatchObject({ source: preview });
+  });
+
+  it('rejects metadata junctions into the output before changing either file', async () => {
+    realpathMock.mockImplementation(async (filePath: string) => {
+      if (filePath.replaceAll('\\', '/').endsWith('/metadata-link.json'))
+        return join(dirname(filePath), 'dist', 'metadata.json');
+      return filePath;
+    });
+    const plugin = wallpaperEnginePlugin({
+      title: 'T',
+      metadataFile: 'metadata-link.json',
+    });
+    if (typeof plugin.configResolved !== 'function')
+      throw new TypeError('configResolved hook is not callable');
+
+    await expect(plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: '',
+      build: { outDir: 'dist', rollupOptions: {}, write: true },
+    } as never)).rejects.toThrow(/must be outside Vite build\.outDir/);
+
+    expect(readFileMock).not.toHaveBeenCalled();
+    expect(writeFileMock).not.toHaveBeenCalled();
+  });
+
+  it('refreshes preserved editor metadata before a watch rebuild cleanup', async () => {
+    readFileMock
+      .mockResolvedValueOnce(JSON.stringify({ description: 'first' }))
+      .mockResolvedValueOnce(JSON.stringify({ description: 'updated' }));
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (
+      typeof plugin.configResolved !== 'function'
+      || typeof plugin.watchChange !== 'function'
+    ) {
+      throw new TypeError('plugin lifecycle hooks are not callable');
+    }
+    await plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: '',
+      build: { outDir: 'dist', rollupOptions: {}, watch: {}, write: true },
+    } as never);
+
+    await plugin.watchChange.call({} as never, '/wallpaper/src/main.ts', {
+      event: 'update',
+    } as never);
+
+    expect(runGenerateBundle(plugin).project.description).toBe('updated');
+  });
+
+  it('serializes batched watch preservation captures', async () => {
+    readFileMock.mockResolvedValueOnce(JSON.stringify({ description: 'initial' }));
+    const firstRead = deferred<string>();
+    const secondRead = deferred<string>();
+    readFileMock
+      .mockImplementationOnce(() => firstRead.promise)
+      .mockImplementationOnce(() => secondRead.promise);
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (
+      typeof plugin.configResolved !== 'function'
+      || typeof plugin.watchChange !== 'function'
+    ) {
+      throw new TypeError('plugin lifecycle hooks are not callable');
+    }
+    await plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: '',
+      build: { outDir: 'dist', rollupOptions: {}, watch: {}, write: true },
+    } as never);
+
+    const firstCapture = plugin.watchChange.call(
+      {} as never,
+      '/wallpaper/src/first.ts',
+      { event: 'update' } as never,
+    );
+    const secondCapture = plugin.watchChange.call(
+      {} as never,
+      '/wallpaper/src/second.ts',
+      { event: 'update' } as never,
+    );
+    await vi.waitFor(() => expect(readFileMock).toHaveBeenCalledTimes(2));
+
+    firstRead.resolve(JSON.stringify({ description: 'stale' }));
+    await vi.waitFor(() => expect(readFileMock).toHaveBeenCalledTimes(3));
+    secondRead.resolve(JSON.stringify({ description: 'latest' }));
+    await Promise.all([firstCapture, secondCapture]);
+
+    expect(runGenerateBundle(plugin).project.description).toBe('latest');
+  });
+
+  it('rejects a failed watch capture without blocking the next capture', async () => {
+    readFileMock
+      .mockResolvedValueOnce(JSON.stringify({ description: 'initial' }))
+      .mockRejectedValueOnce(new Error('unreadable'))
+      .mockResolvedValueOnce(JSON.stringify({ description: 'recovered' }));
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (
+      typeof plugin.configResolved !== 'function'
+      || typeof plugin.watchChange !== 'function'
+    ) {
+      throw new TypeError('plugin lifecycle hooks are not callable');
+    }
+    await plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: '',
+      build: { outDir: 'dist', rollupOptions: {}, watch: {}, write: true },
+    } as never);
+
+    await expect(plugin.watchChange.call(
+      {} as never,
+      '/wallpaper/src/failed.ts',
+      { event: 'update' } as never,
+    )).rejects.toThrow('unreadable');
+    await plugin.watchChange.call(
+      {} as never,
+      '/wallpaper/src/recovered.ts',
+      { event: 'update' } as never,
+    );
+
+    expect(runGenerateBundle(plugin).project.description).toBe('recovered');
   });
 
   it('minifies project.json by default for builds', () => {

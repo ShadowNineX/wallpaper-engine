@@ -9,6 +9,7 @@ import ArrowCounterClockwise from '~icons/ph/arrow-counter-clockwise';
 import RefreshCw from '~icons/ph/arrows-clockwise';
 import CaretRight from '~icons/ph/caret-right';
 import { Button } from '@/components/ui/button';
+import CallbackStatus from '../components/CallbackStatus.vue';
 import PropertyRow from '../components/PropertyRow.vue';
 import { propDefs, tr } from '../config';
 import { useDevtoolsStore } from '../store';
@@ -63,30 +64,24 @@ const layout = computed(() => {
 </script>
 
 <template>
-  <div class="space-y-2.5">
-    <div class="flex items-center justify-between gap-3 px-0.5">
-      <div>
-        <h2 class="text-[11px] font-semibold text-we-text">
+  <div>
+    <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <h2 class="text-[15px] font-semibold tracking-[-0.01em] text-we-text">
           User properties
         </h2>
-        <p
-          class="mt-0.5 text-[11px]"
-          :class="
-            listenerCounts.property ? 'text-we-faint' : 'text-amber-300/90'
-          "
-        >
-          {{
-            listenerCounts.property
-              ? "Changes send only the edited property, just like Wallpaper Engine."
-              : "No wallpaperPropertyListener registered; changes cannot be delivered."
-          }}
-        </p>
+        <CallbackStatus
+          class="mt-1"
+          :ready="listenerCounts.property"
+          ready-label="Property listener registered"
+          missing-label="No property listener; changes cannot be delivered"
+        />
       </div>
-      <div class="flex shrink-0 items-center gap-1.5">
+      <div class="flex flex-wrap items-center gap-2">
         <Button
           size="sm"
           variant="outline"
-          class="h-8 gap-1.5 px-2.5 text-[11px]"
+          class="h-9 gap-1.5 px-3 text-[12px]"
           title="Restore every user property to its configured default"
           @click="store.resetPropertiesToDefaults()"
         >
@@ -96,7 +91,7 @@ const layout = computed(() => {
         <Button
           size="sm"
           variant="outline"
-          class="h-8 gap-1.5 px-2.5 text-[11px]"
+          class="h-9 gap-1.5 px-3 text-[12px]"
           title="Replay all initial property and runtime values"
           @click="store.deliverAllProperties()"
         >
@@ -108,14 +103,14 @@ const layout = computed(() => {
 
     <div
       v-if="layout.ungrouped.length === 0 && layout.groups.length === 0"
-      class="rounded-lg border border-dashed border-we-border p-5 text-center text-[11px] text-we-faint"
+      class="rounded-lg border border-dashed border-we-border p-6 text-center text-[12px] text-we-faint"
     >
       No user properties are configured for this wallpaper.
     </div>
 
     <div
       v-if="layout.ungrouped.length > 0"
-      class="space-y-2.5"
+      class="border-t border-we-border"
       data-ungrouped-properties
     >
       <PropertyRow
@@ -130,14 +125,14 @@ const layout = computed(() => {
       v-for="(group, groupIndex) in layout.groups"
       :key="group.key"
       :data-property-group="group.key"
-      class="overflow-hidden rounded-lg border border-we-border/80 bg-we-panel/45"
+      class="border-t border-we-border"
     >
       <button
         type="button"
         :aria-controls="`we-property-group-${groupIndex}`"
         :aria-expanded="openGroups.has(group.key)"
         data-property-group-toggle
-        class="flex w-full cursor-pointer select-none items-center gap-2 border-0 bg-transparent px-3 py-2.5 text-left text-[11px] font-semibold text-we-text transition-colors hover:bg-we-button-hover/40 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-we-accent/60"
+        class="flex w-full cursor-pointer select-none items-center gap-2 border-0 bg-transparent py-3 text-left text-[12px] font-semibold text-we-text transition-colors hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-we-primary"
         @click="toggleGroup(group.key)"
       >
         <CaretRight
@@ -159,7 +154,7 @@ const layout = computed(() => {
         "
       >
         <div class="min-h-0 overflow-hidden">
-          <div class="space-y-2.5 border-t border-we-border/70 p-2.5">
+          <div class="border-t border-we-border/70 pl-5">
             <PropertyRow
               v-for="[key, definition] in group.entries"
               :key="key"
@@ -168,7 +163,7 @@ const layout = computed(() => {
             />
             <p
               v-if="group.entries.length === 0"
-              class="px-1 py-2 text-[11px] text-we-faint"
+              class="py-3 text-[12px] text-we-faint"
             >
               No properties in this group.
             </p>

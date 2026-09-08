@@ -373,6 +373,8 @@ export function wallpaperEnginePlugin(
   let isServe = false;
   let cachedClientCode: Promise<string> | undefined;
   let preservationState: PreservationState | undefined;
+  let resolvedConfig: ResolvedConfig | undefined;
+  let watchCapture = Promise.resolve();
   const loadClientCode = (): Promise<string> => {
     cachedClientCode ??= (async () => {
       // Reads the bundled Vue UI asynchronously. Dynamic imports keep this
@@ -381,7 +383,9 @@ export function wallpaperEnginePlugin(
         import(/* @vite-ignore */ 'node:fs/promises'),
         import(/* @vite-ignore */ 'node:url'),
       ]);
-      const url = new URL('./devtools/client.js', import.meta.url);
+      // This is a Node-side file read, not a consumer browser asset. Builders
+      // may share this entry point with a wallpaper's runtime property schema.
+      const url = new URL(/* @vite-ignore */ './devtools/client.js', import.meta.url);
       return readFile(fileURLToPath(url), 'utf8');
     })();
     return cachedClientCode;
@@ -394,11 +398,13 @@ export function wallpaperEnginePlugin(
       isServe = config.command === 'serve';
       if (isServe)
         return;
-      return capturePreservationState(
-        config,
-        options.metadata,
-        options.metadataFile,
-      ).then(async (state) => {
+      resolvedConfig = config;
+      return (async () => {
+        const state = await capturePreservationState(
+          config,
+          options.metadata,
+          options.metadataFile,
+        );
         const link = await ensureWallpaperProjectLink(
           config.root,
           config.build.outDir,
@@ -411,7 +417,26 @@ export function wallpaperEnginePlugin(
             `[wallpaper-engine] linked ${link.linkPath} -> ${link.targetPath}`,
           );
         }
-      });
+      })();
+    },
+
+    async watchChange() {
+      // Vite clears build.outDir from its renderStart hook. Refresh state here
+      // so editor changes made between watch builds are captured first.
+      const config = resolvedConfig;
+      if (config?.build.watch) {
+        const capture = watchCapture
+          .catch(() => undefined)
+          .then(async () => {
+            preservationState = await capturePreservationState(
+              config,
+              options.metadata,
+              options.metadataFile,
+            );
+          });
+        watchCapture = capture;
+        await capture;
+      }
     },
 
     async configureServer(server) {
@@ -422,7 +447,7 @@ export function wallpaperEnginePlugin(
         import(/* @vite-ignore */ 'node:url'),
       ]);
       const clientPath = fileURLToPath(
-        new URL('./devtools/client.js', import.meta.url),
+        new URL(/* @vite-ignore */ './devtools/client.js', import.meta.url),
       );
       // Use stat-polling watchFile instead of chokidar: avoids Windows
       // path-normalisation mismatches (forward vs back slashes) and works
@@ -549,6 +574,7 @@ interface PreservationState {
   outDir: string;
   preview?: CapturedPreview;
   previewBackupPath?: string;
+  publicPreview?: CapturedPreview;
   schemeColor?: WallpaperColorProperty;
   project: JsonObject;
   publicPreviewFileName?: string;
@@ -574,6 +600,10 @@ function previewToRestore(
     && state.publicPreviewFileName === finalPreviewFileName;
   if (previewInBundle || previewInPublicDir)
     return;
+
+  const capturedPublicPreview = state.publicPreview;
+  if (capturedPublicPreview?.fileName === finalPreviewFileName)
+    return capturedPublicPreview;
 
   const capturedPreview = state.preview;
   if (capturedPreview?.fileName === finalPreviewFileName) {
@@ -604,7 +634,8 @@ async function capturePreservationState(
     ? undefined
     : path.resolve(config.root, metadataFileOption);
   if (metadataPath !== undefined) {
-    assertPreservationPathOutsideOutput(
+    await assertPreservationPathOutsideOutput(
+      fs,
       path,
       outDir,
       metadataPath,
@@ -653,7 +684,8 @@ async function capturePreservationState(
         finalPreviewFileName,
       );
   if (previewBackup !== undefined) {
-    assertPreservationPathOutsideOutput(
+    await assertPreservationPathOutsideOutput(
+      fs,
       path,
       outDir,
       previewBackup.absolutePath,
@@ -675,17 +707,24 @@ async function capturePreservationState(
         previousPreview.source,
       );
     }
-    await writeMetadataFile(fs, path, metadataPath, synchronizedMetadata);
+    await writeMetadataFile(
+      fs,
+      path,
+      metadataPath,
+      synchronizedMetadata,
+      metadataFile,
+    );
   }
   const publicDir = config.publicDir === ''
     ? undefined
     : path.resolve(config.root, config.publicDir);
-  const publicPreviewFileName = await findPublicPreviewFileName(
+  const publicPreview = await findPublicPreview(
     fs,
     path,
     publicDir,
     finalPreview,
     projectPath,
+    !config.build.write || config.build.copyPublicDir === false,
   );
 
   return {
@@ -693,8 +732,11 @@ async function capturePreservationState(
     outDir,
     preview,
     previewBackupPath: previewBackup?.absolutePath,
+    publicPreview: publicPreview?.captured,
     project,
-    publicPreviewFileName,
+    publicPreviewFileName: publicPreview?.captured === undefined
+      ? publicPreview?.fileName
+      : undefined,
     schemeColor: preservedSchemeColor(previousProject),
     write: config.build.write,
   };
@@ -771,13 +813,18 @@ interface ResolvedPreviewBackup {
   fileName: string;
 }
 
-function assertPreservationPathOutsideOutput(
+async function assertPreservationPathOutsideOutput(
+  fs: typeof NodeFsPromises,
   path: typeof NodePath,
   outDir: string,
   preservationPath: string,
   description: string,
-): void {
-  const relative = path.relative(outDir, preservationPath);
+): Promise<void> {
+  const [canonicalOutDir, canonicalPreservationPath] = await Promise.all([
+    canonicalizePath(fs, path, outDir),
+    canonicalizePath(fs, path, preservationPath),
+  ]);
+  const relative = path.relative(canonicalOutDir, canonicalPreservationPath);
   const isInsideOutput = relative === ''
     || (
       relative !== '..'
@@ -788,6 +835,35 @@ function assertPreservationPathOutsideOutput(
     throw new RangeError(
       `Wallpaper Engine ${description} "${preservationPath}" must be outside Vite build.outDir "${outDir}" so output cleanup cannot delete preserved state.`,
     );
+  }
+}
+
+async function canonicalizePath(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  absolutePath: string,
+): Promise<string> {
+  const missingSegments: string[] = [];
+  let current = absolutePath;
+  while (true) {
+    try {
+      return path.join(await fs.realpath(current), ...missingSegments.reverse());
+    }
+    catch (error) {
+      if (!isFileNotFound(error)) {
+        throw new Error(
+          `Unable to resolve Wallpaper Engine preservation path "${absolutePath}": ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+      const parent = path.dirname(current);
+      if (parent === current) {
+        throw new Error(
+          `Unable to resolve Wallpaper Engine preservation path "${absolutePath}": no existing ancestor was found.`,
+        );
+      }
+      missingSegments.push(path.basename(current));
+      current = parent;
+    }
   }
 }
 
@@ -829,6 +905,8 @@ async function writeMetadataPreviewBackup(
   source: Uint8Array,
 ): Promise<void> {
   try {
+    if (await fileHasBytes(fs, backup.absolutePath, source))
+      return;
     await fs.mkdir(path.dirname(backup.absolutePath), { recursive: true });
     await fs.writeFile(backup.absolutePath, source);
   }
@@ -839,13 +917,14 @@ async function writeMetadataPreviewBackup(
   }
 }
 
-async function findPublicPreviewFileName(
+async function findPublicPreview(
   fs: typeof NodeFsPromises,
   path: typeof NodePath,
   publicDir: string | undefined,
   previewPath: unknown,
   projectPath: string,
-): Promise<string | undefined> {
+  capture: boolean,
+): Promise<{ captured?: CapturedPreview; fileName: string } | undefined> {
   if (
     publicDir === undefined
     || typeof previewPath !== 'string'
@@ -861,9 +940,24 @@ async function findPublicPreviewFileName(
     projectPath,
   );
   try {
-    return (await fs.stat(publicPreview.absolutePath)).isFile()
-      ? publicPreview.fileName
-      : undefined;
+    if (!(await fs.stat(publicPreview.absolutePath)).isFile())
+      return;
+    if (!capture)
+      return { fileName: publicPreview.fileName };
+    try {
+      return {
+        captured: {
+          fileName: publicPreview.fileName,
+          source: await fs.readFile(publicPreview.absolutePath),
+        },
+        fileName: publicPreview.fileName,
+      };
+    }
+    catch (error) {
+      throw new Error(
+        `Unable to read Wallpaper Engine preview "${publicPreview.absolutePath}" for output: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
   }
   catch (error) {
     if (isFileNotFound(error))
@@ -926,7 +1020,10 @@ async function writeMetadataFile(
   path: typeof NodePath,
   filePath: string,
   metadata: JsonObject,
+  existingMetadata: JsonObject | undefined,
 ): Promise<void> {
+  if (existingMetadata !== undefined && jsonValuesEqual(existingMetadata, metadata))
+    return;
   try {
     await fs.mkdir(path.dirname(filePath), { recursive: true });
     await fs.writeFile(filePath, `${JSON.stringify(metadata, null, '\t')}\n`);
@@ -936,6 +1033,41 @@ async function writeMetadataFile(
       `Unable to write Wallpaper Engine metadata "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+async function fileHasBytes(
+  fs: typeof NodeFsPromises,
+  filePath: string,
+  source: Uint8Array,
+): Promise<boolean> {
+  try {
+    const existing = await fs.readFile(filePath);
+    return existing.length === source.length
+      && existing.every((value, index) => value === source[index]);
+  }
+  catch (error) {
+    if (isFileNotFound(error))
+      return false;
+    throw new Error(
+      `Unable to read Wallpaper Engine preview backup "${filePath}": ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
+function jsonValuesEqual(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right))
+    return true;
+  if (Array.isArray(left) && Array.isArray(right)) {
+    return left.length === right.length
+      && left.every((value, index) => jsonValuesEqual(value, right[index]));
+  }
+  if (!isJsonObject(left) || !isJsonObject(right))
+    return false;
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+  return leftKeys.length === rightKeys.length
+    && leftKeys.every(key => Object.hasOwn(right, key)
+      && jsonValuesEqual(left[key], right[key]));
 }
 
 async function readJsonObject(

@@ -8,7 +8,7 @@ import {
   useWindowSize,
 } from '@vueuse/core';
 import { storeToRefs } from 'pinia';
-import { computed, nextTick, ref, shallowRef } from 'vue';
+import { computed, nextTick, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import Maximize2 from '~icons/ph/arrows-out-simple';
 import Settings2 from '~icons/ph/gear-six-duotone';
 import Minus from '~icons/ph/minus';
@@ -17,7 +17,7 @@ import SlidersHorizontal from '~icons/ph/sliders-horizontal-duotone';
 import AudioLines from '~icons/ph/waveform-duotone';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Toaster } from '@/components/ui/sonner';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AUDIO_MODE_LABELS, audioState } from './audio';
 
 import { cfg } from './config';
@@ -30,7 +30,7 @@ import 'vue-sonner/style.css';
 
 type TabId = 'properties' | 'general' | 'audio' | 'media';
 
-const devtoolsBuildLabel = `v${__WE_DEVTOOLS_VERSION__} · ${__WE_DEVTOOLS_GIT_VERSION__}`;
+const devtoolsBuildLabel = `v${__WE_DEVTOOLS_VERSION__}`;
 const devtoolsBuildTitle = `Devtools ${__WE_DEVTOOLS_VERSION__} (git ${__WE_DEVTOOLS_GIT_VERSION__})`;
 
 const tabs = [
@@ -47,26 +47,16 @@ const tabComponents = {
   media: MediaTab,
 } as const;
 
-type TabStatusTone = 'positive' | 'neutral' | 'warning';
 interface TabStatus {
   label: string;
-  tone: TabStatusTone;
+  tone: 'positive' | 'neutral' | 'warning';
 }
 
-const statusToneClasses = {
-  positive: {
-    dot: 'bg-emerald-400',
-    text: 'text-emerald-300/90',
-  },
-  neutral: {
-    dot: 'bg-we-border-strong',
-    text: 'text-we-faint',
-  },
-  warning: {
-    dot: 'bg-amber-400',
-    text: 'text-amber-300/90',
-  },
-} as const satisfies Record<TabStatusTone, { dot: string; text: string }>;
+const statusColors = {
+  positive: 'text-emerald-300',
+  neutral: 'text-we-faint',
+  warning: 'text-amber-300',
+};
 
 const store = useDevtoolsStore();
 const { listenerCounts, mediaActive } = storeToRefs(store);
@@ -151,6 +141,8 @@ function cancelPanelSizeAnimation(): void {
   animation?.cancel();
 }
 
+onBeforeUnmount(cancelPanelSizeAnimation);
+
 function animatePanelHeight(fromHeight: number): void {
   const element = panel.value;
   if (
@@ -209,6 +201,29 @@ function onTabEnter(): void {
   if (fromHeight !== undefined)
     animatePanelHeight(fromHeight);
 }
+
+watch(() => audioState.mode, async (_mode, _previousMode, onCleanup) => {
+  if (active.value !== 'audio' || collapsed.value)
+    return;
+
+  // Capture the visible height before Vue replaces the preset's controls.
+  const fromHeight = panel.value?.getBoundingClientRect().height;
+  cancelPanelSizeAnimation();
+  let cancelled = false;
+  onCleanup(() => {
+    cancelled = true;
+  });
+  await nextTick();
+  if (
+    !cancelled
+    && fromHeight !== undefined
+    && active.value === 'audio'
+    && !collapsed.value
+    && !isViewportResizing.value
+  ) {
+    animatePanelHeight(fromHeight);
+  }
+});
 
 function clampPanelAxis(
   position: number,
@@ -287,7 +302,9 @@ function toggleCollapsed(): void {
   <div
     ref="panel"
     :style="dragStyle"
-    class="fixed z-2147483647 flex max-h-[calc(100dvh-24px)] max-w-[calc(100dvw-24px)] flex-col overflow-hidden rounded-xl border border-[#4b5570] bg-we-panel text-xs text-we-text shadow-[0_24px_80px_rgba(3,7,18,0.72),0_0_42px_rgba(91,134,237,0.1)]"
+    role="region"
+    aria-label="Wallpaper Engine Devtools"
+    class="we-devtools-panel fixed z-2147483647 flex max-h-[calc(100dvh-24px)] max-w-[calc(100dvw-24px)] flex-col overflow-hidden rounded-xl border border-we-border bg-we-panel text-[13px] text-we-text shadow-[0_18px_54px_rgba(3,7,18,0.64)] motion-reduce:transition-none"
     :class="[
       collapsed ? 'w-[320px]' : 'w-110',
       isDragging || isViewportResizing
@@ -297,23 +314,19 @@ function toggleCollapsed(): void {
   >
     <header
       ref="header"
-      class="flex shrink-0 cursor-move items-center gap-3 border-[#49516a] bg-[linear-gradient(120deg,#121b31_0%,#241638_58%,#151726_100%)] px-3 py-2.5 select-none"
+      class="flex shrink-0 cursor-move items-center gap-2.5 border-we-border bg-we-surface px-3.5 py-3 select-none"
       :class="{ 'border-b': !collapsed }"
     >
-      <div
-        class="flex size-9 shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(135deg,rgba(91,134,237,0.3),rgba(139,92,246,0.24))] text-[#92b2ff] ring-1 ring-white/10 shadow-[0_0_20px_rgba(91,134,237,0.16)]"
-      >
-        <SlidersHorizontal class="size-4.5" />
-      </div>
+      <SlidersHorizontal class="size-4 shrink-0 text-we-primary" aria-hidden="true" />
       <div class="min-w-0 flex-1">
         <div
-          class="text-[13px] font-semibold leading-4 tracking-[-0.01em] text-we-text"
+          class="text-[13px] font-semibold leading-5 tracking-[-0.01em] text-we-text"
           :class="collapsed ? 'whitespace-normal' : 'truncate'"
         >
           Wallpaper Engine Devtools
         </div>
         <div
-          class="flex min-w-0 items-center gap-1.5 text-[10px] leading-4 text-we-faint"
+          class="flex min-w-0 items-center gap-1.5 text-[11px] leading-4 text-we-faint"
         >
           <span v-if="cfg.title" class="min-w-0 truncate">
             {{ cfg.title }}
@@ -321,7 +334,7 @@ function toggleCollapsed(): void {
           <span v-if="cfg.title" aria-hidden="true" class="shrink-0">·</span>
           <span
             data-devtools-version
-            class="shrink-0 font-mono text-[9px] tracking-tight"
+            class="shrink-0 font-mono text-[10px] tracking-tight"
             :aria-label="devtoolsBuildTitle"
             :title="devtoolsBuildTitle"
           >
@@ -333,7 +346,10 @@ function toggleCollapsed(): void {
         type="button"
         class="we-icon-button shrink-0"
         :aria-label="collapsed ? 'Expand devtools' : 'Collapse devtools'"
+        :aria-expanded="!collapsed"
+        aria-controls="we-devtools-content"
         :title="collapsed ? 'Expand' : 'Collapse'"
+        @pointerdown.stop
         @click="toggleCollapsed"
       >
         <Maximize2 v-if="collapsed" class="size-3.5" />
@@ -342,7 +358,10 @@ function toggleCollapsed(): void {
     </header>
 
     <div
-      class="grid min-h-0 flex-1 transition-[grid-template-rows] duration-250 ease-in-out"
+      id="we-devtools-content"
+      :inert="collapsed"
+      :aria-hidden="collapsed"
+      class="grid min-h-0 flex-1 transition-[grid-template-rows] duration-250 ease-in-out motion-reduce:transition-none"
       :class="collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'"
     >
       <div class="flex h-full min-h-0 flex-col overflow-hidden">
@@ -352,7 +371,8 @@ function toggleCollapsed(): void {
           @update:model-value="changeTab"
         >
           <TabsList
-            class="grid h-auto w-full shrink-0 grid-cols-4 gap-1 rounded-none border-b border-we-border bg-[#11141b]/95 px-2 py-2"
+            aria-label="Simulator controls"
+            class="grid h-auto w-full shrink-0 grid-cols-4 gap-1 rounded-none border-b border-we-border bg-we-surface p-2"
           >
             <TabsTrigger
               v-for="tab in tabs"
@@ -360,34 +380,35 @@ function toggleCollapsed(): void {
               :value="tab.id"
               :aria-label="`${tab.label}: ${tabStatuses[tab.id].label}`"
               :title="`${tab.label}: ${tabStatuses[tab.id].label}`"
-              class="group relative flex h-14 min-w-0 flex-col items-center justify-center gap-0.5 rounded-md border border-transparent bg-transparent px-1 text-[11px] font-medium text-we-faint shadow-none transition-all hover:bg-we-btn/70 hover:text-we-text data-[state=active]:border-we-primary/40 data-[state=active]:bg-[linear-gradient(145deg,rgba(91,134,237,0.18),rgba(139,92,246,0.1))] data-[state=active]:text-white data-[state=active]:shadow-[inset_0_-2px_0_rgba(91,134,237,0.75)]"
+              class="group relative flex h-16 min-w-0 flex-col items-center justify-center gap-0.5 rounded-lg border border-transparent bg-transparent px-1 text-[12px] font-medium text-we-faint shadow-none transition-colors hover:bg-we-btn/40 hover:text-we-text focus-visible:z-10 data-[state=active]:border-we-primary/30 data-[state=active]:bg-we-primary/10 data-[state=active]:text-we-text"
             >
-              <component :is="tab.icon" class="mb-0.5 size-4" />
+              <component :is="tab.icon" class="size-4" aria-hidden="true" />
               <span class="max-w-full truncate leading-4">{{ tab.label }}</span>
               <span
                 data-tab-status
-                class="flex max-w-full items-center gap-1 text-[9px] leading-3 font-normal"
-                :class="statusToneClasses[tabStatuses[tab.id].tone].text"
+                class="flex max-w-full items-center gap-1 text-[10px] leading-3 font-normal"
+                :class="statusColors[tabStatuses[tab.id].tone]"
               >
-                <span
-                  class="size-1.5 shrink-0 rounded-full"
-                  :class="statusToneClasses[tabStatuses[tab.id].tone].dot"
-                />
+                <span class="size-1 shrink-0 rounded-full bg-current" aria-hidden="true" />
                 <span class="truncate">{{ tabStatuses[tab.id].label }}</span>
               </span>
             </TabsTrigger>
           </TabsList>
 
           <ScrollArea type="hover" class="min-h-0 flex-1">
-            <main class="p-3 pr-4">
-              <Transition
-                name="we-tab-content"
-                mode="out-in"
-                @enter="onTabEnter"
+            <Transition
+              name="we-tab-content"
+              mode="out-in"
+              @enter="onTabEnter"
+            >
+              <TabsContent
+                :key="active"
+                :value="active"
+                class="p-4 pr-5 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-we-primary"
               >
-                <component :is="tabComponents[active]" :key="active" />
-              </Transition>
-            </main>
+                <component :is="tabComponents[active]" />
+              </TabsContent>
+            </Transition>
           </ScrollArea>
         </Tabs>
       </div>

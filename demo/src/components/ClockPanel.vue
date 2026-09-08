@@ -50,7 +50,7 @@ const timezoneText = Intl.DateTimeFormat()
 
 <template>
   <Transition name="clock-shift">
-    <section v-if="show" class="clock-block">
+    <section v-if="show" class="clock-block" aria-label="Local time">
       <div class="clock-kicker">
         <span>LOCAL TIME</span>
         <span class="hairline" />
@@ -69,4 +69,3 @@ const timezoneText = Intl.DateTimeFormat()
     </section>
   </Transition>
 </template>
-

@@ -66,6 +66,30 @@ async function loadStore() {
 }
 
 describe('devtools property state', () => {
+  it('continues startup delivery and reports callback failures without throwing', async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const error = new Error('broken wallpaper');
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const applyGeneralProperties = vi.fn(() => {
+      throw error;
+    });
+    const setPaused = vi.fn();
+    listenerFns.property = {
+      applyUserProperties: () => { throw error; },
+      applyGeneralProperties,
+      setPaused,
+    };
+    const store = useDevtoolsStore();
+
+    expect(() => store.deliverAllProperties()).not.toThrow();
+    expect(applyGeneralProperties).toHaveBeenCalledWith({ fps: 60 });
+    expect(setPaused).toHaveBeenCalledWith(false);
+    expect(log).toHaveBeenCalledTimes(2);
+    expect(toast).toHaveBeenCalledWith('Some wallpaper callbacks failed. Check the browser console for details.');
+    expect(() => store.deliverProperty('speed')).not.toThrow();
+    expect(toast).toHaveBeenCalledWith('Wallpaper callback failed. Check the browser console for details.');
+  });
+
   it('creates host-shaped runtime values for every supported property', async () => {
     const { useDevtoolsStore } = await loadStore();
     const store = useDevtoolsStore();
@@ -332,7 +356,7 @@ describe('devtools media state', () => {
     store.mediaProps.title = 'Changed';
     store.mediaTimeline.position = 45;
 
-    store.deliverAllMedia();
+    expect(store.deliverAllMedia()).toBe(true);
 
     expect(status).toHaveBeenCalledWith({ enabled: true });
     expect(props).toHaveBeenCalledWith(expect.objectContaining({ title: 'Changed' }));
@@ -354,12 +378,45 @@ describe('devtools media state', () => {
       second,
     );
 
-    useDevtoolsStore().deliverAllMedia();
+    expect(useDevtoolsStore().deliverAllMedia()).toBe(false);
 
     expect(second).toHaveBeenCalledWith({ enabled: false });
     expect(consoleError).toHaveBeenCalledWith(
       '[WE Dev] listener threw',
       expect.any(Error),
     );
+  });
+
+  it('reports failed manual media sends without skipping later listeners', async () => {
+    const { useDevtoolsStore } = await loadStore();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const receivingListener = vi.fn();
+    const delivered = useDevtoolsStore().fanout([
+      () => { throw new Error('broken wallpaper'); },
+      receivingListener,
+    ], { title: 'New track' }, 'media properties');
+
+    expect(delivered).toBe(false);
+    expect(receivingListener).toHaveBeenCalledWith({ title: 'New track' });
+    expect(toast).toHaveBeenCalledWith('Some media properties callbacks failed. Check the browser console for details.');
+    expect(toast).not.toHaveBeenCalledWith('Sent media properties.');
+  });
+
+  it('continues all media streams after a failed enabled-status callback', async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    listenerFns.mediaStatus.push(() => {
+      throw new Error('broken status');
+    });
+    const propertiesListener = vi.fn();
+    const thumbnailListener = vi.fn();
+    listenerFns.mediaProps.push(propertiesListener);
+    listenerFns.mediaThumb.push(thumbnailListener);
+    const store = useDevtoolsStore();
+    store.mediaActive = true;
+
+    expect(store.deliverAllMedia()).toBe(false);
+    expect(propertiesListener).toHaveBeenCalledWith(expect.objectContaining({ title: 'Test Track' }));
+    expect(thumbnailListener).toHaveBeenCalledOnce();
   });
 });

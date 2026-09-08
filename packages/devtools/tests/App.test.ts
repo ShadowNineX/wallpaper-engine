@@ -29,14 +29,72 @@ afterEach(() => {
 });
 
 describe('devtools app shell', () => {
+  it.each([false, true])('resizes audio presets with reduced motion = %s', async (reducedMotion) => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
+      matches: reducedMotion && query === '(prefers-reduced-motion: reduce)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }));
+    const [{ default: App }, { setAudioMode }] = await Promise.all([
+      import('../src/App.vue'),
+      import('../src/audio'),
+    ]);
+    const wrapper = mount(App);
+    try {
+      await wrapper.get('[role="tab"][aria-label="Audio: Off"]')
+        .trigger('mousedown', { button: 0, ctrlKey: false });
+      const panel = wrapper.get<HTMLElement>('.we-devtools-panel').element;
+      const cancel = vi.fn();
+      const animate = vi.fn(() => ({ cancel, addEventListener: vi.fn() }));
+      Object.defineProperty(panel, 'animate', { configurable: true, value: animate });
+      vi.spyOn(panel, 'getBoundingClientRect').mockImplementation(() => ({
+        height: 400 + panel.querySelectorAll('[role="slider"]').length * 30,
+      } as DOMRect));
+
+      await wrapper.findAll('button').find(button => button.text() === 'Track loop')!.trigger('click');
+      await nextTick();
+      expect(wrapper.findAll('[role="slider"]')).toHaveLength(6);
+      if (!reducedMotion) {
+        expect(animate).toHaveBeenLastCalledWith(
+          [{ height: '400px' }, { height: '580px' }],
+          expect.objectContaining({ duration: 260 }),
+        );
+      }
+
+      await wrapper.findAll('button').find(button => button.text() === 'Off')!.trigger('click');
+      await nextTick();
+      expect(wrapper.findAll('[role="slider"]')).toHaveLength(0);
+      if (reducedMotion) {
+        expect(animate).not.toHaveBeenCalled();
+      }
+      else {
+        expect(cancel).toHaveBeenCalledOnce();
+        expect(animate).toHaveBeenLastCalledWith(
+          [{ height: '580px' }, { height: '400px' }],
+          expect.objectContaining({ duration: 260 }),
+        );
+      }
+    }
+    finally {
+      setAudioMode('off');
+      wrapper.unmount();
+    }
+  });
+
   it('renders all simulator tabs, switches content, and collapses in place', async () => {
     const { default: App } = await import('../src/App.vue');
     const wrapper = mount(App);
+    await nextTick();
 
     expect(wrapper.text()).toContain('Wallpaper Engine Devtools');
     expect(wrapper.text()).toContain('Aether test wallpaper');
     const version = wrapper.get('[data-devtools-version]');
-    expect(version.text()).toBe('v1.2.3 · abc1234-dirty');
+    expect(version.text()).toBe('v1.2.3');
     expect(version.attributes('title')).toBe(
       'Devtools 1.2.3 (git abc1234-dirty)',
     );
@@ -51,12 +109,18 @@ describe('devtools app shell', () => {
       'Media: Disabled',
     ]);
     expect(wrapper.text()).toContain('User properties');
+    const selectedTab = wrapper.get('[role="tab"][aria-selected="true"]');
+    const tabPanel = wrapper.get('[role="tabpanel"]');
+    expect(tabPanel.attributes('id')).toBe(selectedTab.attributes('aria-controls'));
+    expect(tabPanel.attributes('aria-labelledby')).toBe(selectedTab.attributes('id'));
 
     const runtimeTab = wrapper
       .findAll('[role="tab"]')
       .find(tab => tab.text().includes('Runtime'));
     await runtimeTab?.trigger('mousedown', { button: 0, ctrlKey: false });
+    await nextTick();
     expect(wrapper.text()).toContain('Wallpaper runtime');
+    expect(wrapper.get('[role="tabpanel"]').attributes('id')).toBe(runtimeTab?.attributes('aria-controls'));
 
     const mediaTab = wrapper
       .findAll('[role="tab"]')
@@ -67,6 +131,10 @@ describe('devtools app shell', () => {
     const panel = wrapper.get('.fixed');
     const collapse = wrapper.get('button[aria-label="Collapse devtools"]');
     await collapse.trigger('click');
+    const content = wrapper.get('#we-devtools-content');
+    expect(content.attributes('inert')).toBeDefined();
+    expect(content.attributes('aria-hidden')).toBe('true');
+    expect(collapse.attributes('aria-expanded')).toBe('false');
     expect(panel.classes()).toContain('w-[320px]');
     const collapsedHeader = wrapper.get('header');
     const collapsedTitle = wrapper.get('header .font-semibold');
@@ -77,6 +145,8 @@ describe('devtools app shell', () => {
       wrapper.get('button[aria-label="Expand devtools"]').attributes('aria-label'),
     ).toBe('Expand devtools');
     await wrapper.get('button[aria-label="Expand devtools"]').trigger('click');
+    expect(content.attributes('inert')).toBeUndefined();
+    expect(content.attributes('aria-hidden')).toBe('false');
     expect(panel.classes()).toContain('w-110');
     expect(collapsedHeader.classes()).toContain('border-b');
     expect(collapsedTitle.classes()).toContain('truncate');

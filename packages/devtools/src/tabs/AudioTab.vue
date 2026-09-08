@@ -19,6 +19,7 @@ import {
   lastFrame,
   setAudioMode,
 } from '../audio';
+import CallbackStatus from '../components/CallbackStatus.vue';
 import { useDevtoolsStore } from '../store';
 
 const { listenerCounts } = storeToRefs(useDevtoolsStore());
@@ -175,6 +176,10 @@ const modeControls: Partial<Record<AudioMode, readonly AudioControl[]>> = {
 const activeControls = computed<readonly AudioControl[]>(
   () => modeControls[audioState.mode] ?? [],
 );
+const activeModeDescription = computed(
+  () => modes.find(mode => mode.value === audioState.mode)?.description ?? '',
+);
+const audioListenerLabel = computed(() => `${listenerCounts.value.audio} registered audio ${listenerCounts.value.audio === 1 ? 'listener' : 'listeners'}`);
 function updateAudioSetting(
   key: keyof AudioSettings,
   values: number[] | undefined,
@@ -305,31 +310,26 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div>
     <section class="we-card">
       <div class="we-card-header">
         <div>
           <h2 class="we-card-title">
-            Audio processing
+            Audio simulation
           </h2>
           <p class="we-card-description text-pretty">
             Send 128-sample stereo spectrum frames at approximately 30 Hz.
           </p>
         </div>
-        <div
-          class="flex size-8 items-center justify-center rounded-lg"
-          :class="
-            audioState.mode !== 'off'
-              ? 'bg-amber-400/15 text-amber-300'
-              : 'bg-we-panel text-we-faint'
-          "
-        >
-          <AudioLines class="size-4" />
-        </div>
+        <CallbackStatus
+          :ready="listenerCounts.audio > 0"
+          :ready-label="audioListenerLabel"
+          missing-label="Waiting for audio listener"
+        />
       </div>
 
       <div
-        class="mb-3 overflow-hidden rounded-lg border border-we-border bg-we-panel/80 p-1.5"
+        class="mb-4 overflow-hidden rounded-md border border-we-border bg-we-surface p-1.5"
       >
         <canvas
           ref="canvas"
@@ -343,9 +343,9 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
       <ToggleGroup
         type="single"
         variant="outline"
-        :spacing="1.5"
+        :spacing="1"
         :model-value="audioState.mode"
-        class="grid w-full grid-cols-2"
+        class="we-audio-modes grid w-full"
         aria-label="Audio processing mode"
         @update:model-value="
           (value) => {
@@ -357,42 +357,27 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
           v-for="mode in modes"
           :key="mode.value"
           :value="mode.value"
-          class="h-auto min-w-0 flex-col gap-1.5 whitespace-normal rounded-lg border-we-border/80 bg-we-panel/40 px-3 py-3 shadow-sm transition-colors hover:border-we-border-strong hover:bg-we-button-hover data-[state=on]:border-we-primary/60 data-[state=on]:bg-we-primary/15 data-[state=on]:text-we-text"
+          class="h-9 min-w-0 justify-center gap-1.5 whitespace-nowrap rounded-md border-we-border/70 bg-we-surface px-2 text-[11px] shadow-none transition-colors hover:border-we-border-strong hover:bg-we-btn data-[state=on]:border-we-primary/60 data-[state=on]:bg-we-primary/12 data-[state=on]:text-we-text"
           :title="mode.description"
         >
-          <span
-            class="flex size-7 items-center justify-center rounded-md transition-colors"
-            :class="
-              audioState.mode === mode.value
-                ? 'bg-we-primary/20 text-we-primary'
-                : 'bg-we-surface/70 text-we-faint'
-            "
-          >
-            <component :is="mode.icon" class="size-4" aria-hidden="true" />
-          </span>
-          <span class="text-[11px] font-medium leading-4">
+          <component
+            :is="mode.icon"
+            class="size-3.5 shrink-0 text-we-faint group-data-[state=on]:text-we-primary"
+            aria-hidden="true"
+          />
+          <span class="truncate font-medium leading-4">
             {{ AUDIO_MODE_LABELS[mode.value] }}
-          </span>
-          <span
-            class="min-h-4 w-full text-center text-[10px] leading-4 font-normal opacity-60"
-          >
-            {{ mode.description }}
           </span>
         </ToggleGroupItem>
       </ToggleGroup>
+      <p class="mt-2 min-h-4 text-[11px] leading-4 text-we-faint" aria-live="polite">
+        {{ activeModeDescription }}
+      </p>
 
       <div
         v-if="activeControls.length > 0"
-        class="mt-3 space-y-3 rounded-lg border border-we-border bg-we-panel/55 p-3"
+        class="mt-5 space-y-4 border-t border-we-border pt-4"
       >
-        <div>
-          <div class="text-[11px] font-semibold text-we-text">
-            Simulation controls
-          </div>
-          <div class="mt-0.5 text-[10px] text-we-faint">
-            Tune the selected development signal in real time.
-          </div>
-        </div>
         <div
           v-for="control in activeControls"
           :key="control.key"
@@ -405,7 +390,7 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
             >
               {{ control.label }}
             </Label>
-            <div class="mt-0.5 text-[10px] text-we-faint">
+            <div class="mt-0.5 text-[11px] text-we-faint">
               {{ control.description }}
             </div>
           </div>
@@ -423,7 +408,7 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
               "
             />
             <span
-              class="min-w-14 rounded-md border border-we-border bg-we-surface px-2 py-1 text-right text-[10px] tabular-nums text-we-muted"
+              class="min-w-14 rounded-md border border-we-border bg-we-surface px-2 py-1.5 text-right text-[11px] tabular-nums text-we-muted"
             >
               {{ formatAudioSetting(control) }}
             </span>
@@ -431,29 +416,5 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
         </div>
       </div>
     </section>
-
-    <div
-      class="flex items-center gap-2 rounded-lg border border-we-border bg-we-surface px-3 py-2.5"
-    >
-      <span
-        class="size-2 rounded-full"
-        :class="
-          listenerCounts.audio > 0 ? 'bg-emerald-400' : 'bg-we-border-strong'
-        "
-      />
-      <div class="min-w-0 flex-1">
-        <div class="text-[11px] font-medium text-we-muted">
-          {{ listenerCounts.audio }} registered audio
-          {{ listenerCounts.audio === 1 ? "listener" : "listeners" }}
-        </div>
-        <div class="text-[10px] text-we-faint">
-          {{
-            listenerCounts.audio > 0
-              ? "Frames are delivered while a source is active."
-              : "Waiting for wallpaperRegisterAudioListener."
-          }}
-        </div>
-      </div>
-    </div>
   </div>
 </template>

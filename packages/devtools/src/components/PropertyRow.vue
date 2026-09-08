@@ -43,22 +43,17 @@ const valueDefinition = computed<ValuePropertyDefinition | undefined>(() =>
 
 <template>
   <article
-    class="rounded-lg border border-we-border/70 bg-[linear-gradient(135deg,rgba(32,35,43,0.94),rgba(24,26,32,0.94))] px-3 py-2.5 shadow-[inset_2px_0_0_rgba(91,134,237,0.18)] transition-colors hover:border-we-primary/35"
+    class="border-b border-we-border/70 py-3.5 last:border-b-0"
     :class="{ 'select-none': def.type === 'bool' }"
+    :title="`${propKey} · ${def.type}`"
   >
-    <div class="mb-2 flex items-start justify-between gap-3">
+    <div class="mb-2.5 flex min-w-0 items-center">
       <Label
         :for="propKey"
-        class="min-w-0 truncate text-[11px] font-medium text-we-text"
+        class="min-w-0 break-words text-[12px] font-medium text-we-text"
       >
         {{ label }}
       </Label>
-      <span
-        class="shrink-0 font-mono text-[11px] text-we-faint"
-        :title="propKey"
-      >
-        {{ propKey }} · {{ def.type }}
-      </span>
     </div>
 
     <PropertyPathControl

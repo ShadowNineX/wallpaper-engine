@@ -114,7 +114,7 @@ export interface WallpaperPropertyListener {
    * whenever the user changes a property. Only changed properties are
    * included on subsequent calls — always guard with `if (properties.key)`.
    */
-  applyUserProperties?: (properties: WallpaperUserProperties) => void;
+  applyUserProperties?: (properties: Partial<WallpaperUserProperties>) => void;
   /**
    * Called on load and whenever the user changes app-level settings
    * such as the FPS limit. See {@link WallpaperGeneralProperties}.

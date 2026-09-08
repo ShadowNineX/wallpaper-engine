@@ -44,7 +44,7 @@ function onSlider(values: number[] | undefined): void {
       @update:model-value="onSlider"
     />
     <span
-      class="min-w-12 rounded-md border border-we-border bg-we-panel px-2 py-1 text-right text-[10px] tabular-nums text-we-muted"
+      class="min-w-12 rounded-md border border-we-border bg-we-surface px-2 py-1.5 text-right text-[11px] tabular-nums text-we-muted"
     >
       {{ runtimeValue?.value ?? def.value }}
     </span>

@@ -30,10 +30,10 @@ function onColor(event: Event): void {
       :id="propKey"
       type="color"
       :value="weColorToHex(runtimeValue?.value ?? def.value)"
-      class="h-8 w-12 shrink-0 cursor-pointer rounded-md border border-we-border bg-we-btn p-1"
+      class="h-9 w-12 shrink-0 cursor-pointer rounded-md border border-we-border bg-we-btn p-1"
       @input="onColor"
     >
-    <code class="min-w-0 truncate text-[10px] text-we-muted">
+    <code class="min-w-0 truncate text-[11px] text-we-muted">
       {{ runtimeValue?.value ?? def.value }}
     </code>
   </div>

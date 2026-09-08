@@ -49,6 +49,32 @@ function directoryFile(
 }
 
 describe('browser development file picker', () => {
+  it('cleans up the picker when the browser refuses to open it', async () => {
+    vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {
+      throw new Error('Picker unavailable');
+    });
+    const { pickDevFile } = await import('../src/dev-files');
+
+    await expect(pickDevFile('image')).rejects.toThrow('Picker unavailable');
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+  });
+
+  it('replaces same-sized files when selecting a different directory', async () => {
+    vi.useFakeTimers();
+    installPicker(
+      [directoryFile(new Uint8Array([1]), 'cover.png', 'First/cover.png', 10)],
+      [directoryFile(new Uint8Array([2]), 'cover.png', 'Second/cover.png', 10)],
+    );
+    const { pickDevDirectory } = await import('../src/dev-files');
+    const first = await pickDevDirectory('image');
+    const second = await pickDevDirectory('image', first?.id);
+
+    expect(second?.files[0]?.url).not.toBe(first?.files[0]?.url);
+    expect(second?.files[0]?.path).toBe('Second/cover.png');
+    vi.runAllTimers();
+    expect(revokeObjectURLMock).toHaveBeenCalledWith(first?.files[0]?.url);
+  });
+
   it('keeps a selected file local and exposes it through an object URL', async () => {
     const selected = new File([new Uint8Array([1, 2, 3])], 'cover.png', {
       type: 'image/png',

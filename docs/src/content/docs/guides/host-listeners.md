@@ -131,7 +131,7 @@ Keep raw host callbacks thin:
 3. Isolate optional integrations so one failing consumer does not corrupt another callback path.
 4. Release resources when a new event replaces them or the page shuts down.
 
-The development simulator guards and logs failures from audio/media fanout, directory notifications, random-file callbacks, and registration replay. Explicit property, general, and plugin UI delivery is not universally isolated, so application callbacks must still own their failure handling.
+The development simulator guards and logs failures from audio/media fanout, directory notifications, random-file callbacks, property updates, runtime/plugin controls, and registration replay. A failing startup callback does not prevent the remaining callbacks from running. Explicit property and runtime/plugin actions report callback failures in the panel. Application callbacks must still own their failure handling in Wallpaper Engine.
 
 ## Replay ordering
 

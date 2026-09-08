@@ -14,7 +14,7 @@ const props = defineProps<{
   genres: string;
   contentType: "music" | "video" | "image";
   thumbnail: string;
-  playbackState: number;
+  playbackState: number | undefined;
   timelinePosition: number;
   timelineDuration: number;
   bpm: number;
@@ -37,7 +37,9 @@ const progressPercent = computed(() =>
     : 0,
 );
 const playbackStatus = computed(() =>
-  getMediaPlaybackStatus(props.playbackState),
+  props.playbackState === undefined
+    ? "standby"
+    : getMediaPlaybackStatus(props.playbackState),
 );
 const playbackLabel = computed(() => playbackStatus.value.toUpperCase());
 const playbackIcon = computed(() => {
@@ -116,8 +118,16 @@ function formatDuration(seconds: number): string {
 
           <div class="timeline-row">
             <span>{{ formatDuration(timelinePosition) }}</span>
-            <div class="timeline-track">
-              <span :style="{ width: `${progressPercent}%` }" />
+            <div
+              class="timeline-track"
+              role="progressbar"
+              aria-label="Media progress"
+              aria-valuemin="0"
+              :aria-valuemax="Math.max(0, timelineDuration)"
+              :aria-valuenow="Math.min(timelinePosition, timelineDuration)"
+              :aria-valuetext="`${formatDuration(timelinePosition)} of ${formatDuration(timelineDuration)}`"
+            >
+              <span :style="{ transform: `scaleX(${progressPercent / 100})` }" />
             </div>
             <span>{{ formatDuration(timelineDuration) }}</span>
           </div>

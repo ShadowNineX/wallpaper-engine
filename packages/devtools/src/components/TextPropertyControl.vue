@@ -29,7 +29,7 @@ function onText(next: string | number): void {
     :id="propKey"
     type="text"
     :model-value="runtimeValue?.value ?? def.value"
-    class="h-8 text-xs"
+    class="h-9 text-[12px]"
     @update:model-value="onText"
   />
 </template>

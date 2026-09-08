@@ -4,6 +4,8 @@ import { ChevronRight, RefreshCw } from "lucide-vue-next";
 defineProps<{
   randomSource: boolean;
   gallerySource: boolean;
+  canShuffle: boolean;
+  canAdvance: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -18,7 +20,12 @@ const emit = defineEmits<{
       v-if="randomSource"
       class="source-action"
       type="button"
-      title="Load another random file"
+      :disabled="!canShuffle"
+      :title="
+        canShuffle
+          ? 'Load another random file'
+          : 'Choose a directory to enable shuffle'
+      "
       @click="emit('shuffle')"
     >
       <RefreshCw :size="14" />
@@ -28,7 +35,12 @@ const emit = defineEmits<{
       v-else-if="gallerySource"
       class="source-action"
       type="button"
-      title="Advance gallery"
+      :disabled="!canAdvance"
+      :title="
+        canAdvance
+          ? 'Advance gallery'
+          : 'Add at least two files to enable gallery navigation'
+      "
       @click="emit('advance')"
     >
       NEXT

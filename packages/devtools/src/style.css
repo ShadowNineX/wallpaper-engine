@@ -1,5 +1,4 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 /*
  ---break---
  */
@@ -27,15 +26,15 @@
     sans-serif;
   --font-mono:
     "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, monospace;
-  --color-we-panel: #181a20;
-  --color-we-surface: #121419;
-  --color-we-section: #20232b;
-  --color-we-border: #414753;
-  --color-we-border-strong: #565d6b;
+  --color-we-panel: #181b22;
+  --color-we-surface: #12151b;
+  --color-we-section: #20242c;
+  --color-we-border: #363c48;
+  --color-we-border-strong: #4b5361;
   --color-we-text: #f4f4f5;
   --color-we-muted: #bcc0ca;
-  --color-we-faint: #adb1bd;
-  --color-we-heading: #a3a8b3;
+  --color-we-faint: #a9afbb;
+  --color-we-heading: #d9dce3;
   --color-we-btn: #292d36;
   --color-we-btn-hover: #373c48;
   --color-we-primary: #5b86ed;
@@ -113,7 +112,7 @@
   --popover: #181a20;
   --popover-foreground: #f4f4f5;
   --primary: #5b86ed;
-  --primary-foreground: #ffffff;
+  --primary-foreground: #101727;
   --secondary: #292d36;
   --secondary-foreground: #f4f4f5;
   --muted: #292d36;
@@ -132,7 +131,7 @@
   --sidebar: #121419;
   --sidebar-foreground: #f4f4f5;
   --sidebar-primary: #5b86ed;
-  --sidebar-primary-foreground: #ffffff;
+  --sidebar-primary-foreground: #101727;
   --sidebar-accent: #292d36;
   --sidebar-accent-foreground: #f4f4f5;
   --sidebar-border: #414753;
@@ -235,37 +234,47 @@
 
 @layer components {
   .we-card {
-    @apply rounded-lg border border-we-border/70 bg-we-section/90 p-3;
-    background-image: linear-gradient(
-      145deg,
-      rgb(32 35 43 / 96%),
-      rgb(24 26 32 / 96%)
-    );
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 3%);
+    @apply border-b border-we-border pb-4;
+  }
+
+  .we-card:last-child {
+    @apply border-b-0 pb-0;
   }
 
   .we-card-header {
-    @apply mb-3 flex items-center justify-between gap-3;
+    @apply mb-4 flex flex-wrap items-start justify-between gap-3;
   }
 
   .we-card-title {
-    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-we-heading;
+    @apply text-[14px] font-semibold leading-5 tracking-[-0.01em] text-we-heading;
   }
 
   .we-card-description {
-    @apply mt-0.5 text-[11px] leading-relaxed text-we-faint;
+    @apply mt-1 max-w-[52ch] text-[12px] leading-5 text-we-faint;
   }
 
   .we-field {
-    @apply grid grid-cols-[104px_minmax(0,1fr)] items-center gap-3;
+    @apply grid grid-cols-[112px_minmax(0,1fr)] items-center gap-3;
   }
 
   .we-field-label {
-    @apply text-[11px] font-medium text-we-muted;
+    @apply text-[12px] font-medium text-we-muted;
   }
 
   .we-icon-button {
-    @apply inline-flex size-8 items-center justify-center rounded-md border border-we-border bg-transparent text-we-muted transition-colors hover:bg-we-btn-hover hover:text-we-text;
+    @apply inline-flex size-8 items-center justify-center rounded-md border border-we-border bg-transparent text-we-muted transition-colors hover:bg-we-btn-hover hover:text-we-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-we-primary;
+  }
+
+  .we-callback-status {
+    @apply flex min-w-0 items-center gap-1.5 text-[11px] leading-4;
+  }
+
+  .we-section-footer {
+    @apply mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-we-border/70 pt-3;
+  }
+
+  .we-audio-modes {
+    grid-template-columns: repeat(auto-fit, minmax(88px, 1fr));
   }
 
   .we-toast {
@@ -306,7 +315,7 @@
   }
 
   .we-toast-action {
-    @apply bg-we-primary text-white hover:bg-we-primary-hover;
+    @apply bg-we-primary text-primary-foreground hover:bg-we-primary-hover;
   }
 
   .we-toast-cancel {
@@ -341,6 +350,32 @@
 
   .we-toast-warning .we-toast-icon {
     @apply bg-amber-400/10 text-amber-300 ring-amber-400/25;
+  }
+}
+
+.we-devtools-panel {
+  container-type: inline-size;
+  color-scheme: dark;
+}
+
+@container (max-width: 360px) {
+  .we-field {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .we-two-column {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (pointer: coarse) {
+  .we-devtools-panel :is(button, input:not([type="hidden"]), select, summary) {
+    min-height: 44px;
+  }
+
+  .we-devtools-panel .we-icon-button {
+    min-width: 44px;
   }
 }
 

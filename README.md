@@ -77,7 +77,7 @@ window.wallpaperPropertyListener = {
 };
 ```
 
-Register host listeners immediately at module scope. Wallpaper Engine may send startup events before framework lifecycle hooks, and later property callbacks contain only changed keys.
+Register host listeners immediately at module scope. Wallpaper Engine may send startup events before framework lifecycle hooks, and later property callbacks contain only changed keys. The default `WallpaperPropertyListener.applyUserProperties` callback accepts `Partial<WallpaperUserProperties>` so every key requires a guard, including in projects without `noUncheckedIndexedAccess`.
 
 By default, the Vite plugin injects the simulator during development and emits `project.json` during production builds. Set `devtools: false` to disable development injection.
 

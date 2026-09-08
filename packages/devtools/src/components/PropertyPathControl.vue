@@ -90,13 +90,13 @@ function clearPath(): void {
           def.type === 'file' ? 'No file selected' : 'No folder selected'
         "
         :model-value="store.propertyDisplayPaths[propKey] ?? ''"
-        class="h-8 min-w-0 flex-1 font-mono text-[10px]"
+        class="h-9 min-w-0 flex-1 font-mono text-[11px]"
       />
       <Button
         type="button"
         size="sm"
         variant="outline"
-        class="h-8 shrink-0 gap-1.5 px-2.5 text-[10px]"
+        class="h-9 shrink-0 gap-1.5 px-3 text-[12px]"
         :disabled="browsing || !devFilePickerAvailable"
         :aria-busy="browsing"
         data-browse-path
@@ -111,15 +111,16 @@ function clearPath(): void {
         type="button"
         size="icon"
         variant="outline"
-        class="size-8 shrink-0"
+        class="size-9 shrink-0"
         :aria-label="`Clear ${label}`"
+        :disabled="browsing"
         data-clear-path
         @click="clearPath"
       >
         <X class="size-3" />
       </Button>
     </div>
-    <p v-if="!devFilePickerAvailable" class="px-1 text-[10px] text-we-faint">
+    <p v-if="!devFilePickerAvailable" class="px-1 text-[11px] text-we-faint">
       This browser cannot expose selected local files.
     </p>
   </div>

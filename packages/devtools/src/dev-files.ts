@@ -52,7 +52,7 @@ function chooseInBrowser(
   kind: 'file' | 'directory',
   fileType?: WallpaperFileType,
 ): Promise<BrowserSelection | null> {
-  return new Promise((resolveSelection) => {
+  return new Promise((resolveSelection, rejectSelection) => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = kind === 'file' ? extensionsFor(fileType).join(',') : '';
@@ -111,7 +111,13 @@ function chooseInBrowser(
       },
       { once: true },
     );
-    input.click();
+    try {
+      input.click();
+    }
+    catch (error) {
+      input.remove();
+      rejectSelection(error);
+    }
   });
 }
 
@@ -141,12 +147,13 @@ function createEntry(
   rootName?: string,
   previous?: DevFileEntry,
 ): DevFileEntry {
-  const unchanged
-    = previous?.size === picked.file.size
-      && previous.mtimeMs === picked.file.lastModified;
   const path = rootName
     ? `${rootName}/${picked.relativePath}`
     : picked.file.name;
+  const unchanged
+    = previous?.path === path
+      && previous.size === picked.file.size
+      && previous.mtimeMs === picked.file.lastModified;
   if (unchanged) {
     return {
       ...previous,

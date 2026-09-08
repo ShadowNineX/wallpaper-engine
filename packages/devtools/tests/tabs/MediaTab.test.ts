@@ -1,6 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { toast } from 'vue-sonner';
 
 vi.mock('vue-sonner', () => ({ toast: vi.fn() }));
 vi.mock('../../../wallpaper-engine/src/helpers', () => ({
@@ -23,6 +24,68 @@ afterEach(() => {
 });
 
 describe('mediaTab', () => {
+  it('reports a failed enable callback without skipping the remaining media state', async () => {
+    const [{ default: MediaTab }, { listenerFns }] = await Promise.all([
+      import('../../src/tabs/MediaTab.vue'),
+      import('../../src/store'),
+    ]);
+    const metadata = vi.fn();
+    listenerFns.mediaStatus.push(() => {
+      throw new Error('wallpaper failed');
+    });
+    listenerFns.mediaProps.push(metadata);
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const wrapper = mount(MediaTab);
+
+    await wrapper.get('[data-media-enabled]').trigger('click');
+
+    expect(metadata).toHaveBeenCalledOnce();
+    expect(toast).toHaveBeenCalledWith(
+      'Some media callbacks failed. Check the browser console for details.',
+    );
+    expect(toast).not.toHaveBeenCalledWith('Media integration enabled.');
+    wrapper.unmount();
+  });
+
+  it('keeps finite timeline values when a numeric input is cleared', async () => {
+    const [{ default: MediaTab }, { useDevtoolsStore }, { NumberField }] = await Promise.all([
+      import('../../src/tabs/MediaTab.vue'),
+      import('../../src/store'),
+      import('../../src/components/ui/number-field'),
+    ]);
+    const wrapper = mount(MediaTab);
+    const fields = wrapper.findAllComponents(NumberField);
+    fields[0]?.vm.$emit('update:modelValue', Number.NaN);
+    fields[1]?.vm.$emit('update:modelValue', Number.NaN);
+    await flushPromises();
+
+    expect(useDevtoolsStore().mediaTimeline).toEqual({ position: 30, duration: 180 });
+    wrapper.unmount();
+  });
+
+  it('recovers artwork controls when object URL creation fails', async () => {
+    const { default: MediaTab } = await import('../../src/tabs/MediaTab.vue');
+    const wrapper = mount(MediaTab);
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => {
+      throw new Error('Unable to allocate an object URL');
+    });
+    const input = wrapper.get<HTMLInputElement>('input[type="file"]');
+    Object.defineProperty(input.element, 'files', {
+      configurable: true,
+      value: [new File(['image'], 'artwork.png', { type: 'image/png' })],
+    });
+
+    await input.trigger('change');
+    await flushPromises();
+
+    expect(toast).toHaveBeenCalledWith(expect.stringContaining('Unable to decode or convert'));
+    const choose = wrapper.findAll('button').find(button => button.text() === 'Choose image');
+    expect(choose?.attributes('disabled')).toBeUndefined();
+    expect(wrapper.get('[aria-busy]').attributes('aria-busy')).toBe('false');
+    wrapper.unmount();
+  });
+
   it('edits content type through the native selector and sends metadata', async () => {
     const [{ default: MediaTab }, { listenerFns }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
@@ -32,8 +95,13 @@ describe('mediaTab', () => {
     listenerFns.mediaProps.push(mediaPropertiesListener);
     const wrapper = mount(MediaTab);
     const buttons = wrapper.findAll('button');
+    const enabled = wrapper.get('[data-media-enabled]');
 
-    await buttons.find(button => button.text().trim() === 'Enabled')?.trigger('click');
+    expect(enabled.attributes('data-state')).toBe('unchecked');
+    expect(wrapper.get('#media-title').attributes('disabled')).toBeUndefined();
+
+    await enabled.trigger('click');
+    expect(enabled.attributes('data-state')).toBe('checked');
     mediaPropertiesListener.mockClear();
     await wrapper.get('select#media-content-type').setValue('video');
     await buttons
@@ -78,7 +146,7 @@ describe('mediaTab', () => {
     const button = (label: string) =>
       wrapper.findAll('button').find(candidate => candidate.text().includes(label));
 
-    await button('Enabled')?.trigger('click');
+    await wrapper.get('[data-media-enabled]').trigger('click');
     thumbnail.mockClear();
 
     const drawImage = vi.fn();
@@ -94,8 +162,8 @@ describe('mediaTab', () => {
     vi.stubGlobal(
       'Image',
       class {
-        naturalWidth = 2;
-        naturalHeight = 2;
+        naturalWidth = 6400;
+        naturalHeight = 3200;
         onload: (() => void) | null = null;
         onerror: (() => void) | null = null;
         get src(): string {
@@ -122,6 +190,7 @@ describe('mediaTab', () => {
     await button('Send artwork')?.trigger('click');
 
     expect(drawImage).toHaveBeenCalledOnce();
+    expect(drawImage).toHaveBeenCalledWith(expect.anything(), 0, 0, 1024, 512);
     expect(thumbnail).toHaveBeenCalledWith(
       expect.objectContaining({
         thumbnail: 'data:image/png;base64,converted',
@@ -150,7 +219,7 @@ describe('mediaTab', () => {
     const button = (label: string) =>
       wrapper.findAll('button').find(candidate => candidate.text().includes(label));
 
-    await button('Enabled')?.trigger('click');
+    await wrapper.get('[data-media-enabled]').trigger('click');
     expect(status).toHaveBeenLastCalledWith({ enabled: true });
     expect(properties).toHaveBeenCalledOnce();
     expect(thumbnail).toHaveBeenCalledOnce();
@@ -184,7 +253,7 @@ describe('mediaTab', () => {
     thumbnail.mockClear();
     playback.mockClear();
     timeline.mockClear();
-    await button('Disabled')?.trigger('click');
+    await wrapper.get('[data-media-enabled]').trigger('click');
     expect(status).toHaveBeenLastCalledWith({ enabled: false });
     expect(properties).not.toHaveBeenCalled();
     expect(thumbnail).not.toHaveBeenCalled();

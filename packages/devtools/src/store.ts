@@ -16,6 +16,7 @@ import type { WallpaperPropertyDefinition } from '../../wallpaper-engine/src/typ
 import { defineStore } from 'pinia';
 import { reactive, ref } from 'vue';
 import { toast } from 'vue-sonner';
+import { invokeHostCallback } from './callbacks';
 import { propDefs, tr } from './config';
 import { releaseDevDirectory, releaseDevFile } from './dev-files';
 
@@ -103,15 +104,18 @@ function isFetchAllDirectory(key: string): boolean {
 }
 
 /** Silently deliver to a listener list (no toast on empty). */
-function deliver<T>(list: Array<(payload: T) => void>, payload: T): void {
+function deliver<T>(list: Array<(payload: T) => void>, payload: T): boolean {
+  let succeeded = true;
   for (const fn of list) {
     try {
       fn(payload);
     }
     catch (e) {
+      succeeded = false;
       console.error('[WE Dev] listener threw', e);
     }
   }
+  return succeeded;
 }
 
 /** Fan out with user-visible toast feedback (shows error when no listeners). */
@@ -119,13 +123,16 @@ function fanout<T>(
   list: Array<(payload: T) => void>,
   payload: T,
   label: string,
-): void {
+): boolean {
   if (list.length === 0) {
     toast(`No ${label} listener registered.`);
-    return;
+    return false;
   }
-  deliver(list, payload);
-  toast(`Fired ${label}`);
+  const succeeded = deliver(list, payload);
+  toast(succeeded
+    ? `Sent ${label}.`
+    : `Some ${label} callbacks failed. Check the browser console for details.`);
+  return succeeded;
 }
 
 // ---------------------------------------------------------------------------
@@ -205,19 +212,23 @@ export const useDevtoolsStore = defineStore('devtools', () => {
         userProperties[key] = clonePropertyValue(value);
       }
     }
-    l.applyUserProperties?.(userProperties);
+    let succeeded = invokeHostCallback(() => l.applyUserProperties?.(userProperties), false);
     for (const [key, selection] of Object.entries(directorySelections)) {
       if (!isFetchAllDirectory(key) || selection.files.length === 0)
         continue;
-      l.userDirectoryFilesAddedOrChanged?.(
+      const delivered = invokeHostCallback(() => l.userDirectoryFilesAddedOrChanged?.(
         key,
         selection.files.map(file => file.url),
-      );
+      ), false);
+      succeeded = delivered && succeeded;
     }
-    l.applyGeneralProperties?.({ fps: general.fps });
-    l.setPaused?.(general.paused);
-    if (showToast)
-      toast('Startup state replayed.');
+    const generalDelivered = invokeHostCallback(() => l.applyGeneralProperties?.({ fps: general.fps }), false);
+    const pauseDelivered = invokeHostCallback(() => l.setPaused?.(general.paused), false);
+    if (showToast) {
+      toast(succeeded && generalDelivered && pauseDelivered
+        ? 'Startup state replayed.'
+        : 'Some wallpaper callbacks failed. Check the browser console for details.');
+    }
   }
 
   function deliverProperty(key: string): void {
@@ -226,9 +237,9 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     const v = currentValues[key];
     if (!v)
       return;
-    listenerFns.property?.applyUserProperties?.({
+    invokeHostCallback(() => listenerFns.property?.applyUserProperties?.({
       [key]: clonePropertyValue(v),
-    });
+    }));
   }
 
   function resetPropertiesToDefaults(): void {
@@ -400,16 +411,17 @@ export const useDevtoolsStore = defineStore('devtools', () => {
   }
 
   /** Silently deliver all current media state to every registered media listener. */
-  function deliverAllMedia(): void {
+  function deliverAllMedia(): boolean {
     const enabled = mediaActive.value;
-    deliver(listenerFns.mediaStatus, { enabled });
+    const statusDelivered = deliver(listenerFns.mediaStatus, { enabled });
     if (!enabled)
-      return;
+      return statusDelivered;
 
-    deliver(listenerFns.mediaProps, { ...mediaProps });
-    deliver(listenerFns.mediaPlayback, { state: lastPlaybackState.value });
-    deliver(listenerFns.mediaTimeline, { ...mediaTimeline });
-    deliver(listenerFns.mediaThumb, { ...mediaThumb });
+    const propertiesDelivered = deliver(listenerFns.mediaProps, { ...mediaProps });
+    const playbackDelivered = deliver(listenerFns.mediaPlayback, { state: lastPlaybackState.value });
+    const timelineDelivered = deliver(listenerFns.mediaTimeline, { ...mediaTimeline });
+    const thumbnailDelivered = deliver(listenerFns.mediaThumb, { ...mediaThumb });
+    return statusDelivered && propertiesDelivered && playbackDelivered && timelineDelivered && thumbnailDelivered;
   }
 
   return {

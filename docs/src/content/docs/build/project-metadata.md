@@ -47,7 +47,7 @@ The plugin always generates these core fields:
 }
 ```
 
-It generates `general` only when at least one applicable field exists:
+It always generates `general.properties`, even when the property record is empty. Localization and audio support are included when configured or detected:
 
 ```json
 {
@@ -92,9 +92,11 @@ wallpaperEnginePlugin({
 
 The path resolves from Vite's final `root`. Before a written build cleans the output directory, the plugin creates a missing file (including parent directories) and synchronizes non-generated fields from the previous `project.json`. Existing author-owned fields (`description`, `preview`, `tags`, ratings, and visibility) stay authoritative in the metadata file. Wallpaper Engine-managed and unknown fields are updated from the editor output, including `workshopid`, `workshopurl`, and `version`. This makes the file a source-controlled handoff for clean builds on another machine.
 
-The metadata file and each resolved sidecar preview must remain outside Vite's final `build.outDir`. Overlapping paths are rejected before output cleanup because Vite would otherwise delete the preservation source during the same build.
+Watch rebuilds refresh this capture before Vite cleans the previous output. Unchanged metadata and sidecar bytes are left untouched, so importing them into a wallpaper does not cause repeated builds.
 
-When the synchronized final preview path matches a preview captured from previous output, the same pre-clean step writes its exact bytes beneath a sibling directory named by appending `.assets` to the complete metadata filename. The project-relative preview path is retained below that directory. For example:
+The metadata file and each resolved sidecar preview must remain outside Vite's final `build.outDir`. Overlapping paths, including paths through symlinks or junctions, are rejected before output cleanup because Vite would otherwise delete the preservation source during the same build.
+
+When the synchronized final preview path matches a preview captured from previous output, the same pre-clean step writes its exact bytes beneath a sibling directory whose name replaces the metadata filename's final extension with `.assets`. The project-relative preview path is retained below that directory. For example:
 
 ```text
 config/metadata.json
@@ -121,6 +123,8 @@ Backslashes are normalized for preview lookup and emitted asset filenames, but t
 4. The matching `<metadata stem>.assets/<preview>` sidecar.
 
 Bundle and `publicDir` sources retain output precedence. Otherwise the plugin prefers a matching current capture over the persistent sidecar, synchronizes that capture into the sidecar, and emits the selected bytes back to the same normalized relative path. It does not decode, resize, or re-encode the preview. A changed higher-priority preview path never relabels bytes captured under a different path.
+
+When `build.copyPublicDir` is `false`, the plugin captures and emits the referenced public preview itself. In-memory builds (`build.write: false`) also include those preview bytes in their returned bundle.
 
 :::caution[Fail closed before cleanup]
 Metadata and prior preview state are read during Vite configuration, before output cleanup. Unsafe paths, unreadable metadata or preview backups, and filesystem inspection failures stop the build before destructive cleanup. Preview paths are normalized and confined independently beneath both `outDir` and the metadata sidecar directory. If the final preview is referenced but unavailable from bundle, public directory, captured output, or the configured sidecar, the written build fails instead of emitting a broken project.

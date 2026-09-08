@@ -19,7 +19,9 @@ The client installs Wallpaper Engine-compatible globals before your application 
 
 The overlay is a draggable panel with four tabs: Properties, Runtime, Audio, and Media. It can collapse to a compact status bar and constrains itself to the viewport while moving, resizing, and switching tabs.
 
-Status labels expose the current integration state, including property-listener readiness, running/paused runtime state, selected audio mode, and media enabled/disabled state. Controls show warnings or toasts when their matching callback is missing instead of silently pretending delivery succeeded.
+Use the arrow keys to navigate the tab list and Tab to enter the selected panel. Collapsed controls are removed from keyboard navigation. The panel adapts fields to narrow widths and respects reduced-motion preferences.
+
+Each tab keeps its icon and live status visible, with the same state available in its tooltip and accessible name. Callback readiness also appears beside the relevant controls; property keys and types remain available on their labels without occupying a second row. Controls show warnings or toasts when their matching callback is missing instead of silently pretending delivery succeeded.
 
 ## Properties
 
@@ -75,7 +77,9 @@ The Media tab drives all five media callback streams with controls for:
 - Select local artwork and send the resulting thumbnail.
 - Inspect and change primary, secondary, tertiary, text, and high-contrast colors.
 
-A local image is decoded in the browser, converted to a PNG data URL, and used to derive a development palette. This conversion and palette algorithm are simulator behavior. Wallpaper Engine supplies its own thumbnail and colors in production.
+A local image is decoded in the browser, resized to at most 1024 pixels on its longest side, converted to a PNG data URL, and used to derive a development palette. The artwork controls show progress and prevent sending a partially prepared image. Metadata and artwork remain editable while integration is disabled; enable integration to deliver them. This conversion and palette algorithm are simulator behavior. Wallpaper Engine supplies its own thumbnail and colors in production.
+
+Enabling integration sends the complete current media state. After enabling it, **Send metadata**, **Send timeline**, and **Send artwork** deliver their respective drafts; playback-state controls deliver immediately. Missing callbacks and callback failures produce feedback, and a failing listener does not prevent the others from receiving the event.
 
 ## Local file privacy and lifetime
 
@@ -94,7 +98,7 @@ Application code should use `toFileUrl()` so both native host paths and developm
 | Audio | Six synthetic modes at a timer cadence | Real host FFT spectrum |
 | Media artwork/colors | Local PNG conversion and derived palette | Host media integration output |
 | LED/iCUE | Readiness and API stubs | Installed plugins and physical hardware |
-| Errors | Audio/media fanout, directory notifications, random-file callbacks, and registration replay are isolated with `[WE Dev]` logging; explicit property, general, and plugin UI delivery is not universally isolated | Application must own its failure handling |
+| Errors | Callback failures are isolated with `[WE Dev]` logging; explicit property and runtime/plugin actions show failure feedback and startup replay continues through remaining callbacks | Application must own its failure handling |
 
 :::caution[Compatibility is not fidelity]
 The simulator matches callback shapes and common event flows. It cannot guarantee host ordering, native filesystem behavior, media-player support, FFT values, Steam integration, or hardware behavior. Complete final testing inside Wallpaper Engine.

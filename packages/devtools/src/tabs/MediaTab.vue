@@ -4,13 +4,11 @@ import type {
   WallpaperMediaThumbnailEvent,
 } from '../../../wallpaper-engine/src/types/listeners';
 import { storeToRefs } from 'pinia';
-import { computed, shallowRef } from 'vue';
+import { ref, shallowRef } from 'vue';
 import { toast } from 'vue-sonner';
-import Radio from '~icons/ph/broadcast-duotone';
-import Image from '~icons/ph/image-duotone';
-import Music2 from '~icons/ph/music-notes-duotone';
 import Upload from '~icons/ph/upload-simple';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
@@ -23,6 +21,7 @@ import {
 } from '@/components/ui/number-field';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { createAverageColorExtractor } from '../../../wallpaper-engine/src/helpers';
+import CallbackStatus from '../components/CallbackStatus.vue';
 import { listenerFns, useDevtoolsStore } from '../store';
 
 const store = useDevtoolsStore();
@@ -37,15 +36,7 @@ const {
 const timeline = mediaTimeline;
 const thumb = mediaThumb;
 const thumbnailInput = shallowRef<HTMLInputElement | null>(null);
-
-const mediaListenerCount = computed(
-  () =>
-    listenerCounts.value.mediaStatus
-    + listenerCounts.value.mediaProps
-    + listenerCounts.value.mediaThumb
-    + listenerCounts.value.mediaPlayback
-    + listenerCounts.value.mediaTimeline,
-);
+const preparingArtwork = ref(false);
 
 const playbackStates: Array<{
   state: WallpaperMediaPlaybackState;
@@ -76,8 +67,12 @@ function requireMedia(): boolean {
 
 function setMediaEnabled(enabled: boolean): void {
   mediaActive.value = enabled;
-  store.deliverAllMedia();
-  toast(enabled ? 'Media integration enabled.' : 'Media integration disabled.');
+  if (store.deliverAllMedia()) {
+    toast(enabled ? 'Media integration enabled.' : 'Media integration disabled.');
+  }
+  else {
+    toast('Some media callbacks failed. Check the browser console for details.');
+  }
 }
 
 function sendProperties(): void {
@@ -101,6 +96,8 @@ function sendPlayback(state: WallpaperMediaPlaybackState): void {
 }
 
 function setPosition(value: number): void {
+  if (!Number.isFinite(value))
+    return;
   timeline.value.position = Math.min(
     Math.max(0, value),
     Math.max(0, timeline.value.duration),
@@ -108,6 +105,8 @@ function setPosition(value: number): void {
 }
 
 function setDuration(value: number): void {
+  if (!Number.isFinite(value))
+    return;
   timeline.value.duration = Math.max(0, value);
   timeline.value.position = Math.min(
     timeline.value.position,
@@ -133,22 +132,28 @@ function pickThumbnail(): void {
 async function onThumbnailFile(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
-  if (!file)
+  if (!file || preparingArtwork.value)
     return;
 
-  const sourceUrl = URL.createObjectURL(file);
+  preparingArtwork.value = true;
+  let sourceUrl: string | undefined;
   try {
+    const imageUrl = URL.createObjectURL(file);
+    sourceUrl = imageUrl;
     const image = new globalThis.Image();
     await new Promise<void>((resolve, reject) => {
       image.onload = () => resolve();
       image.onerror = () => reject(new Error('Unable to decode artwork'));
-      image.src = sourceUrl;
+      image.src = imageUrl;
     });
 
-    const width = image.naturalWidth;
-    const height = image.naturalHeight;
-    if (width < 1 || height < 1)
+    if (image.naturalWidth < 1 || image.naturalHeight < 1)
       throw new Error('Artwork has no pixels');
+
+    // The host supplies thumbnails; bound canvas memory for large photos.
+    const scale = Math.min(1, 1024 / Math.max(image.naturalWidth, image.naturalHeight));
+    const width = Math.max(1, Math.round(image.naturalWidth * scale));
+    const height = Math.max(1, Math.round(image.naturalHeight * scale));
 
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -202,13 +207,15 @@ async function onThumbnailFile(event: Event): Promise<void> {
     );
   }
   finally {
-    URL.revokeObjectURL(sourceUrl);
+    if (sourceUrl)
+      URL.revokeObjectURL(sourceUrl);
     input.value = '';
+    preparingArtwork.value = false;
   }
 }
 
 function sendThumbnail(): void {
-  if (!requireMedia())
+  if (!requireMedia() || preparingArtwork.value)
     return;
   if (!thumb.value.thumbnail.startsWith('data:image/png;base64,')) {
     toast('Choose a PNG thumbnail before sending.');
@@ -223,7 +230,7 @@ function sendThumbnail(): void {
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div class="space-y-4">
     <section class="we-card">
       <div class="we-card-header">
         <div>
@@ -231,75 +238,58 @@ function sendThumbnail(): void {
             Media integration
           </h2>
           <p class="we-card-description">
-            Enabling sends the complete current media state; disabling sends status only.
+            Drafts stay editable while off. Enabling delivers the full current state.
           </p>
         </div>
-        <div
-          class="flex size-8 items-center justify-center rounded-lg"
-          :class="
-            mediaActive
-              ? 'bg-emerald-400/15 text-emerald-300'
-              : 'bg-we-panel text-we-faint'
-          "
-        >
-          <Radio class="size-4" />
-        </div>
+        <label class="flex cursor-pointer items-center gap-2 text-[12px] font-medium text-we-muted">
+          <Checkbox
+            data-media-enabled
+            :model-value="mediaActive"
+            class="size-4.5"
+            @update:model-value="(value) => setMediaEnabled(value === true)"
+          />
+          {{ mediaActive ? 'Enabled' : 'Disabled' }}
+        </label>
       </div>
-      <div class="grid grid-cols-2 gap-2">
-        <Button
-          size="sm"
-          :variant="mediaActive ? 'default' : 'outline'"
-          class="h-8 text-[11px]"
-          @click="setMediaEnabled(true)"
-        >
-          Enabled
-        </Button>
-        <Button
-          size="sm"
-          :variant="!mediaActive ? 'secondary' : 'outline'"
-          class="h-8 text-[11px]"
-          @click="setMediaEnabled(false)"
-        >
-          Disabled
-        </Button>
-      </div>
-      <div class="mt-2 flex items-center justify-between text-[10px] text-we-faint">
-        <span>{{ mediaListenerCount }} registered callbacks</span>
-        <span>Status · Metadata · Artwork · Playback · Timeline</span>
+      <div class="border-t border-we-border/70 pt-3">
+        <CallbackStatus
+          :ready="listenerCounts.mediaStatus > 0"
+          :ready-label="`${listenerCounts.mediaStatus} status ${listenerCounts.mediaStatus === 1 ? 'callback' : 'callbacks'}`"
+          missing-label="No status callback registered"
+        />
       </div>
     </section>
 
-    <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
+    <section class="we-card">
       <div class="we-card-header">
         <div>
           <h2 class="we-card-title">
             Now playing
           </h2>
           <p class="we-card-description">
-            Track metadata exposed by the host media session.
+            Edit the draft shown to media listeners.
           </p>
         </div>
-        <Music2 class="size-4 text-we-faint" />
       </div>
-      <div class="space-y-2.5">
+      <div class="space-y-3">
         <div class="we-field">
           <Label for="media-title" class="we-field-label">Title</Label>
-          <Input id="media-title" v-model="mediaProps.title" class="h-8 text-xs" />
+          <Input id="media-title" v-model="mediaProps.title" class="h-9 text-[12px]" />
         </div>
         <div class="we-field">
           <Label for="media-artist" class="we-field-label">Artist</Label>
-          <Input id="media-artist" v-model="mediaProps.artist" class="h-8 text-xs" />
+          <Input id="media-artist" v-model="mediaProps.artist" class="h-9 text-[12px]" />
         </div>
         <div class="we-field">
           <Label for="media-album" class="we-field-label">Album</Label>
-          <Input id="media-album" v-model="mediaProps.albumTitle" class="h-8 text-xs" />
+          <Input id="media-album" v-model="mediaProps.albumTitle" class="h-9 text-[12px]" />
         </div>
         <div class="we-field">
           <Label for="media-content-type" class="we-field-label">Content type</Label>
           <NativeSelect
             id="media-content-type"
             :model-value="mediaProps.contentType"
-            class="h-8 text-xs"
+            class="h-9 text-[12px]"
             @change="setContentType"
           >
             <NativeSelectOption value="music">
@@ -314,26 +304,32 @@ function sendThumbnail(): void {
           </NativeSelect>
         </div>
       </div>
-      <div class="mt-3 flex justify-end">
-        <Button size="sm" class="h-8 px-3 text-[11px]" :disabled="!mediaActive" @click="sendProperties">
+      <div class="we-section-footer">
+        <CallbackStatus
+          :ready="listenerCounts.mediaProps > 0"
+          ready-label="Metadata callback ready"
+          missing-label="No metadata callback registered"
+        />
+        <Button size="sm" class="h-9 px-3 text-[12px]" :disabled="!mediaActive" @click="sendProperties">
           Send metadata
         </Button>
       </div>
     </section>
 
-    <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
+    <section class="we-card">
       <div class="we-card-header">
         <div>
           <h2 class="we-card-title">
             Playback
           </h2>
           <p class="we-card-description">
-            Transport state and timeline use separate callbacks.
+            Playback sends immediately. Timeline changes wait for Send.
           </p>
         </div>
       </div>
       <ToggleGroup
         type="single"
+        aria-label="Media playback state"
         :model-value="String(lastPlaybackState)"
         class="mb-3 grid grid-cols-3 gap-1"
         @update:model-value="
@@ -347,13 +343,13 @@ function sendThumbnail(): void {
           :key="playback.state"
           :value="String(playback.state)"
           :disabled="!mediaActive"
-          class="h-8 text-[11px]"
+          class="h-9 text-[12px]"
         >
           {{ playback.label }}
         </ToggleGroupItem>
       </ToggleGroup>
 
-      <div class="grid grid-cols-2 gap-2">
+      <div class="we-two-column grid grid-cols-2 gap-3">
         <NumberField
           id="media-position"
           :model-value="timeline.position"
@@ -361,7 +357,7 @@ function sendThumbnail(): void {
           :max="timeline.duration"
           @update:model-value="(value) => value !== undefined && setPosition(value)"
         >
-          <Label for="media-position" class="mb-1 block text-[10px] text-we-faint">Position (s)</Label>
+          <Label for="media-position" class="mb-1.5 block text-[11px] text-we-muted">Position (s)</Label>
           <NumberFieldContent>
             <NumberFieldDecrement />
             <NumberFieldInput />
@@ -374,7 +370,7 @@ function sendThumbnail(): void {
           :min="0"
           @update:model-value="(value) => value !== undefined && setDuration(value)"
         >
-          <Label for="media-duration" class="mb-1 block text-[10px] text-we-faint">Duration (s)</Label>
+          <Label for="media-duration" class="mb-1.5 block text-[11px] text-we-muted">Duration (s)</Label>
           <NumberFieldContent>
             <NumberFieldDecrement />
             <NumberFieldInput />
@@ -382,24 +378,35 @@ function sendThumbnail(): void {
           </NumberFieldContent>
         </NumberField>
       </div>
-      <div class="mt-3 flex justify-end">
-        <Button size="sm" variant="outline" class="h-8 px-3 text-[11px]" :disabled="!mediaActive" @click="sendTimeline">
+      <div class="we-section-footer">
+        <div class="flex flex-col gap-1">
+          <CallbackStatus
+            :ready="listenerCounts.mediaPlayback > 0"
+            ready-label="Playback callback ready"
+            missing-label="No playback callback registered"
+          />
+          <CallbackStatus
+            :ready="listenerCounts.mediaTimeline > 0"
+            ready-label="Timeline callback ready"
+            missing-label="No timeline callback registered"
+          />
+        </div>
+        <Button size="sm" variant="outline" class="h-9 px-3 text-[12px]" :disabled="!mediaActive" @click="sendTimeline">
           Send timeline
         </Button>
       </div>
     </section>
 
-    <section class="we-card" :class="!mediaActive ? 'opacity-60' : ''">
+    <section class="we-card" :aria-busy="preparingArtwork">
       <div class="we-card-header">
         <div>
           <h2 class="we-card-title">
             Artwork
           </h2>
           <p class="we-card-description">
-            Wallpaper Engine emits album art callbacks as base64 PNG.
+            Choose an image and review the generated host palette.
           </p>
         </div>
-        <Image class="size-4 text-we-faint" />
       </div>
 
       <label for="media-thumbnail-input" class="sr-only">Artwork image</label>
@@ -417,22 +424,21 @@ function sendThumbnail(): void {
           <img :src="thumb.thumbnail" alt="Media artwork preview" class="size-full object-cover">
         </div>
         <div class="min-w-0 flex-1">
-          <Button size="sm" variant="outline" class="h-8 gap-1.5 text-[11px]" @click="pickThumbnail">
+          <Button size="sm" variant="outline" class="h-9 gap-1.5 text-[12px]" :disabled="preparingArtwork" @click="pickThumbnail">
             <Upload class="size-3" />
-            Choose image
+            {{ preparingArtwork ? 'Preparing image…' : 'Choose image' }}
           </Button>
-          <p class="mt-2 text-[10px] leading-relaxed text-we-faint">
-            Any image this browser can decode is converted to PNG and used to extract the five
-            host palette colors.
+          <p class="mt-2 text-[11px] leading-4 text-we-faint">
+            Converted to PNG with five extracted colors.
           </p>
         </div>
       </div>
 
-      <details class="mt-3 rounded-md border border-we-border bg-we-panel/50">
-        <summary class="cursor-pointer px-3 py-2 text-[11px] font-medium text-we-muted">
+      <details class="mt-4 border-y border-we-border/70">
+        <summary class="cursor-pointer py-3 text-[12px] font-medium text-we-muted hover:text-we-text focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-we-primary">
           Adjust extracted palette
         </summary>
-        <div class="space-y-2 border-t border-we-border p-3">
+        <div class="space-y-3 border-t border-we-border/70 py-3">
           <div v-for="field in paletteFields" :key="field.key" class="we-field">
             <Label :for="`thumb-${field.key}`" class="we-field-label">{{ field.label }}</Label>
             <div class="flex gap-2">
@@ -440,7 +446,7 @@ function sendThumbnail(): void {
                 :id="`thumb-${field.key}`"
                 v-model="thumb[field.key]"
                 type="color"
-                class="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-we-border bg-we-btn p-1"
+                class="h-9 w-11 shrink-0 cursor-pointer rounded-md border border-we-border bg-we-btn p-1"
               >
               <label :for="`thumb-${field.key}-value`" class="sr-only">
                 {{ field.label }} color value
@@ -448,15 +454,20 @@ function sendThumbnail(): void {
               <Input
                 :id="`thumb-${field.key}-value`"
                 v-model="thumb[field.key]"
-                class="h-8 font-mono text-[11px]"
+                class="h-9 font-mono text-[11px]"
               />
             </div>
           </div>
         </div>
       </details>
 
-      <div class="mt-3 flex justify-end">
-        <Button size="sm" class="h-8 px-3 text-[11px]" :disabled="!mediaActive" @click="sendThumbnail">
+      <div class="we-section-footer">
+        <CallbackStatus
+          :ready="listenerCounts.mediaThumb > 0"
+          ready-label="Artwork callback ready"
+          missing-label="No artwork callback registered"
+        />
+        <Button size="sm" class="h-9 px-3 text-[12px]" :disabled="!mediaActive || preparingArtwork" @click="sendThumbnail">
           Send artwork
         </Button>
       </div>

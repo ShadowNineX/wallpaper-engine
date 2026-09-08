@@ -27,7 +27,7 @@ function onBool(checked: unknown): void {
 <template>
   <label
     :for="propKey"
-    class="flex cursor-pointer items-center gap-2 text-[11px] text-we-muted"
+    class="flex cursor-pointer items-center gap-2 text-[12px] text-we-muted"
   >
     <Checkbox
       :id="propKey"

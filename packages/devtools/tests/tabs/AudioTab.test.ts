@@ -61,7 +61,6 @@ describe('audioTab', () => {
 
     await track?.trigger('click');
 
-    expect(wrapper.text()).toContain('Simulation controls');
     expect(wrapper.text()).toContain('Output');
     expect(wrapper.text()).toContain('Tempo');
     expect(wrapper.text()).toContain('Continuous bass');

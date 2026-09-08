@@ -108,8 +108,8 @@ const mediaSecondary = ref("");
 const mediaTertiary = ref("");
 const mediaText = ref("");
 const mediaHighContrast = ref("");
-const playbackState = ref<WallpaperMediaPlaybackState>(
-  globalThis.wallpaperMediaIntegration.PLAYBACK_STOPPED,
+const playbackState = ref<WallpaperMediaPlaybackState | undefined>(
+  globalThis.wallpaperMediaIntegration?.PLAYBACK_STOPPED,
 );
 const timelinePosition = ref(0);
 const timelineDuration = ref(0);
@@ -203,7 +203,23 @@ const isGallerySource = computed(
     backgroundSource.value === "imagegallery" ||
     backgroundSource.value === "videogallery",
 );
-
+const usesGeneratedBackground = computed(
+  () => backgroundSource.value === "generated" || activeUrl.value === "",
+);
+const canShuffleSource = computed(() => {
+  if (typeof globalThis.wallpaperRequestRandomFileForProperty !== "function")
+    return false;
+  return backgroundSource.value === "randomimage"
+    ? randomImageDirectory.value !== ""
+    : randomVideoDirectory.value !== "";
+});
+const canAdvanceGallery = computed(() => {
+  const files =
+    backgroundSource.value === "videogallery"
+      ? videoGallery.value
+      : imageGallery.value;
+  return files.length > 1;
+});
 
 const hasMedia = computed(
   () => mediaTitle.value !== "" || mediaArtist.value !== "",
@@ -233,6 +249,8 @@ const mediaCardStyle = computed<CSSProperties>(() => ({
   "--card-contrast": mediaHighContrast.value || "#ffffff",
 }));
 
+const randomFileRequests = { randomimages: 0, randomvideos: 0 };
+
 function requestRandomFile(
   propertyName?: "randomimages" | "randomvideos",
 ): void {
@@ -243,7 +261,15 @@ function requestRandomFile(
   }
   if (typeof globalThis.wallpaperRequestRandomFileForProperty !== "function")
     return;
+  const directory = target === "randomimages"
+    ? randomImageDirectory.value
+    : randomVideoDirectory.value;
+  if (!directory) return;
+  const requestedProperty = target;
+  const requestId = ++randomFileRequests[requestedProperty];
   globalThis.wallpaperRequestRandomFileForProperty(target, (name, filePath) => {
+    if (name !== requestedProperty || requestId !== randomFileRequests[requestedProperty])
+      return;
     if (name === "randomimages") randomImage.value = filePath;
     if (name === "randomvideos") randomVideo.value = filePath;
   });
@@ -890,6 +916,7 @@ function applyBackgroundProperties(values: Partial<UserProps>): void {
   }
 
   if (values.randomimages) {
+    randomFileRequests.randomimages++;
     randomImageDirectory.value = values.randomimages.value;
     randomImage.value = "";
   }
@@ -899,6 +926,7 @@ function applyBackgroundProperties(values: Partial<UserProps>): void {
     galleryIndex.value = 0;
   }
   if (values.randomvideos) {
+    randomFileRequests.randomvideos++;
     randomVideoDirectory.value = values.randomvideos.value;
     randomVideo.value = "";
   }
@@ -940,16 +968,18 @@ function applyUserPropertyUpdate(values: Partial<UserProps>): void {
 
 // Register host listeners immediately. Wallpaper Engine may deliver startup
 // events before mounted hooks and only sends changed properties thereafter.
-globalThis.wallpaperRegisterAudioListener((data) => {
-  if (paused.value) return;
-  processAudioFrame(data);
-  for (let index = 0; index < 128; index++) {
-    const sample = data[index] ?? 0;
-    rawAudio[index] = Number.isFinite(sample)
-      ? Math.max(0, Math.min(1, sample))
-      : 0;
-  }
-});
+if (typeof globalThis.wallpaperRegisterAudioListener === "function") {
+  globalThis.wallpaperRegisterAudioListener((data) => {
+    if (paused.value) return;
+    processAudioFrame(data);
+    for (let index = 0; index < 128; index++) {
+      const sample = data[index] ?? 0;
+      rawAudio[index] = Number.isFinite(sample)
+        ? Math.max(0, Math.min(1, sample))
+        : 0;
+    }
+  });
+}
 
 globalThis.wallpaperPropertyListener = {
   applyUserProperties(rawProperties) {
@@ -966,66 +996,77 @@ globalThis.wallpaperPropertyListener = {
   userDirectoryFilesRemoved: removeDirectoryFiles,
 };
 
-globalThis.wallpaperRegisterMediaStatusListener((event) => {
-  const statusChanged = mediaEnabled.value !== event.enabled;
-  mediaEnabled.value = event.enabled;
-  if (statusChanged) {
-    mediaIdentity = undefined;
-    clearPrismSparks(true);
-  }
-  if (event.enabled) return;
-  mediaTitle.value = "";
-  mediaArtist.value = "";
-  mediaSubtitle.value = "";
-  mediaAlbum.value = "";
-  mediaAlbumArtist.value = "";
-  mediaGenres.value = "";
-  mediaThumbnail.value = "";
-  mediaPrimary.value = "";
-  mediaSecondary.value = "";
-  mediaTertiary.value = "";
-  mediaText.value = "";
-  mediaHighContrast.value = "";
-  timelinePosition.value = 0;
-  timelineDuration.value = 0;
-  playbackState.value = globalThis.wallpaperMediaIntegration.PLAYBACK_STOPPED;
-});
+if (typeof globalThis.wallpaperRegisterMediaStatusListener === "function") {
+  globalThis.wallpaperRegisterMediaStatusListener((event) => {
+    const statusChanged = mediaEnabled.value !== event.enabled;
+    mediaEnabled.value = event.enabled;
+    if (statusChanged) {
+      mediaIdentity = undefined;
+      clearPrismSparks(true);
+    }
+    if (event.enabled) return;
+    mediaTitle.value = "";
+    mediaArtist.value = "";
+    mediaSubtitle.value = "";
+    mediaAlbum.value = "";
+    mediaAlbumArtist.value = "";
+    mediaGenres.value = "";
+    mediaThumbnail.value = "";
+    mediaPrimary.value = "";
+    mediaSecondary.value = "";
+    mediaTertiary.value = "";
+    mediaText.value = "";
+    mediaHighContrast.value = "";
+    timelinePosition.value = 0;
+    timelineDuration.value = 0;
+    playbackState.value =
+      globalThis.wallpaperMediaIntegration?.PLAYBACK_STOPPED;
+  });
+}
 
-globalThis.wallpaperRegisterMediaPropertiesListener((event) => {
-  const nextMediaIdentity = createMediaIdentity(event);
-  if (
-    mediaIdentity !== undefined
-    && mediaIdentity !== nextMediaIdentity
-  ) {
-    clearPrismSparks(true);
-  }
-  mediaIdentity = nextMediaIdentity;
-  mediaTitle.value = event.title ?? "";
-  mediaArtist.value = event.artist ?? "";
-  mediaSubtitle.value = event.subTitle ?? "";
-  mediaAlbum.value = event.albumTitle ?? "";
-  mediaAlbumArtist.value = event.albumArtist ?? "";
-  mediaGenres.value = event.genres ?? "";
-  mediaContentType.value = event.contentType;
-});
+if (typeof globalThis.wallpaperRegisterMediaPropertiesListener === "function") {
+  globalThis.wallpaperRegisterMediaPropertiesListener((event) => {
+    const nextMediaIdentity = createMediaIdentity(event);
+    if (
+      mediaIdentity !== undefined
+      && mediaIdentity !== nextMediaIdentity
+    ) {
+      clearPrismSparks(true);
+    }
+    mediaIdentity = nextMediaIdentity;
+    mediaTitle.value = event.title ?? "";
+    mediaArtist.value = event.artist ?? "";
+    mediaSubtitle.value = event.subTitle ?? "";
+    mediaAlbum.value = event.albumTitle ?? "";
+    mediaAlbumArtist.value = event.albumArtist ?? "";
+    mediaGenres.value = event.genres ?? "";
+    mediaContentType.value = event.contentType;
+  });
+}
 
-globalThis.wallpaperRegisterMediaThumbnailListener((event) => {
-  mediaThumbnail.value = event.thumbnail ?? "";
-  mediaPrimary.value = event.primaryColor ?? "";
-  mediaSecondary.value = event.secondaryColor ?? "";
-  mediaTertiary.value = event.tertiaryColor ?? "";
-  mediaText.value = event.textColor ?? "";
-  mediaHighContrast.value = event.highContrastColor ?? "";
-});
+if (typeof globalThis.wallpaperRegisterMediaThumbnailListener === "function") {
+  globalThis.wallpaperRegisterMediaThumbnailListener((event) => {
+    mediaThumbnail.value = event.thumbnail ?? "";
+    mediaPrimary.value = event.primaryColor ?? "";
+    mediaSecondary.value = event.secondaryColor ?? "";
+    mediaTertiary.value = event.tertiaryColor ?? "";
+    mediaText.value = event.textColor ?? "";
+    mediaHighContrast.value = event.highContrastColor ?? "";
+  });
+}
 
-globalThis.wallpaperRegisterMediaPlaybackListener((event) => {
-  playbackState.value = event.state;
-});
+if (typeof globalThis.wallpaperRegisterMediaPlaybackListener === "function") {
+  globalThis.wallpaperRegisterMediaPlaybackListener((event) => {
+    playbackState.value = event.state;
+  });
+}
 
-globalThis.wallpaperRegisterMediaTimelineListener((event) => {
-  timelinePosition.value = Math.max(0, event.position ?? 0);
-  timelineDuration.value = Math.max(0, event.duration ?? 0);
-});
+if (typeof globalThis.wallpaperRegisterMediaTimelineListener === "function") {
+  globalThis.wallpaperRegisterMediaTimelineListener((event) => {
+    timelinePosition.value = Math.max(0, event.position ?? 0);
+    timelineDuration.value = Math.max(0, event.duration ?? 0);
+  });
+}
 
 watch([activeUrl, isVideoBackground, paused], async () => {
   await nextTick();
@@ -1061,7 +1102,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="wallpaper" :style="wallpaperStyle">
     <GeneratedShaderBackground
-      v-if="backgroundSource === 'generated'"
+      v-if="usesGeneratedBackground"
       :background="backgroundColor"
       :accent="effectiveAccent"
       :glow="effectiveGlow"
@@ -1077,6 +1118,7 @@ onBeforeUnmount(() => {
       v-if="isImageBackground"
       class="source-layer source-image"
       :style="imageStyle"
+      aria-hidden="true"
     />
     <video
       v-if="isVideoBackground && activeUrl"
@@ -1088,17 +1130,18 @@ onBeforeUnmount(() => {
       loop
       autoplay
       playsinline
+      aria-hidden="true"
     />
     <div
       class="source-scrim"
-      :class="{ 'is-generated': backgroundSource === 'generated' }"
+      :class="{ 'is-generated': usesGeneratedBackground }"
     />
-    <template v-if="backgroundSource !== 'generated'">
+    <template v-if="!usesGeneratedBackground">
       <div class="aurora aurora-a" />
       <div class="aurora aurora-b" />
     </template>
     <div class="grain" />
-    <canvas ref="canvas" class="ambient-canvas">
+    <canvas ref="canvas" class="ambient-canvas" aria-hidden="true">
       Decorative audio visualization.
     </canvas>
 
@@ -1143,6 +1186,8 @@ onBeforeUnmount(() => {
       v-if="isRandomSource || isGallerySource"
       :random-source="isRandomSource"
       :gallery-source="isGallerySource"
+      :can-shuffle="canShuffleSource"
+      :can-advance="canAdvanceGallery"
       @shuffle="requestRandomFile()"
       @advance="advanceGallery"
     />

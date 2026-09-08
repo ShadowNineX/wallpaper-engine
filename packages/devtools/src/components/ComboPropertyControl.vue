@@ -36,7 +36,7 @@ function onCombo(event: Event): void {
     <NativeSelect
       :id="propKey"
       :model-value="runtimeValue?.value ?? def.value"
-      class="h-8 w-full bg-we-btn text-xs text-we-text hover:bg-we-btn-hover"
+      class="h-9 w-full bg-we-btn text-[12px] text-we-text hover:bg-we-btn-hover"
       @change="onCombo"
     >
       <NativeSelectOption

@@ -3,7 +3,6 @@ import { storeToRefs } from 'pinia';
 import { toast } from 'vue-sonner';
 import Pause from '~icons/ph/pause-duotone';
 import Play from '~icons/ph/play-duotone';
-import PlugZap from '~icons/ph/plug-duotone';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -14,6 +13,8 @@ import {
   NumberFieldInput,
 } from '@/components/ui/number-field';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import { invokeHostCallback } from '../callbacks';
+import CallbackStatus from '../components/CallbackStatus.vue';
 import { listenerFns, useDevtoolsStore } from '../store';
 
 const store = useDevtoolsStore();
@@ -21,13 +22,17 @@ const general = store.general;
 const { listenerCounts } = storeToRefs(store);
 
 function applyFps(): void {
+  if (!Number.isFinite(general.fps)) {
+    toast('Enter a valid FPS limit before sending.');
+    return;
+  }
   const listener = listenerFns.property;
   if (!listener?.applyGeneralProperties) {
     toast('No applyGeneralProperties listener registered.');
     return;
   }
-  listener.applyGeneralProperties({ fps: general.fps });
-  toast(`FPS limit sent: ${general.fps === 0 ? 'unlimited' : general.fps}`);
+  if (invokeHostCallback(() => listener.applyGeneralProperties?.({ fps: general.fps })))
+    toast(`FPS limit sent: ${general.fps === 0 ? 'unlimited' : general.fps}`);
 }
 
 function applyPaused(paused: boolean): void {
@@ -37,8 +42,8 @@ function applyPaused(paused: boolean): void {
     toast('No setPaused listener registered.');
     return;
   }
-  listener.setPaused(paused);
-  toast(paused ? 'Wallpaper paused.' : 'Wallpaper resumed.');
+  if (invokeHostCallback(() => listener.setPaused?.(paused)))
+    toast(paused ? 'Wallpaper paused.' : 'Wallpaper resumed.');
 }
 
 function firePluginLoaded(name: 'led' | 'cue'): void {
@@ -47,13 +52,13 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
     toast('No onPluginLoaded listener registered.');
     return;
   }
-  listener.onPluginLoaded(name, '0.0.0-dev');
-  toast(`${name === 'led' ? 'LED' : 'iCUE'} plugin loaded.`);
+  if (invokeHostCallback(() => listener.onPluginLoaded?.(name, '0.0.0-dev')))
+    toast(`${name === 'led' ? 'LED' : 'iCUE'} plugin loaded.`);
 }
 </script>
 
 <template>
-  <div class="space-y-3">
+  <div class="space-y-4">
     <section class="we-card">
       <div class="we-card-header">
         <div>
@@ -61,30 +66,21 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
             Wallpaper runtime
           </h2>
           <p class="we-card-description">
-            Simulate app-level settings and Wallpaper Engine pause events.
+            Send app settings and pause events to the wallpaper.
           </p>
         </div>
-        <span
-          class="flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[10px]"
-          :class="
-            listenerCounts.property
-              ? 'border-we-on-border bg-we-on-bg text-we-on-fg'
-              : 'border-we-border bg-we-panel text-we-faint'
-          "
-        >
-          <span
-            class="size-1.5 rounded-full"
-            :class="listenerCounts.property ? 'bg-emerald-400' : 'bg-we-border-strong'"
-          />
-          {{ listenerCounts.property ? "listener ready" : "waiting for listener" }}
-        </span>
+        <CallbackStatus
+          :ready="listenerCounts.property"
+          ready-label="Property listener registered"
+          missing-label="Waiting for property listener"
+        />
       </div>
 
-      <div class="space-y-3">
-        <div class="we-field">
+      <div class="divide-y divide-we-border/70 border-y border-we-border/70">
+        <div class="we-field py-3.5">
           <div>
             <Label for="general-fps" class="we-field-label">FPS limit</Label>
-            <div class="mt-0.5 text-[10px] text-we-faint">
+            <div class="mt-0.5 text-[11px] text-we-faint">
               0 is unlimited
             </div>
           </div>
@@ -97,7 +93,7 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
               class="min-w-0 flex-1"
               @update:model-value="
                 (value) => {
-                  if (value !== undefined) general.fps = value;
+                  if (value !== undefined && Number.isFinite(value)) general.fps = value;
                 }
               "
             >
@@ -107,23 +103,24 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
                 <NumberFieldIncrement />
               </NumberFieldContent>
             </NumberField>
-            <Button size="sm" class="h-8 px-3 text-[11px]" @click="applyFps">
+            <Button size="sm" class="h-9 px-3 text-[12px]" @click="applyFps">
               Send
             </Button>
           </div>
         </div>
 
-        <div class="we-field">
+        <div class="we-field py-3.5">
           <div>
             <div class="we-field-label">
               Run state
             </div>
-            <div class="mt-0.5 text-[10px] text-we-faint">
-              setPaused(boolean)
+            <div class="mt-0.5 text-[11px] text-we-faint">
+              Sends immediately
             </div>
           </div>
           <ToggleGroup
             type="single"
+            aria-label="Wallpaper run state"
             :model-value="general.paused ? 'paused' : 'running'"
             class="grid grid-cols-2 gap-1"
             @update:model-value="
@@ -132,11 +129,11 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
               }
             "
           >
-            <ToggleGroupItem value="running" class="h-8 gap-1.5 text-[11px]">
+            <ToggleGroupItem value="running" class="h-9 gap-1.5 text-[12px]">
               <Play class="size-3" />
               Running
             </ToggleGroupItem>
-            <ToggleGroupItem value="paused" class="h-8 gap-1.5 text-[11px]">
+            <ToggleGroupItem value="paused" class="h-9 gap-1.5 text-[12px]">
               <Pause class="size-3" />
               Paused
             </ToggleGroupItem>
@@ -152,16 +149,20 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
             RGB plugins
           </h2>
           <p class="we-card-description">
-            Fire the plugin-ready events exposed by Wallpaper Engine.
+            Announce a simulated plugin connection.
           </p>
         </div>
-        <PlugZap class="size-4 text-we-faint" />
+        <CallbackStatus
+          :ready="listenerCounts.plugin"
+          ready-label="Plugin callback ready"
+          missing-label="Waiting for plugin listener"
+        />
       </div>
       <div class="grid grid-cols-2 gap-2">
         <Button
           size="sm"
           variant="outline"
-          class="h-9 justify-start gap-2 px-3 text-[11px]"
+          class="h-10 justify-start gap-2 px-3 text-[12px]"
           @click="firePluginLoaded('led')"
         >
           <span class="size-2 rounded-full bg-sky-400" />
@@ -170,7 +171,7 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
         <Button
           size="sm"
           variant="outline"
-          class="h-9 justify-start gap-2 px-3 text-[11px]"
+          class="h-10 justify-start gap-2 px-3 text-[12px]"
           @click="firePluginLoaded('cue')"
         >
           <span class="size-2 rounded-full bg-amber-400" />

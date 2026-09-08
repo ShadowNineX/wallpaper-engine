@@ -9,7 +9,35 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-09-08
+
 ### Fixed
+
+- Made default user-property callback keys optional in TypeScript, matching
+  partial host updates even without `noUncheckedIndexedAccess`.
+- Preserved public preview bytes when Vite disables public-directory copying,
+  and rejected metadata preservation paths that resolve into output via junctions
+  or symlinks before writing preservation files.
+- Refreshed Workshop metadata and preview preservation on watch rebuilds.
+- Simplified the devtools shell and property layout, unified callback feedback,
+  and clarified which media controls edit drafts or send immediately.
+- Kept the Aether demo usable in ordinary production browser previews without
+  host globals, ignored stale random-file responses, and retained its generated
+  atmosphere when a selected background source is empty.
+- Isolated devtools property, runtime, and plugin callback failures so broken
+  wallpaper code cannot interrupt startup delivery or file-selection cleanup.
+- Restored keyboard tab-panel semantics, removed collapsed controls from focus
+  navigation, and improved narrow-panel layouts, touch targets, reduced motion,
+  primary-button contrast, and property-group focus/hover states.
+- Removed an unused remote font stylesheet from the self-contained devtools.
+- Prevented stale image reuse when changing directories with matching filenames,
+  sizes, and timestamps; clean up file pickers if the browser refuses to open them.
+- Added artwork preparation feedback, bounded thumbnail canvas dimensions, and
+  guarded runtime/media numeric controls against invalid values.
+- Reported manual media callback failures without skipping remaining listeners
+  or showing a misleading success message.
+- Prevented Vite from copying the Node-only simulator client as an unused asset
+  when a production wallpaper imports property builders.
 
 - Always emit `general.properties` in generated `project.json` files, including
   an empty object when no wallpaper properties are configured, to prevent
@@ -208,7 +236,8 @@ migration); tags are used where they exist.
   canvas encoding, and FPS-limited animation loops.
 - Added an example wallpaper, automated tests, build configuration, and CI.
 
-[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.1...HEAD
+[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.2...HEAD
+[1.3.2]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.1.1...v1.2.0
