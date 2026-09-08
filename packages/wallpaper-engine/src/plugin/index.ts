@@ -479,7 +479,7 @@ export function wallpaperEnginePlugin(
     generateBundle(_outputOptions, bundle) {
       let properties = options.properties
         ? assignIndices(options.properties)
-        : undefined;
+        : {};
       if (options.schemeColor !== undefined) {
         properties = {
           ...properties,
@@ -488,13 +488,11 @@ export function wallpaperEnginePlugin(
       }
       else {
         const preserved = preservationState?.schemeColor;
-        if (preserved !== undefined && properties?.schemecolor === undefined)
+        if (preserved !== undefined && properties.schemecolor === undefined)
           properties = { schemecolor: preserved, ...properties };
       }
 
-      const general: WallpaperProjectGeneral = {};
-      if (properties)
-        general.properties = properties;
+      const general: WallpaperProjectGeneral = { properties };
       if (options.localization)
         general.localization = options.localization;
       if (
@@ -511,8 +509,7 @@ export function wallpaperEnginePlugin(
         title: options.title,
         type: 'web',
       };
-      if (Object.keys(general).length > 0)
-        project.general = general;
+      project.general = general;
 
       const restoredPreview = preservationState === undefined
         ? undefined

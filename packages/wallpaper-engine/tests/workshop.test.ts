@@ -209,6 +209,7 @@ describe('steam Workshop project preservation', () => {
         file: 'wallpaper.html',
         title: 'Second generated title',
         type: 'web',
+        general: { properties: {} },
       });
   });
 
@@ -249,6 +250,7 @@ describe('steam Workshop project preservation', () => {
       file: 'index.html',
       title: 'Clean clone',
       type: 'web',
+      general: { properties: {} },
     });
     expect([...await readFile(join(root, 'dist', 'previews', 'clean.png'))])
       .toEqual([...previewBytes]);
@@ -458,6 +460,7 @@ describe('steam Workshop project preservation', () => {
         file: 'index.html',
         title: 'Generated',
         type: 'web',
+        general: { properties: {} },
       });
   });
 
