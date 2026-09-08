@@ -9,6 +9,12 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+### Fixed
+
+- Always emit `general.properties` in generated `project.json` files, including
+  an empty object when no wallpaper properties are configured, to prevent
+  Wallpaper Engine from crashing while loading the project.
+
 ## [1.3.1] - 2026-08-07
 
 ### Added

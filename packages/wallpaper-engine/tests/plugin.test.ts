@@ -319,6 +319,7 @@ describe('wallpaperEnginePlugin', () => {
       file: 'index.html',
       title: 'T',
       type: 'web',
+      general: { properties: {} },
     });
     expect(source).toBe(JSON.stringify(project));
   });
@@ -434,7 +435,9 @@ describe('wallpaperEnginePlugin', () => {
     } as never);
 
     const { source } = runGenerateBundle(plugin);
-    expect(source).toBe('{"file":"index.html","title":"T","type":"web"}');
+    expect(source).toBe(
+      '{"file":"index.html","title":"T","type":"web","general":{"properties":{}}}',
+    );
   });
 
   it('minifies project.json by default for builds', () => {
@@ -442,7 +445,9 @@ describe('wallpaperEnginePlugin', () => {
       wallpaperEnginePlugin({ title: 'T' }),
     );
 
-    expect(source).toBe('{"file":"index.html","title":"T","type":"web"}');
+    expect(source).toBe(
+      '{"file":"index.html","title":"T","type":"web","general":{"properties":{}}}',
+    );
   });
 
   it('pretty-prints project.json when minification is disabled', () => {
@@ -468,7 +473,10 @@ describe('wallpaperEnginePlugin', () => {
     const { project } = runGenerateBundle(
       wallpaperEnginePlugin({ title: 'T', supportsAudioProcessing: true }),
     );
-    expect(project.general).toEqual({ supportsaudioprocessing: true });
+    expect(project.general).toEqual({
+      properties: {},
+      supportsaudioprocessing: true,
+    });
     expect(project.supportsaudioprocessing).toBeUndefined();
   });
 
@@ -498,7 +506,10 @@ describe('wallpaperEnginePlugin', () => {
       },
     );
 
-    expect(project.general).toEqual({ supportsaudioprocessing: true });
+    expect(project.general).toEqual({
+      properties: {},
+      supportsaudioprocessing: true,
+    });
   });
 
   it('detects a listener call in an emitted script asset', () => {
@@ -515,7 +526,10 @@ describe('wallpaperEnginePlugin', () => {
       },
     );
 
-    expect(project.general).toEqual({ supportsaudioprocessing: true });
+    expect(project.general).toEqual({
+      properties: {},
+      supportsaudioprocessing: true,
+    });
   });
 
   it('allows automatic audio processing detection to be disabled', () => {
@@ -533,7 +547,7 @@ describe('wallpaperEnginePlugin', () => {
       },
     );
 
-    expect(project.general).toBeUndefined();
+    expect(project.general).toEqual({ properties: {} });
   });
 
   it('omits supportsaudioprocessing when not set', () => {
@@ -544,11 +558,11 @@ describe('wallpaperEnginePlugin', () => {
     expect(project.supportsaudioprocessing).toBeUndefined();
   });
 
-  it('omits the general block when there are no properties or localization', () => {
+  it('emits an empty properties record when no properties are configured', () => {
     const { project } = runGenerateBundle(
       wallpaperEnginePlugin({ title: 'T' }),
     );
-    expect(project.general).toBeUndefined();
+    expect(project.general).toEqual({ properties: {} });
   });
 
   it('emits derived and explicit slider steps in project.json', () => {
