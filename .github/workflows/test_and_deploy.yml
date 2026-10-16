@@ -47,7 +47,7 @@ jobs:
 
       - name: Publish to npm
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        run: npm publish --provenance --access public
+        run: npx --yes npm@latest publish --provenance --access public
         working-directory: packages/wallpaper-engine
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

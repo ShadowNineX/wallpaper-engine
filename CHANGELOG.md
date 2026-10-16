@@ -37,8 +37,8 @@ migration); tags are used where they exist.
 
 - Simplified simulator command dispatch, condition parsing, dock geometry, and
   preservation helpers while retaining their validation and cleanup behavior.
-- Hardened CI installation with disabled lifecycle scripts and used the
-  configured Node installation's npm for publication.
+- Hardened CI installation with disabled lifecycle scripts while retaining the
+  current npm CLI for trusted publication.
 - Replaced copied shadcn-vue controls with Nuxt UI, including the workbench shell,
   notifications, fields, and horizontal sliders with tall pill handles and
   uncluttered tracks.
@@ -58,6 +58,8 @@ migration); tags are used where they exist.
 
 ### Fixed
 
+- Restored the current npm CLI for publication so Node's bundled npm does not
+  prevent trusted-publisher authentication.
 - Corrected documentation table frames and cell padding while retaining horizontal
   scrolling, restored authored section-heading styles, and improved focus and
   example-preview contrast across light and dark themes.
