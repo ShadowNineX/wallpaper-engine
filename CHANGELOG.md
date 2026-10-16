@@ -58,6 +58,9 @@ migration); tags are used where they exist.
 
 ### Fixed
 
+- Corrected documentation table frames and cell padding while retaining horizontal
+  scrolling, restored authored section-heading styles, and improved focus and
+  example-preview contrast across light and dark themes.
 - Restored Starlight's CSS layer order so its reset no longer removes document
   spacing or desktop centering, and added clearer separation between sections,
   source tabs, list items, and adjacent callouts.

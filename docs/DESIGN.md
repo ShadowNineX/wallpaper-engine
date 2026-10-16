@@ -33,6 +33,9 @@ The property playground is the single authored interactive moment.
   tabs and callouts keep enough separation to remain distinct while scanning.
 - Code and numeric outputs use the existing Starlight monospace stack with
   tabular numerals where values change.
+- Markdown tables retain Starlight's native horizontal scrolling. Their frames
+  fit the table grid up to the column width, and every cell keeps its edge
+  padding. Short tables never leave an empty frame beside the last column.
 - Prefer semantic sections, ordered processes, and meaningful diagrams over
   repeated same-size cards.
 
@@ -46,6 +49,8 @@ The property playground is the single authored interactive moment.
   wallpaper DOM.
 - The default preview remains coherent without JavaScript. JavaScript only binds
   local input and reset listeners; it creates no globals, timers, or host claims.
+- Preview ink adapts to the selected accent; the intensity control still
+  deliberately fades the title, including fully hiding it at zero.
 
 ### `ExampleGallery`
 
@@ -53,6 +58,8 @@ The property playground is the single authored interactive moment.
   and now-playing media.
 - Routes are derived from `import.meta.env.BASE_URL` for local and GitHub Pages
   builds.
+- Recipe headings are H3 beneath the home section and H2 directly beneath the
+  Examples page title, with the same visual styling.
 - Visuals represent states and behavior already described by the examples. They
   are not screenshots or claims of a live host connection.
 
@@ -78,6 +85,8 @@ The property playground is the single authored interactive moment.
 - The mobile home mark is centered and capped at `9rem`; headings and both
   starting links take priority over decorative logo size.
 - Heading rhythm belongs to Starlight's generated `.sl-heading-wrapper` elements.
+  Authored heading and table overrides live in `starlight.components` so native
+  Markdown rules cannot silently replace them later in `starlight.content`.
   On small phones, source tabs inside numbered steps reclaim the step gutter;
   their labels and code retain native horizontal scrolling.
 - Gallery card internals and playground controls use named container queries,

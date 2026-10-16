@@ -79,6 +79,15 @@
     showTitle: true,
   } as const;
 
+  function previewInk(accent: string): string {
+    const rgb = Number.parseInt(accent.slice(1), 16);
+    const [red = 0, green = 0, blue = 0] = [16, 8, 0].map((shift) => {
+      const channel = ((rgb >> shift) & 255) / 255;
+      return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+    });
+    return red * 0.2126 + green * 0.7152 + blue * 0.0722 > 0.18 ? '#08111f' : '#f8fafc';
+  }
+
   for (const playground of document.querySelectorAll<HTMLElement>('[data-property-playground]')) {
     const form = playground.querySelector<HTMLFormElement>('[data-property-controls]');
     const accent = form?.elements.namedItem('accent');
@@ -107,6 +116,7 @@
         : DEFAULTS.intensity;
 
       playground.style.setProperty('--preview-accent', accent.value);
+      playground.style.setProperty('--preview-ink', previewInk(accent.value));
       playground.style.setProperty('--preview-intensity', String(safeIntensity));
       accentValue.value = accent.value.toUpperCase();
       intensityValue.value = safeIntensity.toFixed(2);
@@ -271,7 +281,7 @@
 
   button:focus-visible,
   input:focus-visible {
-    outline: 3px solid color-mix(in srgb, var(--sl-color-accent) 55%, transparent);
+    outline: 3px solid var(--sl-color-accent);
     outline-offset: 3px;
   }
 
@@ -282,7 +292,7 @@
     place-content: center;
     border-radius: 0.9rem;
     background: var(--preview-accent);
-    color: #08111f;
+    color: var(--preview-ink, #08111f);
     text-align: center;
   }
 
