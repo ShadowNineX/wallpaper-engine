@@ -127,7 +127,7 @@ function imageBytes(encodedImageData: string, width: number, height: number): Ui
     throw new RangeError(`RGB image data must contain exactly ${expected} bytes.`);
   const bytes = new Uint8Array(expected);
   for (let index = 0; index < expected; index += 1) {
-    const value = encodedImageData.charCodeAt(index);
+    const value = encodedImageData.codePointAt(index) ?? Number.POSITIVE_INFINITY;
     if (value > 255)
       throw new RangeError('RGB image data must contain byte-sized characters.');
     bytes[index] = value;

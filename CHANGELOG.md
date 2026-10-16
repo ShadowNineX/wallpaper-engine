@@ -11,6 +11,8 @@ migration); tags are used where they exist.
 
 ### Added
 
+- Added direction-aware devtools tab transitions, with an immediate switch when
+  reduced motion is enabled.
 - Added an isolated devtools frontend with right/bottom docking, separate-window
   controls, reconnection, and a TypeBox-validated host message bridge. Simulation
   and selected media remain owned by the wallpaper while views change.
@@ -33,6 +35,10 @@ migration); tags are used where they exist.
 
 ### Changed
 
+- Simplified simulator command dispatch, condition parsing, dock geometry, and
+  preservation helpers while retaining their validation and cleanup behavior.
+- Hardened CI installation with disabled lifecycle scripts and used the
+  configured Node installation's npm for publication.
 - Replaced copied shadcn-vue controls with Nuxt UI, including the workbench shell,
   notifications, fields, and horizontal sliders with tall pill handles and
   uncluttered tracks.
@@ -52,6 +58,13 @@ migration); tags are used where they exist.
 
 ### Fixed
 
+- Restored Starlight's CSS layer order so its reset no longer removes document
+  spacing or desktop centering, and added clearer separation between sections,
+  source tabs, list items, and adjacent callouts.
+- Restricted devtools iframe URLs to the same HTTP(S) origin before installing
+  simulator state, with regression coverage for invalid and crafted URLs.
+- Associated the media integration switch with its label and used native
+  output, figure, and progress semantics without changing the visual controls.
 - Kept the demo's FPS, frame-time, and audio status readouts in fixed-width
   numeric slots so changing values do not move the surrounding pills.
 - Matched the devtools expansion and collapse animation to the island's exact

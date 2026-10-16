@@ -29,6 +29,8 @@ The property playground is the single authored interactive moment.
   font request.
 - Body copy stays at `1rem`, approximately `72ch`, with `1.72` line height.
 - Headings use stronger weight, tighter tracking, and more space above than below.
+- The base content rhythm is `1.25rem`. Section headings open larger breaks, and
+  tabs and callouts keep enough separation to remain distinct while scanning.
 - Code and numeric outputs use the existing Starlight monospace stack with
   tabular numerals where values change.
 - Prefer semantic sections, ordered processes, and meaningful diagrams over
@@ -64,6 +66,9 @@ The property playground is the single authored interactive moment.
   so standard reading columns stay single-column even on wide screens. The home
   page uses the gallery mosaic only when its content column is wide enough. The
   three-step process becomes a vertical sequence on narrow screens.
+- Wide screens center each content panel inside Starlight's main pane. The
+  shell can hold previews, code, and tables, while prose and callout text stay
+  near `72ch`; desktop space improves composition without creating long lines.
 - Respect `prefers-reduced-motion`. No required meaning depends on hover or motion.
 - Light and dark modes must both meet readable text and control contrast.
 - Below Starlight's `50rem` navigation breakpoint, search, menu, theme controls,
@@ -80,6 +85,10 @@ The property playground is the single authored interactive moment.
 
 ## Guardrails
 
+- Declare Starlight's `base`, `reset`, `core`, `content`, `components`, and
+  `utils` sublayer order before defining any custom Starlight layer. The custom
+  stylesheet loads early, so an implicit order would let the later reset erase
+  component spacing.
 - Preserve verified API content and code examples.
 - Use one purposeful interaction rather than decorative animation throughout.
 - Avoid gradient text, decorative grids, fake terminals, generic icon-card grids,

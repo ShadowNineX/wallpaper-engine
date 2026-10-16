@@ -25,7 +25,7 @@ body,
 
 ::selection {
   color: #fff;
-  background: color-mix(in srgb, #5994ff 72%, transparent);
+  background: #274b8f;
 }
 
 button {
@@ -556,6 +556,9 @@ button {
 }
 
 .timeline-track {
+  appearance: none;
+  display: block;
+  border: 0;
   height: calc(4 * var(--ui-unit));
   min-width: calc(52 * var(--ui-unit));
   flex: 1;
@@ -564,16 +567,20 @@ button {
   background: rgba(255, 255, 255, 0.11);
 }
 
-.timeline-track span {
-  display: block;
-  width: 100%;
-  height: 100%;
+.timeline-track::-webkit-progress-bar {
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.timeline-track::-webkit-progress-value {
   border-radius: inherit;
   background: linear-gradient(90deg, var(--card-secondary), var(--card-primary));
   box-shadow: 0 0 calc(12 * var(--ui-unit)) var(--card-primary);
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform 400ms linear;
+}
+
+.timeline-track::-moz-progress-bar {
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--card-secondary), var(--card-primary));
 }
 
 

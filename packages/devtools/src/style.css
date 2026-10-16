@@ -339,8 +339,33 @@ body {
 .we-tab-scroll-region {
   height: 100%;
   overflow: auto;
+  overflow-x: hidden;
   padding: 16px;
   overscroll-behavior: contain;
+}
+
+.we-tabs-root[data-navigation-direction='forward'] {
+  --we-tab-enter-x: 24px;
+}
+
+.we-tabs-root[data-navigation-direction='backward'] {
+  --we-tab-enter-x: -24px;
+}
+
+.we-tabs-root[data-navigation-direction] .we-tab-content {
+  animation: we-tab-enter 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes we-tab-enter {
+  from {
+    opacity: 0;
+    transform: translateX(var(--we-tab-enter-x));
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 @layer components {
@@ -481,6 +506,10 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .we-tabs-root[data-navigation-direction] .we-tab-content {
+    animation: none;
+  }
+
   *,
   ::before,
   ::after {

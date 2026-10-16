@@ -72,9 +72,8 @@ function formatDuration(seconds: number): string {
     >
       <template v-if="hasMedia">
         <div class="media-art-shell">
-          <div
+          <figure
             class="media-cube"
-            role="img"
             :aria-label="
               thumbnail ? 'Current media artwork' : 'Media artwork placeholder'
             "
@@ -99,7 +98,7 @@ function formatDuration(seconds: number): string {
                 </template>
               </div>
             </div>
-          </div>
+          </figure>
         </div>
 
         <div class="media-copy">
@@ -118,17 +117,13 @@ function formatDuration(seconds: number): string {
 
           <div class="timeline-row">
             <span>{{ formatDuration(timelinePosition) }}</span>
-            <div
+            <progress
               class="timeline-track"
-              role="progressbar"
               aria-label="Media progress"
-              aria-valuemin="0"
-              :aria-valuemax="Math.max(0, timelineDuration)"
-              :aria-valuenow="Math.min(timelinePosition, timelineDuration)"
+              :max="100"
+              :value="Math.max(0, progressPercent)"
               :aria-valuetext="`${formatDuration(timelinePosition)} of ${formatDuration(timelineDuration)}`"
-            >
-              <span :style="{ transform: `scaleX(${progressPercent / 100})` }" />
-            </div>
+            />
             <span>{{ formatDuration(timelineDuration) }}</span>
           </div>
         </div>

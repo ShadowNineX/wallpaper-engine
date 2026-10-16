@@ -28,7 +28,7 @@ describe('audioTab', () => {
     const noise = buttons.find(button => button.text().includes('Noise'));
 
     expect(wrapper.text()).toContain('1 registered audio listener');
-    expect(wrapper.get('[role="status"]').text()).toContain('Stopped');
+    expect(wrapper.get('output#we-audio-spectrum-status').text()).toContain('Stopped');
     expect(wrapper.get('canvas').attributes('aria-label')).toContain('left channel above, right channel below');
     expect(wrapper.text()).toContain('Bass pulse');
     expect(wrapper.text()).toContain('Stereo pan');
@@ -38,14 +38,14 @@ describe('audioTab', () => {
     await wrapper.vm.$nextTick();
 
     expect(noise?.attributes('aria-pressed')).toBe('true');
-    expect(wrapper.get('[role="status"]').text()).toContain('Live');
-    expect(wrapper.get('[role="status"]').text()).toContain('Streaming Noise');
+    expect(wrapper.get('output#we-audio-spectrum-status').text()).toContain('Live');
+    expect(wrapper.get('output#we-audio-spectrum-status').text()).toContain('Streaming Noise');
     expect(audioListener).toHaveBeenCalledOnce();
     expect(audioListener.mock.calls[0]?.[0]).toHaveLength(128);
 
     await buttons.find(button => button.text().includes('Silence'))?.trigger('click');
-    expect(wrapper.get('[role="status"]').text()).toContain('Silence');
-    expect(wrapper.get('[role="status"]').text()).toContain('Sending a zeroed spectrum');
+    expect(wrapper.get('output#we-audio-spectrum-status').text()).toContain('Silence');
+    expect(wrapper.get('output#we-audio-spectrum-status').text()).toContain('Sending a zeroed spectrum');
 
     await buttons.find(button => button.text().includes('Off'))?.trigger('click');
     vi.advanceTimersByTime(100);
@@ -76,8 +76,8 @@ describe('audioTab', () => {
     expect(wrapper.text()).toContain('Kick');
     expect(wrapper.text()).toContain('Clap');
     expect(wrapper.text()).toContain('Hi-hat');
-    expect(wrapper.get('[role="status"]').text()).toContain('Waiting');
-    expect(wrapper.get('[role="status"]').text()).toContain('No audio listener');
+    expect(wrapper.get('output#we-audio-spectrum-status').text()).toContain('Waiting');
+    expect(wrapper.get('output#we-audio-spectrum-status').text()).toContain('No audio listener');
     const sliders = wrapper.findAllComponents(USlider);
     expect(sliders).toHaveLength(6);
     expect(

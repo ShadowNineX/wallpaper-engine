@@ -1,5 +1,5 @@
 import type { Pinia } from 'pinia';
-import type { Command, DockPlacement, Draft, HostMessage, HostSnapshot, SimulatorStore } from './protocol';
+import type { ActionCall, Command, DockPlacement, Draft, HostMessage, HostSnapshot, SimulatorStore } from './protocol';
 import { getActivePinia, setActivePinia } from 'pinia';
 import Value from 'typebox/value';
 import { watch } from 'vue';
@@ -22,90 +22,99 @@ export function applyDraftUpdate(store: SimulatorStore, patch: import('./protoco
   applyDraft(store, applyDraftPatch(makeDraft(store.$state), patch));
 }
 
-export function executeCommand(store: SimulatorStore, command: Command): void {
-  switch (command.type) {
-    case 'action': {
-      const { call } = command;
-      switch (call.name) {
-        case 'deliverProperty':
-          if (!Object.hasOwn(store.currentValues, call.args[0]))
-            throw new TypeError('Unknown wallpaper property.');
-          store.deliverProperty(call.args[0]);
-          return;
-        case 'clearFileSelection': {
-          const key = call.args[0];
-          if (propDefs[key]?.type !== 'file')
-            throw new TypeError('Unknown wallpaper property.');
-          const previous = store.currentValues[key]?.value;
-          store.clearFileSelection(key);
-          if (typeof previous === 'string')
-            releaseDevFile(previous);
-          return;
-        }
-        case 'clearDirectorySelection': {
-          const key = call.args[0];
-          if (propDefs[key]?.type !== 'directory')
-            throw new TypeError('Unknown wallpaper property.');
-          const previous = store.directorySelections[key]?.id;
-          store.clearDirectorySelection(key);
-          if (previous)
-            releaseDevDirectory(previous);
-          return;
-        }
-        case 'applyPaused':
-          store.applyPaused(call.args[0]);
-          return;
-        case 'firePluginLoaded':
-          store.firePluginLoaded(call.args[0]);
-          return;
-        case 'setMediaEnabled':
-          store.setMediaEnabled(call.args[0]);
-          return;
-        case 'sendMediaPlayback':
-          store.sendMediaPlayback(call.args[0]);
-          return;
-        case 'deliverAllProperties':
-          store.deliverAllProperties();
-          return;
-        case 'resetPropertiesToDefaults':
-          store.resetPropertiesToDefaults();
-          return;
-        case 'applyFps':
-          store.applyFps();
-          return;
-        case 'sendMediaProperties':
-          store.sendMediaProperties();
-          return;
-        case 'sendMediaTimeline':
-          store.sendMediaTimeline();
-          return;
-        case 'sendMediaArtwork':
-          store.sendMediaArtwork();
-          return;
-      }
+function executeAction(store: SimulatorStore, call: ActionCall): void {
+  switch (call.name) {
+    case 'deliverProperty':
+      if (!Object.hasOwn(store.currentValues, call.args[0]))
+        throw new TypeError('Unknown wallpaper property.');
+      store.deliverProperty(call.args[0]);
+      return;
+    case 'clearFileSelection': {
+      const key = call.args[0];
+      if (propDefs[key]?.type !== 'file')
+        throw new TypeError('Unknown wallpaper property.');
+      const previous = store.currentValues[key]?.value;
+      store.clearFileSelection(key);
+      if (typeof previous === 'string')
+        releaseDevFile(previous);
       return;
     }
+    case 'clearDirectorySelection': {
+      const key = call.args[0];
+      if (propDefs[key]?.type !== 'directory')
+        throw new TypeError('Unknown wallpaper property.');
+      const previous = store.directorySelections[key]?.id;
+      store.clearDirectorySelection(key);
+      if (previous)
+        releaseDevDirectory(previous);
+      return;
+    }
+    case 'applyPaused':
+      store.applyPaused(call.args[0]);
+      return;
+    case 'firePluginLoaded':
+      store.firePluginLoaded(call.args[0]);
+      return;
+    case 'setMediaEnabled':
+      store.setMediaEnabled(call.args[0]);
+      return;
+    case 'sendMediaPlayback':
+      store.sendMediaPlayback(call.args[0]);
+      return;
+    case 'deliverAllProperties':
+      store.deliverAllProperties();
+      return;
+    case 'resetPropertiesToDefaults':
+      store.resetPropertiesToDefaults();
+      return;
+    case 'applyFps':
+      store.applyFps();
+      return;
+    case 'sendMediaProperties':
+      store.sendMediaProperties();
+      return;
+    case 'sendMediaTimeline':
+      store.sendMediaTimeline();
+      return;
+    case 'sendMediaArtwork':
+      store.sendMediaArtwork();
+  }
+}
+
+function executeFileSelection(store: SimulatorStore, command: Extract<Command, { type: 'select-file' }>): void {
+  if (propDefs[command.key]?.type !== 'file')
+    throw new TypeError('Unknown wallpaper property.');
+  const previous = store.currentValues[command.key]?.value;
+  const accepted = acceptDevFile(command.selection);
+  if (!accepted)
+    return;
+  store.setFileSelection(command.key, accepted);
+  if (typeof previous === 'string')
+    releaseDevFile(previous);
+}
+
+function executeDirectorySelection(store: SimulatorStore, command: Extract<Command, { type: 'select-directory' }>): void {
+  if (propDefs[command.key]?.type !== 'directory')
+    throw new TypeError('Unknown wallpaper property.');
+  const previousDirectoryId = store.directorySelections[command.key]?.id;
+  store.setDirectorySelection(command.key, acceptDevDirectory(command.selection, previousDirectoryId));
+}
+
+export function executeCommand(store: SimulatorStore, command: Command): void {
+  switch (command.type) {
+    case 'action':
+      executeAction(store, command.call);
+      return;
     case 'audio':
       Object.assign(audioSettings, command.settings);
       if (audioState.mode !== command.mode)
         setAudioMode(command.mode);
       return;
-    case 'select-file': {
-      if (propDefs[command.key]?.type !== 'file')
-        throw new TypeError('Unknown wallpaper property.');
-      const previous = store.currentValues[command.key]?.value;
-      const accepted = acceptDevFile(command.selection);
-      if (accepted) {
-        store.setFileSelection(command.key, accepted);
-        if (typeof previous === 'string')
-          releaseDevFile(previous);
-      }
+    case 'select-file':
+      executeFileSelection(store, command);
       return;
-    }
     case 'select-directory':
-      if (propDefs[command.key]?.type !== 'directory')
-        throw new TypeError('Unknown wallpaper property.');
-      store.setDirectorySelection(command.key, acceptDevDirectory(command.selection, store.directorySelections[command.key]?.id));
+      executeDirectorySelection(store, command);
       return;
     case 'performance-reset':
       resetPerformanceMeasurements();
@@ -233,7 +242,7 @@ export function createBackend(pinia: Pinia, shell: (command: Extract<Command, { 
       stopPerformance();
       stopMonitor();
       removeNotifications();
-      for (const port of [...ports.keys()])
+      for (const port of ports.keys())
         disconnect(port);
       setAudioMode('off');
       removeGlobals();

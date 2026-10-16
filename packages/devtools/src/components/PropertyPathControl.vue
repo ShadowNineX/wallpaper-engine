@@ -34,37 +34,45 @@ const props = defineProps<{
 const store = useDevtoolsStore();
 const browsing = ref(false);
 
+async function browseRemotePath(): Promise<void> {
+  const selection = await pickBrowserSelection(props.def.type, props.def.fileType);
+  if (!selection)
+    return;
+  sendRemoteCommand({
+    type: props.def.type === 'file' ? 'select-file' : 'select-directory',
+    key: props.propKey,
+    selection,
+  });
+}
+
+async function browseLocalFile(): Promise<void> {
+  const previousUrl = store.currentValues[props.propKey]?.value;
+  const selection = await pickDevFile(props.def.fileType);
+  if (!selection)
+    return;
+  store.setFileSelection(props.propKey, selection);
+  if (typeof previousUrl === 'string')
+    releaseDevFile(previousUrl);
+}
+
+async function browseLocalDirectory(): Promise<void> {
+  const selection = await pickDevDirectory(
+    props.def.fileType,
+    store.directorySelections[props.propKey]?.id,
+  );
+  if (selection)
+    store.setDirectorySelection(props.propKey, selection);
+}
+
 async function browsePath(): Promise<void> {
   browsing.value = true;
   try {
-    if (isRemoteFrontend()) {
-      const selection = await pickBrowserSelection(props.def.type, props.def.fileType);
-      if (selection) {
-        sendRemoteCommand({
-          type: props.def.type === 'file' ? 'select-file' : 'select-directory',
-          key: props.propKey,
-          selection,
-        });
-      }
-      return;
-    }
-    if (props.def.type === 'file') {
-      const previousUrl = store.currentValues[props.propKey]?.value;
-      const selection = await pickDevFile(props.def.fileType);
-      if (selection) {
-        store.setFileSelection(props.propKey, selection);
-        if (typeof previousUrl === 'string')
-          releaseDevFile(previousUrl);
-      }
-      return;
-    }
-
-    const selection = await pickDevDirectory(
-      props.def.fileType,
-      store.directorySelections[props.propKey]?.id,
-    );
-    if (selection)
-      store.setDirectorySelection(props.propKey, selection);
+    if (isRemoteFrontend())
+      await browseRemotePath();
+    else if (props.def.type === 'file')
+      await browseLocalFile();
+    else
+      await browseLocalDirectory();
   }
   catch (error) {
     toast(

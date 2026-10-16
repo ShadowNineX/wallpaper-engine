@@ -15,7 +15,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Run tests with coverage
         run: bun run test:coverage
@@ -47,7 +47,7 @@ jobs:
 
       - name: Publish to npm
         if: ${{ startsWith(github.ref, 'refs/tags/v') }}
-        run: npx --yes npm@latest publish --provenance --access public
+        run: npm publish --provenance --access public
         working-directory: packages/wallpaper-engine
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

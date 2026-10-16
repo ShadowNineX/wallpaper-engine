@@ -152,6 +152,44 @@ async function start() {
 }
 
 describe('devtools runtime bridge', () => {
+  it.each([
+    { name: 'script scheme', value: () => 'javascript:alert(1)' },
+    { name: 'data document', value: () => 'data:text/html,<script>alert(1)</script>' },
+    { name: 'remote origin', value: () => 'https://untrusted.example/devtools/' },
+    { name: 'protocol-relative remote origin', value: () => '//untrusted.example/devtools/' },
+    { name: 'embedded credentials', value: () => window.location.origin.replace('://', '://user:password@') },
+    { name: 'malformed URL', value: () => 'http://[' },
+  ])('rejects a frontend URL with $name before installing simulator state', async ({ value }) => {
+    const [{ startRuntime }, pinia] = await Promise.all([import('../src/runtime'), import('pinia')]);
+    const wallpaperPinia = pinia.createPinia();
+    pinia.setActivePinia(wallpaperPinia);
+    const originalListener = Object.getOwnPropertyDescriptor(window, 'wallpaperPropertyListener');
+    const timers = vi.getTimerCount();
+    window.__WE_DEVTOOLS_FRONTEND_URL__ = value();
+
+    expect(() => startRuntime()).toThrow(TypeError);
+    expect(document.querySelector('wallpaper-engine-devtools')).toBeNull();
+    expect(Object.getOwnPropertyDescriptor(window, 'wallpaperPropertyListener')).toEqual(originalListener);
+    expect(pinia.getActivePinia()).toBe(wallpaperPinia);
+    expect(vi.getTimerCount()).toBe(timers);
+  });
+
+  it('ignores page query and hash content when resolving the frontend route', async () => {
+    const originalUrl = window.location.href;
+    try {
+      window.history.replaceState(null, '', '/wallpaper/?redirect=javascript:alert(1)#https://untrusted.example/');
+      await start();
+      const url = new URL(frameUrl(dockFrame()));
+      expect(url.origin).toBe(window.location.origin);
+      expect(url.pathname).toBe('/dev/__wallpaper-engine-devtools__/');
+      expect(url.search).toBe('');
+      expect(url.hash).toMatch(/^#session=/);
+    }
+    finally {
+      window.history.replaceState(null, '', originalUrl);
+    }
+  });
+
   it('starts one host synchronously, keeps the wallpaper Pinia active, and installs host listeners', async () => {
     const pinia = await import('pinia');
     const wallpaperPinia = pinia.createPinia();

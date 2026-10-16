@@ -7,6 +7,12 @@ import { releaseDevFiles } from './dev-files';
 
 const RUNTIME_KEY = Symbol.for('wallpaper-engine.devtools.runtime');
 type RuntimeWindow = Window & { [RUNTIME_KEY]?: { host: HTMLElement; dispose: () => void } };
+const RESIZE_DELTAS: Record<string, readonly [number, number]> = {
+  ArrowLeft: [-20, 0],
+  ArrowRight: [20, 0],
+  ArrowUp: [0, -20],
+  ArrowDown: [0, 20],
+};
 
 function readSetting(key: string): string | null {
   try {
@@ -23,6 +29,38 @@ function writeSetting(key: string, value: string): void {
   catch { /* Restricted storage must not prevent local tooling. */ }
 }
 interface Point { left: number; top: number }
+
+function resolveFrontendUrl(): URL {
+  const url = new URL(window.__WE_DEVTOOLS_FRONTEND_URL__ ?? '/__wallpaper-engine-devtools__/', window.location.origin);
+  if ((url.protocol !== 'http:' && url.protocol !== 'https:')
+    || url.origin !== window.location.origin || url.username || url.password) {
+    throw new TypeError('Devtools frontend must use a same-origin HTTP(S) URL without credentials.');
+  }
+  return url;
+}
+
+function panelOrigin(from: DOMRect, to: DOMRect): Keyframe {
+  const scaleX = Math.max(1, from.width) / Math.max(1, to.width);
+  const scaleY = Math.max(1, from.height) / Math.max(1, to.height);
+  const radius = Math.max(1, Math.min(from.width, from.height)) / 2;
+  return {
+    transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${scaleX}, ${scaleY})`,
+    // Compensate each axis so the scaled surface keeps the island's pill shape.
+    borderRadius: `${radius / scaleX}px / ${radius / scaleY}px`,
+    opacity: 0,
+  };
+}
+
+function resizeHandleStyle(placement: DockPlacement): Partial<CSSStyleDeclaration> {
+  switch (placement) {
+    case 'floating':
+      return { left: 'auto', top: 'auto', right: '0', bottom: '0', width: '14px', height: '14px', cursor: 'nwse-resize' };
+    case 'right':
+      return { left: '0', top: '0', right: 'auto', bottom: '0', width: '6px', height: '100%', cursor: 'col-resize' };
+    case 'bottom':
+      return { left: '0', top: '0', right: '0', bottom: 'auto', width: '100%', height: '6px', cursor: 'row-resize' };
+  }
+}
 function readPoint(key: string): Point | undefined {
   try {
     const value: unknown = JSON.parse(readSetting(key) ?? 'null');
@@ -42,6 +80,7 @@ export function startRuntime(): () => void {
   const target = window as RuntimeWindow;
   if (target[RUNTIME_KEY]?.host.isConnected)
     return target[RUNTIME_KEY]!.dispose;
+  const url = resolveFrontendUrl();
   target[RUNTIME_KEY]?.dispose();
   const previousPinia = getActivePinia();
   const pinia = createPinia();
@@ -72,7 +111,6 @@ export function startRuntime(): () => void {
   const frame = document.createElement('iframe');
   frame.title = 'Wallpaper Engine Devtools';
   const token = crypto.randomUUID();
-  const url = new URL(window.__WE_DEVTOOLS_FRONTEND_URL__ ?? '/__wallpaper-engine-devtools__/', window.location.href);
   url.hash = new URLSearchParams({ session: token }).toString();
   frame.src = url.href;
   const resize = document.createElement('button');
@@ -124,29 +162,30 @@ export function startRuntime(): () => void {
       height = Math.min(Math.max(240, height), window.innerHeight);
       floating = clampPoint(floating ?? { left: window.innerWidth - width, top: 0 }, width, height);
     }
-    Object.assign(pane.style, {
+    let paneGeometry: Partial<CSSStyleDeclaration>;
+    if (floatingPane) {
+      paneGeometry = { right: 'auto', bottom: 'auto', left: `${floating!.left}px`, top: `${floating!.top}px`, width: `${width}px`, height: `${height}px` };
+    }
+    else if (right) {
+      paneGeometry = { right: '0', bottom: '0', left: 'auto', top: '0', width: `${Math.min(width, window.innerWidth)}px`, height: '100%' };
+    }
+    else {
+      paneGeometry = { right: '0', bottom: '0', left: '0', top: 'auto', width: '100%', height: `${Math.min(height, window.innerHeight)}px` };
+    }
+    Object.assign(pane.style, paneGeometry, {
       display: closed || detached ? 'none' : 'flex',
-      right: floatingPane ? 'auto' : '0',
-      bottom: floatingPane ? 'auto' : '0',
-      left: floatingPane ? `${floating!.left}px` : right ? 'auto' : '0',
-      top: floatingPane ? `${floating!.top}px` : right ? '0' : 'auto',
-      width: floatingPane || right ? `${Math.min(width, window.innerWidth)}px` : '100%',
-      height: floatingPane ? `${Math.min(height, window.innerHeight)}px` : right ? '100%' : `${Math.min(height, window.innerHeight)}px`,
     });
-    Object.assign(resize.style, {
-      left: floatingPane ? 'auto' : right ? '0' : '0',
-      top: floatingPane ? 'auto' : '0',
-      right: floatingPane ? '0' : right ? 'auto' : '0',
-      bottom: floatingPane ? '0' : right ? '0' : 'auto',
-      width: floatingPane ? '14px' : right ? '6px' : '100%',
-      height: floatingPane ? '14px' : right ? '100%' : '6px',
-      cursor: floatingPane ? 'nwse-resize' : right ? 'col-resize' : 'row-resize',
-    });
+    Object.assign(resize.style, resizeHandleStyle(placement));
     if (island) {
       island = clampPoint(island, launcher.offsetWidth, launcher.offsetHeight);
       Object.assign(launcher.style, { left: `${island.left}px`, top: `${island.top}px`, right: 'auto', bottom: 'auto' });
     }
-    launcher.setAttribute('aria-label', detached ? 'Return devtools to wallpaper' : panelTargetOpen ? 'Hide devtools' : 'Open devtools');
+    let launcherLabel = 'Open devtools';
+    if (detached)
+      launcherLabel = 'Return devtools to wallpaper';
+    else if (panelTargetOpen)
+      launcherLabel = 'Hide devtools';
+    launcher.setAttribute('aria-label', launcherLabel);
   }
 
   function clampPoint(point: Point, paneWidth: number, paneHeight: number): Point {
@@ -178,18 +217,6 @@ export function startRuntime(): () => void {
     pane.style.removeProperty('transform');
     pane.style.removeProperty('opacity');
     frame.style.removeProperty('opacity');
-  }
-
-  function panelOrigin(from: DOMRect, to: DOMRect): Keyframe {
-    const scaleX = Math.max(1, from.width) / Math.max(1, to.width);
-    const scaleY = Math.max(1, from.height) / Math.max(1, to.height);
-    const radius = Math.max(1, Math.min(from.width, from.height)) / 2;
-    return {
-      transform: `translate(${from.left - to.left}px, ${from.top - to.top}px) scale(${scaleX}, ${scaleY})`,
-      // Compensate each axis so the scaled surface keeps the island's pill shape.
-      borderRadius: `${radius / scaleX}px / ${radius / scaleY}px`,
-      opacity: 0,
-    };
   }
 
   function setPanelOpen(open: boolean, animate: boolean): void {
@@ -292,7 +319,7 @@ export function startRuntime(): () => void {
     launcher.setPointerCapture?.(event.pointerId);
   });
   launcher.addEventListener('pointermove', (event) => {
-    if (!islandDragging || islandDragging.pointerId !== event.pointerId)
+    if (islandDragging?.pointerId !== event.pointerId)
       return;
     const x = event.clientX - islandDragging.startX;
     const y = event.clientY - islandDragging.startY;
@@ -305,7 +332,7 @@ export function startRuntime(): () => void {
     layout();
   });
   const stopIslandDrag = (event: PointerEvent) => {
-    if (!islandDragging || islandDragging.pointerId !== event.pointerId)
+    if (islandDragging?.pointerId !== event.pointerId)
       return;
     islandDragging = undefined;
     launcher.dataset.dragging = 'false';
@@ -455,23 +482,19 @@ export function startRuntime(): () => void {
     resize.setPointerCapture?.(event.pointerId);
   });
   resize.addEventListener('keydown', (event) => {
-    const keys = placement === 'floating'
-      ? ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']
-      : placement === 'right' ? ['ArrowLeft', 'ArrowRight'] : ['ArrowUp', 'ArrowDown'];
-    if (!keys.includes(event.key))
+    const delta = RESIZE_DELTAS[event.key];
+    if (!delta || (placement === 'right' && delta[1] !== 0) || (placement === 'bottom' && delta[0] !== 0))
       return;
     event.preventDefault();
     if (placement === 'floating') {
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight')
-        width = Math.max(Math.min(320, window.innerWidth), width + (event.key === 'ArrowLeft' ? -20 : 20));
-      else
-        height = Math.max(Math.min(240, window.innerHeight), height + (event.key === 'ArrowUp' ? -20 : 20));
+      width = Math.max(Math.min(320, window.innerWidth), width + delta[0]);
+      height = Math.max(Math.min(240, window.innerHeight), height + delta[1]);
     }
     else if (placement === 'right') {
-      width = Math.max(320, width + (event.key === 'ArrowLeft' ? 20 : -20));
+      width = Math.max(320, width - delta[0]);
     }
     else {
-      height = Math.max(240, height + (event.key === 'ArrowUp' ? 20 : -20));
+      height = Math.max(240, height - delta[1]);
     }
     layout();
   });

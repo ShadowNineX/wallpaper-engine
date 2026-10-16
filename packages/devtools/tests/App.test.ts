@@ -46,7 +46,7 @@ afterEach(async () => {
 
 function findTab(wrapper: ReturnType<typeof mount>, label: string) {
   const tab = wrapper
-    .findAll('[role="tab"]')
+    .findAll<HTMLButtonElement>('[role="tab"]')
     .find(candidate => candidate.text().includes(label));
   if (!tab)
     throw new Error(`Missing ${label} tab`);
@@ -123,11 +123,9 @@ describe('devtools app shell', () => {
     expect(version.attributes('title')).toBe('Devtools 1.2.3 (git abc1234-dirty)');
     expect(wrapper.findAll('[role="tab"]')).toHaveLength(5);
     expect(wrapper.findAll('[data-tab-status]').map(status => status.text())).toEqual([
-      'No listener',
       'Running',
       'Off',
       'Disabled',
-      'Host metrics',
     ]);
 
     const selected = wrapper.get('[role="tab"][aria-selected="true"]');
@@ -150,7 +148,7 @@ describe('devtools app shell', () => {
     expect(findTab(wrapper, 'Performance').attributes('aria-selected')).toBe('true');
   });
 
-  it('shows each simulator live state in its tab status', async () => {
+  it('shows changing tab states without adding Properties or Performance indicators', async () => {
     const [{ default: App }, { audioState }, { useDevtoolsStore }]
       = await Promise.all([
         import('../src/App.vue'),
@@ -161,10 +159,11 @@ describe('devtools app shell', () => {
     const store = useDevtoolsStore();
     const status = (label: string) => findTab(wrapper, label).get('[data-tab-status]').text();
 
-    expect(status('Properties')).toBe('No listener');
+    expect(findTab(wrapper, 'Properties').find('[data-tab-status]').exists()).toBe(false);
     expect(status('Runtime')).toBe('Running');
     expect(status('Audio')).toBe('Off');
     expect(status('Media')).toBe('Disabled');
+    expect(findTab(wrapper, 'Performance').find('[data-tab-status]').exists()).toBe(false);
 
     store.listenerCounts.property = true;
     store.general.paused = true;
@@ -172,7 +171,7 @@ describe('devtools app shell', () => {
     store.mediaActive = true;
     await nextTick();
 
-    expect(status('Properties')).toBe('Ready');
+    expect(findTab(wrapper, 'Properties').find('[data-tab-status]').exists()).toBe(false);
     expect(status('Runtime')).toBe('Paused');
     expect(status('Audio')).toBe('No listener');
     expect(status('Media')).toBe('Enabled');
@@ -180,5 +179,104 @@ describe('devtools app shell', () => {
     store.listenerCounts.audio = 1;
     await nextTick();
     expect(status('Audio')).toBe('Stereo pan');
+    expect(findTab(wrapper, 'Performance').find('[data-tab-status]').exists()).toBe(false);
+  });
+
+  it('slides new panels in the direction of the selected tab order', async () => {
+    const { default: App } = await import('../src/App.vue');
+    const wrapper = mount(App);
+    await flushPromises();
+
+    expect(wrapper.get('.we-tabs-root').attributes('data-navigation-direction')).toBeUndefined();
+    for (const [label, direction] of [
+      ['Runtime', 'forward'],
+      ['Audio', 'forward'],
+      ['Media', 'forward'],
+      ['Performance', 'forward'],
+      ['Audio', 'backward'],
+      ['Properties', 'backward'],
+      ['Media', 'forward'],
+      ['Runtime', 'backward'],
+    ] as const) {
+      const previousContent = wrapper.get('.we-tab-content').element;
+      await findTab(wrapper, label).trigger('mousedown', { button: 0, ctrlKey: false });
+      await flushPromises();
+
+      expect(wrapper.get('.we-tabs-root').attributes('data-navigation-direction')).toBe(direction);
+      const selected = findTab(wrapper, label);
+      expect(selected.attributes('aria-selected')).toBe('true');
+      const activePanel = wrapper.get('[role="tabpanel"][data-state="active"]');
+      expect(activePanel.attributes('id')).toBe(selected.attributes('aria-controls'));
+      expect(wrapper.findAll('.we-tab-content')).toHaveLength(1);
+      expect(wrapper.get('.we-tab-content').element).not.toBe(previousContent);
+      expect(wrapper.element.contains(previousContent)).toBe(false);
+    }
+    wrapper.unmount();
+  });
+
+  it('follows keyboard and synchronized navigation without replaying the selected tab', async () => {
+    const { default: App } = await import('../src/App.vue');
+    const wrapper = mount(App, { attachTo: document.body });
+    await flushPromises();
+    try {
+      findTab(wrapper, 'Properties').element.focus();
+      await findTab(wrapper, 'Properties').trigger('keydown', { key: 'ArrowRight' });
+      await flushPromises();
+      expect(document.activeElement).toBe(findTab(wrapper, 'Runtime').element);
+      expect(findTab(wrapper, 'Runtime').attributes('aria-selected')).toBe('true');
+      expect(wrapper.get('.we-tabs-root').attributes('data-navigation-direction')).toBe('forward');
+
+      await findTab(wrapper, 'Runtime').trigger('keydown', { key: 'ArrowLeft' });
+      await flushPromises();
+      expect(document.activeElement).toBe(findTab(wrapper, 'Properties').element);
+      expect(wrapper.get('.we-tabs-root').attributes('data-navigation-direction')).toBe('backward');
+
+      savedTabs.set('we-devtools:active-tab:Aether test wallpaper', 'media');
+      window.dispatchEvent(new StorageEvent('storage', {
+        key: 'we-devtools:active-tab:Aether test wallpaper',
+      }));
+      await flushPromises();
+      expect(findTab(wrapper, 'Media').attributes('aria-selected')).toBe('true');
+      expect(wrapper.get('.we-tabs-root').attributes('data-navigation-direction')).toBe('forward');
+
+      const currentContent = wrapper.get('.we-tab-content').element;
+      await findTab(wrapper, 'Media').trigger('mousedown', { button: 0, ctrlKey: false });
+      await flushPromises();
+      expect(wrapper.get('.we-tab-content').element).toBe(currentContent);
+      expect(wrapper.findAll('.we-tab-content')).toHaveLength(1);
+    }
+    finally {
+      wrapper.unmount();
+    }
+  });
+
+  it('keeps only the final panel after rapid tab changes', async () => {
+    const { default: App } = await import('../src/App.vue');
+    const wrapper = mount(App);
+    await flushPromises();
+
+    // Dispatch before the next render: direction follows the panel actually left.
+    const select = (label: string) => findTab(wrapper, label).element.dispatchEvent(
+      new MouseEvent('mousedown', { bubbles: true, button: 0, ctrlKey: false }),
+    );
+    select('Performance');
+    select('Media');
+    select('Runtime');
+    await flushPromises();
+    expect(findTab(wrapper, 'Runtime').attributes('aria-selected')).toBe('true');
+    expect(wrapper.get('.we-tabs-root').attributes('data-navigation-direction')).toBe('forward');
+    expect(wrapper.findAll('.we-tab-content')).toHaveLength(1);
+    expect(wrapper.get('.we-tab-content').text()).toContain('Wallpaper runtime');
+    expect(savedTabs.get('we-devtools:active-tab:Aether test wallpaper')).toBe('general');
+
+    select('Properties');
+    await nextTick();
+    select('Audio');
+    await flushPromises();
+    expect(findTab(wrapper, 'Audio').attributes('aria-selected')).toBe('true');
+    expect(wrapper.findAll('.we-tab-content')).toHaveLength(1);
+    expect(wrapper.get('.we-tabs-root').attributes('data-navigation-direction')).toBe('forward');
+    expect(wrapper.text()).not.toContain('Wallpaper runtime');
+    wrapper.unmount();
   });
 });

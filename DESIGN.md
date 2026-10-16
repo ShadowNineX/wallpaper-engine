@@ -14,8 +14,12 @@ The UI should feel built into the browser rather than floating above it. Docked 
 
 - A slim command bar identifies the wallpaper, build, and window controls.
 - Five persistent tabs expose Properties, Runtime, Audio, Media, and Performance.
-- Every tab includes a concise live status. At narrow widths the text collapses visually to a colored dot while remaining available to assistive technology.
+- Runtime, Audio, and Media include concise live statuses. At narrow widths the text collapses visually to a colored dot while remaining available to assistive technology. Properties and Performance use their icons and labels without status indicators.
 - Tab content scrolls independently below fixed navigation.
+- Selecting a later tab brings content in from the right; selecting an earlier
+  tab brings it in from the left. The navigation and scroll frame stay fixed.
+  The 200 ms entrance uses transform and opacity, cancels naturally when its
+  panel unmounts, and is disabled for reduced motion. Initial content is static.
 - Sections use rhythm and separators. Cards are reserved for content that needs a bounded surface.
 
 ## Visual language

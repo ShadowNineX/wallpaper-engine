@@ -39,6 +39,26 @@ type Expression
 
 const MAX_EXPRESSION_LENGTH = 2048;
 const MAX_TOKENS = 256;
+const ESCAPED_CHARACTERS: Readonly<Record<string, string>> = {
+  n: '\n',
+  r: '\r',
+  t: '\t',
+};
+const OPERATORS: ReadonlyArray<readonly [string, TokenKind]> = [
+  ['===', 'strictEqual'],
+  ['!==', 'strictNotEqual'],
+  ['>=', 'greaterEqual'],
+  ['<=', 'lessEqual'],
+  ['==', 'equal'],
+  ['!=', 'notEqual'],
+  ['&&', 'and'],
+  ['||', 'or'],
+  ['>', 'greater'],
+  ['<', 'less'],
+  ['!', 'not'],
+  ['(', 'openParen'],
+  [')', 'closeParen'],
+];
 const parsedExpressions = new Map<string, Expression>();
 const invalidExpressions = new Set<string>();
 const warnedExpressions = new Set<string>();
@@ -167,64 +187,51 @@ function tokenize(source: string): Token[] {
     if (tokens.length >= MAX_TOKENS)
       throw new Error('The expression contains too many tokens.');
 
-    const rest = source.slice(index);
-    const operator = matchOperator(rest);
-    if (operator) {
-      tokens.push(operator.token);
-      index += operator.length;
-      continue;
-    }
-    const quote = source[index]!;
-    if (quote === '\'' || quote === '"') {
-      const string = readString(source, index, quote);
-      tokens.push({ kind: 'value', value: string.value });
-      index = string.nextIndex;
-      continue;
-    }
-    const number = /^(?:\d+\.\d*|\.\d+|\d+)(?:e[+-]?\d+)?/i.exec(rest);
-    if (number) {
-      tokens.push({ kind: 'value', value: Number(number[0]) });
-      index += number[0].length;
-      continue;
-    }
-    const reference = /^([A-Za-z_$][\w$]*)\.value\b/.exec(rest);
-    if (reference) {
-      tokens.push({ kind: 'reference', value: reference[1]! });
-      index += reference[0].length;
-      continue;
-    }
-    const literal = /^(true|false|null)\b/.exec(rest);
-    if (literal) {
-      tokens.push({
-        kind: 'value',
-        value: literal[1] === 'true' ? true : literal[1] === 'false' ? false : null,
-      });
-      index += literal[0].length;
-      continue;
-    }
-    throw new Error(`Unexpected token at character ${index + 1}.`);
+    const token = readToken(source, index);
+    tokens.push(token.token);
+    index = token.nextIndex;
   }
   tokens.push({ kind: 'eof' });
   return tokens;
 }
 
+function readToken(source: string, index: number): { nextIndex: number; token: Token } {
+  const rest = source.slice(index);
+  const operator = matchOperator(rest);
+  if (operator)
+    return { nextIndex: index + operator.length, token: operator.token };
+
+  const quote = source[index]!;
+  if (quote === '\'' || quote === '"') {
+    const string = readString(source, index, quote);
+    return { nextIndex: string.nextIndex, token: { kind: 'value', value: string.value } };
+  }
+
+  const number = /^(?:\d+\.\d*|\.\d+|\d+)(?:e[+-]?\d+)?/i.exec(rest);
+  if (number)
+    return { nextIndex: index + number[0].length, token: { kind: 'value', value: Number(number[0]) } };
+
+  const reference = /^([A-Za-z_$][\w$]*)\.value\b/.exec(rest);
+  if (reference)
+    return { nextIndex: index + reference[0].length, token: { kind: 'reference', value: reference[1]! } };
+
+  const literal = /^(true|false|null)\b/.exec(rest);
+  if (literal)
+    return { nextIndex: index + literal[0].length, token: { kind: 'value', value: literalValue(literal[1]!) } };
+
+  throw new Error(`Unexpected token at character ${index + 1}.`);
+}
+
+function literalValue(value: string): Primitive {
+  if (value === 'true')
+    return true;
+  if (value === 'false')
+    return false;
+  return null;
+}
+
 function matchOperator(source: string): { length: number; token: Token } | undefined {
-  const operators: Array<[string, TokenKind]> = [
-    ['===', 'strictEqual'],
-    ['!==', 'strictNotEqual'],
-    ['>=', 'greaterEqual'],
-    ['<=', 'lessEqual'],
-    ['==', 'equal'],
-    ['!=', 'notEqual'],
-    ['&&', 'and'],
-    ['||', 'or'],
-    ['>', 'greater'],
-    ['<', 'less'],
-    ['!', 'not'],
-    ['(', 'openParen'],
-    [')', 'closeParen'],
-  ];
-  const match = operators.find(([operator]) => source.startsWith(operator));
+  const match = OPERATORS.find(([operator]) => source.startsWith(operator));
   return match ? { length: match[0].length, token: { kind: match[1] } } : undefined;
 }
 
@@ -238,7 +245,7 @@ function readString(source: string, start: number, quote: string): { nextIndex: 
       const escaped = source[++index];
       if (escaped === undefined)
         break;
-      value += escaped === 'n' ? '\n' : escaped === 'r' ? '\r' : escaped === 't' ? '\t' : escaped;
+      value += ESCAPED_CHARACTERS[escaped] ?? escaped;
     }
     else {
       value += character;

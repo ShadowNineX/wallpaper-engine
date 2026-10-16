@@ -183,9 +183,11 @@ async function onThumbnailFile(event: Event): Promise<void> {
             Drafts stay editable while off. Enabling delivers the full current state.
           </p>
         </div>
-        <label class="flex cursor-pointer items-center gap-2 text-[12px] font-medium text-we-muted">
+        <label for="media-integration-enabled" class="flex cursor-pointer items-center gap-2 text-[12px] font-medium text-we-muted">
           <USwitch
+            id="media-integration-enabled"
             data-media-enabled
+            aria-label="Media integration"
             :model-value="mediaActive"
             @update:model-value="(value) => store.setMediaEnabled(value === true)"
           />

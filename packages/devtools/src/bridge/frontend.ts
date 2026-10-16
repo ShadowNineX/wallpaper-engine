@@ -330,7 +330,7 @@ export function startFrontend(css?: string): () => void {
     port?.close();
     stopDraft();
     stopAudio();
-    setAudioTransport(undefined);
+    setAudioTransport();
     removeSender();
     mounted.unmount();
   }

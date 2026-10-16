@@ -1132,6 +1132,7 @@ onBeforeUnmount(() => {
       loop
       autoplay
       playsinline
+      inert
       aria-hidden="true"
     />
     <div
@@ -1143,7 +1144,7 @@ onBeforeUnmount(() => {
       <div class="aurora aurora-b" />
     </template>
     <div class="grain" />
-    <canvas ref="canvas" class="ambient-canvas" aria-hidden="true">
+    <canvas ref="canvas" class="ambient-canvas" inert aria-hidden="true">
       Decorative audio visualization.
     </canvas>
 

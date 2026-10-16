@@ -374,9 +374,8 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
           :aria-label="spectrumAriaLabel"
           aria-describedby="we-audio-spectrum-status"
         />
-        <div
+        <output
           id="we-audio-spectrum-status"
-          role="status"
           aria-live="polite"
           class="flex min-w-0 items-center gap-2 border-t border-we-border/70 px-2.5 py-2 text-[10px] leading-4"
         >
@@ -391,7 +390,7 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
           <span class="truncate text-we-faint">
             {{ spectrumStatus.description }}
           </span>
-        </div>
+        </output>
       </div>
 
       <div

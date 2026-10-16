@@ -255,9 +255,9 @@ export function releaseDevDirectory(directoryId: string): void {
 /** Release simulator-owned media and invalidate pending browser selections. */
 export function releaseDevFiles(): void {
   selectionGeneration++;
-  for (const cancel of [...pendingPickers])
+  for (const cancel of pendingPickers)
     cancel();
-  for (const url of [...localUrls])
+  for (const url of localUrls)
     releaseDevFile(url);
   directoriesById.clear();
 }

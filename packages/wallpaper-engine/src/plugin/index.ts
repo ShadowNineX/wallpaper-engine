@@ -585,9 +585,9 @@ function normalizeDevtoolsBase(base: string | undefined): string {
 
 function safeJsonForScript(value: unknown): string {
   return JSON.stringify(value)
-    .replaceAll('<', '\\u003C')
-    .replaceAll('\u2028', '\\u2028')
-    .replaceAll('\u2029', '\\u2029');
+    .replaceAll('<', String.raw`\u003C`)
+    .replaceAll('\u2028', String.raw`\u2028`)
+    .replaceAll('\u2029', String.raw`\u2029`);
 }
 
 function devtoolsFrontendHtml(moduleUrl: string): string {
@@ -614,6 +614,15 @@ interface PreservationState {
   project: JsonObject;
   publicPreviewFileName?: string;
   write: boolean;
+}
+
+interface PreservedProjectState {
+  metadataFile: JsonObject | undefined;
+  metadataPath: string | undefined;
+  previousProject: JsonObject | undefined;
+  project: JsonObject;
+  projectPath: string;
+  synchronizedMetadata: JsonObject;
 }
 
 function previewToRestore(
@@ -664,34 +673,22 @@ async function capturePreservationState(
     import(/* @vite-ignore */ 'node:path'),
   ]);
   const outDir = path.resolve(config.root, config.build.outDir);
-  const projectPath = path.join(outDir, 'project.json');
-  const metadataPath = metadataFileOption === undefined
-    ? undefined
-    : path.resolve(config.root, metadataFileOption);
-  if (metadataPath !== undefined) {
-    await assertPreservationPathOutsideOutput(
-      fs,
-      path,
-      outDir,
-      metadataPath,
-      'metadata file',
-    );
-  }
-  const [previousProject, metadataFile] = await Promise.all([
-    readJsonObject(fs.readFile, projectPath),
-    metadataPath === undefined
-      ? undefined
-      : readJsonObject(fs.readFile, metadataPath),
-  ]);
-  const synchronizedMetadata = synchronizeMetadataFile(
-    previousProject,
-    metadataFile,
-  );
-  const project = mergePreservationSources(
-    previousProject,
-    synchronizedMetadata,
+  const preservedProject = await capturePreservedProjectState(
+    fs,
+    path,
+    config.root,
+    outDir,
     metadata,
+    metadataFileOption,
   );
+  const {
+    metadataFile,
+    metadataPath,
+    previousProject,
+    project,
+    projectPath,
+    synchronizedMetadata,
+  } = preservedProject;
   const previousPreview = await capturePreviousPreview(
     fs,
     path,
@@ -774,6 +771,51 @@ async function capturePreservationState(
       : undefined,
     schemeColor: preservedSchemeColor(previousProject),
     write: config.build.write,
+  };
+}
+
+async function capturePreservedProjectState(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  root: string,
+  outDir: string,
+  metadata: WallpaperProjectMetadata | undefined,
+  metadataFileOption: string | undefined,
+): Promise<PreservedProjectState> {
+  const projectPath = path.join(outDir, 'project.json');
+  const metadataPath = metadataFileOption === undefined
+    ? undefined
+    : path.resolve(root, metadataFileOption);
+  if (metadataPath !== undefined) {
+    await assertPreservationPathOutsideOutput(
+      fs,
+      path,
+      outDir,
+      metadataPath,
+      'metadata file',
+    );
+  }
+  const [previousProject, metadataFile] = await Promise.all([
+    readJsonObject(fs.readFile, projectPath),
+    metadataPath === undefined
+      ? undefined
+      : readJsonObject(fs.readFile, metadataPath),
+  ]);
+  const synchronizedMetadata = synchronizeMetadataFile(
+    previousProject,
+    metadataFile,
+  );
+  return {
+    metadataFile,
+    metadataPath,
+    previousProject,
+    project: mergePreservationSources(
+      previousProject,
+      synchronizedMetadata,
+      metadata,
+    ),
+    projectPath,
+    synchronizedMetadata,
   };
 }
 
@@ -882,7 +924,9 @@ async function canonicalizePath(
   let current = absolutePath;
   while (true) {
     try {
-      return path.join(await fs.realpath(current), ...missingSegments.reverse());
+      const existingPath = await fs.realpath(current);
+      missingSegments.reverse();
+      return path.join(existingPath, ...missingSegments);
     }
     catch (error) {
       if (!isFileNotFound(error)) {

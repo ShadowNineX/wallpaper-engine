@@ -84,23 +84,23 @@ const tabComponents = {
 
 const store = useDevtoolsStore();
 const { listenerCounts, mediaActive } = storeToRefs(store);
-const tabStatuses = computed<Record<TabId, TabStatus>>(() => ({
-  properties: listenerCounts.value.property
-    ? { label: 'Ready', tone: 'positive' }
-    : { label: 'No listener', tone: 'warning' },
+const audioStatus = computed<TabStatus>(() => {
+  if (audioState.mode === 'off')
+    return { label: 'Off', tone: 'neutral' };
+  if (listenerCounts.value.audio === 0)
+    return { label: 'No listener', tone: 'warning' };
+  return { label: AUDIO_MODE_LABELS[audioState.mode], tone: 'positive' };
+});
+const tabStatuses = computed<Partial<Record<TabId, TabStatus>>>(() => ({
   general: store.general.paused
     ? { label: 'Paused', tone: 'warning' }
     : { label: 'Running', tone: 'positive' },
-  audio: audioState.mode === 'off'
-    ? { label: 'Off', tone: 'neutral' }
-    : listenerCounts.value.audio === 0
-      ? { label: 'No listener', tone: 'warning' }
-      : { label: AUDIO_MODE_LABELS[audioState.mode], tone: 'positive' },
+  audio: audioStatus.value,
   media: mediaActive.value
     ? { label: 'Enabled', tone: 'positive' }
     : { label: 'Disabled', tone: 'neutral' },
-  performance: { label: 'Host metrics', tone: 'neutral' },
 }));
+const tabItems = computed(() => tabs.map(tab => ({ ...tab, status: tabStatuses.value[tab.value] })));
 
 const statusColors: Record<StatusTone, string> = {
   positive: 'we-status-positive',
@@ -123,6 +123,7 @@ function readActiveTab(): TabId {
 }
 
 const active = ref<TabId>(readActiveTab());
+const navigationDirection = ref<'forward' | 'backward'>();
 const dragPointer = ref<number>();
 
 function startDrag(event: PointerEvent): void {
@@ -168,7 +169,11 @@ function moveWithKeyboard(event: KeyboardEvent): void {
   emit('drag', 'end', direction[0], direction[1]);
 }
 
-watch(active, (value) => {
+watch(active, (value, previous) => {
+  navigationDirection.value = tabs.findIndex(tab => tab.value === value)
+    > tabs.findIndex(tab => tab.value === previous)
+    ? 'forward'
+    : 'backward';
   try {
     window.localStorage.setItem(activeTabKey, value);
   }
@@ -187,10 +192,6 @@ function changeTab(value: string | number): void {
     active.value = value as TabId;
 }
 
-function tabStatus(tab: TabId): TabStatus {
-  return tabStatuses.value[tab];
-}
-
 function getTabId(value: unknown): TabId {
   return typeof value === 'string' && Object.hasOwn(tabComponents, value)
     ? value as TabId
@@ -200,7 +201,6 @@ function getTabId(value: unknown): TabId {
 
 <template>
   <section
-    role="region"
     aria-label="Wallpaper Engine Devtools"
     class="we-devtools-panel dark"
     :class="appProps.embedded ? 'we-devtools-panel--embedded' : 'we-devtools-panel--standalone'"
@@ -263,13 +263,14 @@ function getTabId(value: unknown): TabId {
 
     <main id="we-devtools-content" :inert="appProps.embedded && !appProps.connected" class="we-workbench">
       <UTabs
-        :items="tabs"
+        :items="tabItems"
         :model-value="active"
         :content="true"
         :unmount-on-hide="true"
         activation-mode="automatic"
         aria-label="Simulator controls"
         class="we-tabs"
+        :data-navigation-direction="navigationDirection"
         :ui="{
           root: 'we-tabs-root',
           list: 'we-tabs-list',
@@ -285,15 +286,17 @@ function getTabId(value: unknown): TabId {
 
         <template #default="{ item }">
           <span class="we-tab-label">{{ item.label }}</span>
-          <span data-tab-status class="we-tab-status" :class="statusColors[tabStatus(getTabId(item.value)).tone]">
+          <span v-if="item.status" data-tab-status class="we-tab-status" :class="statusColors[item.status.tone]">
             <span class="we-status-dot" aria-hidden="true" />
-            <span class="we-status-label">{{ tabStatus(getTabId(item.value)).label }}</span>
+            <span class="we-status-label">{{ item.status.label }}</span>
           </span>
         </template>
 
         <template #content="{ item }">
           <div class="we-tab-scroll-region">
-            <component :is="tabComponents[getTabId(item.value)]" @reset="emit('resetPerformance')" />
+            <div class="we-tab-content">
+              <component :is="tabComponents[getTabId(item.value)]" @reset="emit('resetPerformance')" />
+            </div>
           </div>
         </template>
       </UTabs>

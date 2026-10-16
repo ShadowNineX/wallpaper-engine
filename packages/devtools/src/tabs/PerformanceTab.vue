@@ -15,7 +15,10 @@ const snapshot = computed(() => performanceState.value);
 const isMeasuring = computed(() => snapshot.value.status === 'monitoring');
 
 function formatMilliseconds(value: number | null): string {
-  return value === null ? '—' : `${value.toFixed(value < 10 ? 1 : 0)} ms`;
+  if (value === null)
+    return '—';
+  const precision = value < 10 ? 1 : 0;
+  return `${value.toFixed(precision)} ms`;
 }
 
 function formatFps(value: number | null): string {

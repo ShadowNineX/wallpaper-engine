@@ -103,6 +103,48 @@ function isFetchAllDirectory(key: string): boolean {
   return def?.type === 'directory' && def.mode === 'fetchall';
 }
 
+function clonePropertyValue(
+  value: WallpaperPropertyRuntimeValue,
+): WallpaperPropertyRuntimeValue {
+  return { ...value } as WallpaperPropertyRuntimeValue;
+}
+
+function collectDeliverableProperties(values: WallpaperUserProperties): WallpaperUserProperties {
+  const userProperties: WallpaperUserProperties = {};
+  for (const [key, value] of Object.entries(values)) {
+    if (!isFetchAllDirectory(key))
+      userProperties[key] = clonePropertyValue(value);
+  }
+  return userProperties;
+}
+
+function deliverSelectedDirectories(
+  listener: WallpaperPropertyListener,
+  selections: Record<string, DevDirectorySelection>,
+): boolean {
+  let succeeded = true;
+  for (const [key, selection] of Object.entries(selections)) {
+    if (!isFetchAllDirectory(key) || selection.files.length === 0)
+      continue;
+    const delivered = invokeHostCallback(() => listener.userDirectoryFilesAddedOrChanged?.(
+      key,
+      selection.files.map(file => file.url),
+    ), false);
+    succeeded = delivered && succeeded;
+  }
+  return succeeded;
+}
+
+function firePluginLoaded(name: 'led' | 'cue'): void {
+  const listener = listenerFns.plugin;
+  if (!listener?.onPluginLoaded) {
+    notify('No onPluginLoaded listener registered.');
+    return;
+  }
+  if (invokeHostCallback(() => listener.onPluginLoaded?.(name, '0.0.0-dev')))
+    notify(`${name === 'led' ? 'LED' : 'iCUE'} plugin loaded.`);
+}
+
 /** Silently deliver to a listener list (no toast on empty). */
 function deliver<T>(list: Array<(payload: T) => void>, payload: T): boolean {
   let succeeded = true;
@@ -191,12 +233,6 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     highContrastColor: '#ffffff',
   });
 
-  function clonePropertyValue(
-    value: WallpaperPropertyRuntimeValue,
-  ): WallpaperPropertyRuntimeValue {
-    return { ...value } as WallpaperPropertyRuntimeValue;
-  }
-
   // --- delivery helpers ---
 
   function deliverAllProperties(showToast = true): void {
@@ -206,22 +242,9 @@ export const useDevtoolsStore = defineStore('devtools', () => {
         notify('No property listener registered.');
       return;
     }
-    const userProperties: WallpaperUserProperties = {};
-    for (const [key, value] of Object.entries(currentValues)) {
-      if (!isFetchAllDirectory(key)) {
-        userProperties[key] = clonePropertyValue(value);
-      }
-    }
+    const userProperties = collectDeliverableProperties(currentValues);
     let succeeded = invokeHostCallback(() => l.applyUserProperties?.(userProperties), false);
-    for (const [key, selection] of Object.entries(directorySelections)) {
-      if (!isFetchAllDirectory(key) || selection.files.length === 0)
-        continue;
-      const delivered = invokeHostCallback(() => l.userDirectoryFilesAddedOrChanged?.(
-        key,
-        selection.files.map(file => file.url),
-      ), false);
-      succeeded = delivered && succeeded;
-    }
+    succeeded = deliverSelectedDirectories(l, directorySelections) && succeeded;
     const generalDelivered = invokeHostCallback(() => l.applyGeneralProperties?.({ fps: general.fps }), false);
     const pauseDelivered = invokeHostCallback(() => l.setPaused?.(general.paused), false);
     if (showToast) {
@@ -447,16 +470,6 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     }
     if (invokeHostCallback(() => listener.setPaused?.(paused)))
       notify(paused ? 'Wallpaper paused.' : 'Wallpaper resumed.');
-  }
-
-  function firePluginLoaded(name: 'led' | 'cue'): void {
-    const listener = listenerFns.plugin;
-    if (!listener?.onPluginLoaded) {
-      notify('No onPluginLoaded listener registered.');
-      return;
-    }
-    if (invokeHostCallback(() => listener.onPluginLoaded?.(name, '0.0.0-dev')))
-      notify(`${name === 'led' ? 'LED' : 'iCUE'} plugin loaded.`);
   }
 
   function requireActiveMedia(): boolean {

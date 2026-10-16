@@ -30,6 +30,25 @@ afterEach(() => {
 });
 
 describe('mediaTab', () => {
+  it('associates the media integration label with the named switch', async () => {
+    const [{ default: MediaTab }, { listenerFns }] = await Promise.all([
+      import('../../src/tabs/MediaTab.vue'),
+      import('../../src/store'),
+    ]);
+    const onStatus = vi.fn();
+    listenerFns.mediaStatus.push(onStatus);
+    const wrapper = mount(MediaTab);
+    const toggle = wrapper.get('button[role="switch"]');
+    expect(toggle.attributes('id')).toBe('media-integration-enabled');
+    expect(toggle.attributes('aria-label')).toBe('Media integration');
+    expect(wrapper.get('label[for="media-integration-enabled"]').text()).toBe('Disabled');
+    await toggle.trigger('click');
+    expect(toggle.attributes('aria-checked')).toBe('true');
+    expect(wrapper.get('label[for="media-integration-enabled"]').text()).toBe('Enabled');
+    expect(onStatus).toHaveBeenCalledWith({ enabled: true });
+    wrapper.unmount();
+  });
+
   it('reports a failed enable callback without skipping the remaining media state', async () => {
     const [{ default: MediaTab }, { listenerFns }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
