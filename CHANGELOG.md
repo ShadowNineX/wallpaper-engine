@@ -7,7 +7,75 @@ Release boundaries follow the `version` field of the published package's
 `package.json` (`packages/wallpaper-engine/package.json` after the monorepo
 migration); tags are used where they exist.
 
-## [Unreleased]
+## [1.4.0] - Unreleased
+
+### Added
+
+- Added an isolated devtools frontend with right/bottom docking, separate-window
+  controls, reconnection, and a TypeBox-validated host message bridge. Simulation
+  and selected media remain owned by the wallpaper while views change.
+- Added wallpaper performance diagnostics for frame timings, long tasks,
+  navigation/resource costs, and basic observed page audits.
+- Added a draggable floating island, movable panel, property
+  display conditions, and a deterministic virtual LED/iCUE keyboard.
+- Added `WallpaperPropertyListenerOf<T>` to the root type entry for contextual
+  callback inference with `satisfies`, including partial property updates.
+- Added complete typed-property, audio-reactive, and now-playing examples to the
+  documentation, with setup files and simulator verification steps.
+- Added an interactive property playground, visual example gallery, and tabbed
+  source files to the documentation's refreshed reading experience.
+
+### Deprecated
+
+- Deprecated the plugin's `WallpaperUserPropertiesOf<T>` in favor of typing the
+  complete listener with `WallpaperPropertyListenerOf<T>`. Existing imports
+  continue to work.
+
+### Changed
+
+- Replaced copied shadcn-vue controls with Nuxt UI, including the workbench shell,
+  notifications, fields, and horizontal sliders with tall pill handles and
+  uncluttered tracks.
+- Send incremental bridge patches so unchanged artwork is not copied with each
+  control edit, and synchronize drafts before switching devtools views.
+- Isolated tempo tracking from audio frame metrics and instrument classification
+  while preserving the public analyzer API and allocation-free processing.
+- Refined the devtools audio controls with full-width tracks, vertical capsule
+  handles, larger pointer targets, and accessible percentage/BPM readouts.
+- Refreshed compatible workspace dependencies, removed the obsolete demo lockfile,
+  and made CI use the root frozen lockfile, explicit coverage, lint, and type checks.
+- Shortened the README to a package overview and documentation entry point.
+- Adapted the docs for phone widths with a compact hero, larger navigation
+  targets, accessible mobile preferences, wider source tabs, and clearer reading
+  rhythm. Example controls and gallery cards respond to their container width.
+- Aligned all workspace package versions at `1.4.0` for the next release.
+
+### Fixed
+
+- Kept the demo's FPS, frame-time, and audio status readouts in fixed-width
+  numeric slots so changing values do not move the surrounding pills.
+- Matched the devtools expansion and collapse animation to the island's exact
+  bounds and pill shape, preventing a rectangular flash around the launcher.
+- Kept browser click events out of artwork, metadata, timeline, and FPS bridge
+  commands so sending those controls does not fail structured cloning.
+- Made audio tempo analysis use measured elapsed time instead of assuming every
+  callback arrives at 30 Hz. Zero-time calls retain attacks without manufacturing
+  tempo history, and callback gaps of at least four seconds discard stale BPM.
+- Coalesced synchronous property-listener registrations so devtools sends startup
+  state once to the latest listener, including when the same object is reassigned.
+- Made the audio simulator's waiting, stopped, silence, and streaming states
+  explicit, including when an active mode has no registered audio listener.
+- Advanced the simulator's Track loop from elapsed time so rounded or delayed
+  browser timers do not change the configured tempo.
+- Kept devtools dropdowns in the styled frontend document and bound host callbacks
+  to the simulator's own Pinia instance.
+- Made mounting idempotent, added teardown for timers, app state, fonts, local
+  media URLs and owned host globals, and cancelled stale registrations and file
+  selections after teardown.
+- Prevented secondary-button and canceled island drags from swallowing the next
+  normal click, and removed unused internal bridge exports and clone helpers.
+- Included the root license alongside the README during package preparation so
+  both files are present in the published archive.
 
 ## [1.3.2] - 2026-09-08
 
@@ -236,7 +304,7 @@ migration); tags are used where they exist.
   canvas encoding, and FPS-limited animation loops.
 - Added an example wallpaper, automated tests, build configuration, and CI.
 
-[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.2...HEAD
+[1.4.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.2...HEAD
 [1.3.2]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.2.0...v1.3.0

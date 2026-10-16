@@ -3,14 +3,15 @@ import type {
   WallpaperGroupProperty,
   WallpaperPropertyDefinition,
 } from '../../../wallpaper-engine/src/types/project';
+import UButton from '@nuxt/ui/components/Button.vue';
 import { storeToRefs } from 'pinia';
 import { computed, reactive } from 'vue';
 import ArrowCounterClockwise from '~icons/ph/arrow-counter-clockwise';
 import RefreshCw from '~icons/ph/arrows-clockwise';
 import CaretRight from '~icons/ph/caret-right';
-import { Button } from '@/components/ui/button';
 import CallbackStatus from '../components/CallbackStatus.vue';
 import PropertyRow from '../components/PropertyRow.vue';
+import { isConditionVisible } from '../conditions';
 import { propDefs, tr } from '../config';
 import { useDevtoolsStore } from '../store';
 
@@ -27,7 +28,7 @@ interface PropertyGroup {
 }
 
 const store = useDevtoolsStore();
-const { listenerCounts } = storeToRefs(store);
+const { currentValues, listenerCounts } = storeToRefs(store);
 const openGroups = reactive(new Set<string>());
 
 function toggleGroup(key: string): void {
@@ -45,11 +46,26 @@ const layout = computed(() => {
   const ungrouped: PropertyEntry[] = [];
   const groups: PropertyGroup[] = [];
   let currentGroup: PropertyGroup | undefined;
+  let currentGroupIsVisible = true;
 
   for (const [key, definition] of sorted) {
     if (definition.type === 'group') {
+      currentGroupIsVisible = isConditionVisible(
+        definition.condition,
+        currentValues.value,
+      );
+      if (!currentGroupIsVisible) {
+        currentGroup = undefined;
+        continue;
+      }
       currentGroup = { key, label: tr(definition.text), entries: [] };
       groups.push(currentGroup);
+    }
+    else if (!isConditionVisible(definition.condition, currentValues.value)) {
+      continue;
+    }
+    else if (!currentGroupIsVisible) {
+      continue;
     }
     else if (currentGroup) {
       currentGroup.entries.push([key, definition]);
@@ -78,26 +94,26 @@ const layout = computed(() => {
         />
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <Button
+        <UButton
           size="sm"
+          color="neutral"
           variant="outline"
-          class="h-9 gap-1.5 px-3 text-[12px]"
           title="Restore every user property to its configured default"
           @click="store.resetPropertiesToDefaults()"
         >
           <ArrowCounterClockwise class="size-3" />
           Reset defaults
-        </Button>
-        <Button
+        </UButton>
+        <UButton
           size="sm"
+          color="neutral"
           variant="outline"
-          class="h-9 gap-1.5 px-3 text-[12px]"
           title="Replay all initial property and runtime values"
           @click="store.deliverAllProperties()"
         >
           <RefreshCw class="size-3" />
           Replay all
-        </Button>
+        </UButton>
       </div>
     </div>
 
@@ -105,7 +121,7 @@ const layout = computed(() => {
       v-if="layout.ungrouped.length === 0 && layout.groups.length === 0"
       class="rounded-lg border border-dashed border-we-border p-6 text-center text-[12px] text-we-faint"
     >
-      No user properties are configured for this wallpaper.
+      {{ Object.keys(propDefs).length ? 'No properties match the current display conditions.' : 'No user properties are configured for this wallpaper.' }}
     </div>
 
     <div

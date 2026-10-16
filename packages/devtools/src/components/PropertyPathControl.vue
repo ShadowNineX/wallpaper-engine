@@ -3,20 +3,22 @@ import type {
   WallpaperDirectoryProperty,
   WallpaperFileProperty,
 } from '../../../wallpaper-engine/src/types/project';
+import UButton from '@nuxt/ui/components/Button.vue';
+import UInput from '@nuxt/ui/components/Input.vue';
 import { ref } from 'vue';
-import { toast } from 'vue-sonner';
 import RefreshCw from '~icons/ph/arrows-clockwise';
 import FolderOpen from '~icons/ph/folder-open';
 import X from '~icons/ph/x';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { isRemoteFrontend, sendRemoteCommand } from '../bridge/remote';
 import {
   devFilePickerAvailable,
+  pickBrowserSelection,
   pickDevDirectory,
   pickDevFile,
   releaseDevDirectory,
   releaseDevFile,
 } from '../dev-files';
+import { notify as toast } from '../notifications';
 import { useDevtoolsStore } from '../store';
 
 type PathPropertyDefinition
@@ -35,6 +37,17 @@ const browsing = ref(false);
 async function browsePath(): Promise<void> {
   browsing.value = true;
   try {
+    if (isRemoteFrontend()) {
+      const selection = await pickBrowserSelection(props.def.type, props.def.fileType);
+      if (selection) {
+        sendRemoteCommand({
+          type: props.def.type === 'file' ? 'select-file' : 'select-directory',
+          key: props.propKey,
+          selection,
+        });
+      }
+      return;
+    }
     if (props.def.type === 'file') {
       const previousUrl = store.currentValues[props.propKey]?.value;
       const selection = await pickDevFile(props.def.fileType);
@@ -82,7 +95,7 @@ function clearPath(): void {
 <template>
   <div class="space-y-1.5">
     <div class="flex items-center gap-2">
-      <Input
+      <UInput
         :id="propKey"
         type="text"
         readonly
@@ -92,7 +105,7 @@ function clearPath(): void {
         :model-value="store.propertyDisplayPaths[propKey] ?? ''"
         class="h-9 min-w-0 flex-1 font-mono text-[11px]"
       />
-      <Button
+      <UButton
         type="button"
         size="sm"
         variant="outline"
@@ -105,11 +118,12 @@ function clearPath(): void {
         <RefreshCw v-if="browsing" class="size-3 animate-spin" />
         <FolderOpen v-else class="size-3" />
         Browse
-      </Button>
-      <Button
+      </UButton>
+      <UButton
         v-if="store.propertyDisplayPaths[propKey]"
         type="button"
-        size="icon"
+        size="sm"
+        square
         variant="outline"
         class="size-9 shrink-0"
         :aria-label="`Clear ${label}`"
@@ -118,7 +132,7 @@ function clearPath(): void {
         @click="clearPath"
       >
         <X class="size-3" />
-      </Button>
+      </UButton>
     </div>
     <p v-if="!devFilePickerAvailable" class="px-1 text-[11px] text-we-faint">
       This browser cannot expose selected local files.

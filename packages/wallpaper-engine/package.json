@@ -1,11 +1,11 @@
 {
   "name": "wallpaper-engine",
   "type": "module",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "description": "TypeScript types, Vite plugin, and runtime helpers for Wallpaper Engine web wallpapers",
   "author": "ShadowNineX",
   "license": "MIT",
-  "homepage": "https://github.com/ShadowNineX/wallpaper-engine#readme",
+  "homepage": "https://shadowninex.github.io/wallpaper-engine/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/ShadowNineX/wallpaper-engine.git"
@@ -54,7 +54,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "prepublishOnly": "bun run --cwd ../.. build && node -e \"require('fs').copyFileSync('../../README.md', 'README.md')\""
+    "prepublishOnly": "bun run --cwd ../.. build && node -e \"for (const file of ['README.md', 'LICENSE']) require('fs').copyFileSync('../../' + file, file)\""
   },
   "peerDependencies": {
     "vite": ">=5.0.0"
@@ -65,12 +65,12 @@
     }
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.2.0",
-    "@vitest/coverage-v8": "^4.1.6",
+    "@antfu/eslint-config": "^9.5.1",
+    "@vitest/coverage-v8": "^4.1.12",
     "colorjs.io": "^0.7.1",
-    "fast-average-color": "^9.5.2",
+    "fast-average-color": "^9.6.0",
     "tsdown": "^0.22.14",
-    "vite": "^8.2.0",
-    "vitest": "^4.1.6"
+    "vite": "^8.3.4",
+    "vitest": "^4.1.12"
   }
 }

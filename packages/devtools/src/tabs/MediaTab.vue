@@ -3,26 +3,18 @@ import type {
   WallpaperMediaPlaybackState,
   WallpaperMediaThumbnailEvent,
 } from '../../../wallpaper-engine/src/types/listeners';
+import UButton from '@nuxt/ui/components/Button.vue';
+import UInput from '@nuxt/ui/components/Input.vue';
+import UInputNumber from '@nuxt/ui/components/InputNumber.vue';
+import USelect from '@nuxt/ui/components/Select.vue';
+import USwitch from '@nuxt/ui/components/Switch.vue';
 import { storeToRefs } from 'pinia';
 import { ref, shallowRef } from 'vue';
-import { toast } from 'vue-sonner';
 import Upload from '~icons/ph/upload-simple';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select';
-import {
-  NumberField,
-  NumberFieldContent,
-  NumberFieldDecrement,
-  NumberFieldIncrement,
-  NumberFieldInput,
-} from '@/components/ui/number-field';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { createAverageColorExtractor } from '../../../wallpaper-engine/src/helpers';
 import CallbackStatus from '../components/CallbackStatus.vue';
-import { listenerFns, useDevtoolsStore } from '../store';
+import { notify as toast } from '../notifications';
+import { useDevtoolsStore } from '../store';
 
 const store = useDevtoolsStore();
 const {
@@ -47,6 +39,12 @@ const playbackStates: Array<{
   { state: 2, label: 'Stopped' },
 ];
 
+const contentTypes = [
+  { label: 'Music', value: 'music' },
+  { label: 'Video', value: 'video' },
+  { label: 'Image', value: 'image' },
+];
+
 const paletteFields: Array<{
   key: Exclude<keyof WallpaperMediaThumbnailEvent, 'thumbnail'>;
   label: string;
@@ -58,41 +56,10 @@ const paletteFields: Array<{
   { key: 'highContrastColor', label: 'High contrast' },
 ];
 
-function requireMedia(): boolean {
-  if (mediaActive.value)
-    return true;
-  toast('Enable media integration before sending media events.');
-  return false;
-}
-
-function setMediaEnabled(enabled: boolean): void {
-  mediaActive.value = enabled;
-  if (store.deliverAllMedia()) {
-    toast(enabled ? 'Media integration enabled.' : 'Media integration disabled.');
-  }
-  else {
-    toast('Some media callbacks failed. Check the browser console for details.');
-  }
-}
-
-function sendProperties(): void {
-  if (!requireMedia())
-    return;
-  store.fanout(listenerFns.mediaProps, { ...mediaProps.value }, 'media properties');
-}
-
-function setContentType(event: Event): void {
-  const value = (event.target as HTMLSelectElement).value;
+function setContentType(value: unknown): void {
   if (value === 'music' || value === 'video' || value === 'image') {
     mediaProps.value.contentType = value;
   }
-}
-
-function sendPlayback(state: WallpaperMediaPlaybackState): void {
-  if (!requireMedia())
-    return;
-  lastPlaybackState.value = state;
-  store.fanout(listenerFns.mediaPlayback, { state }, 'media playback');
 }
 
 function setPosition(value: number): void {
@@ -111,17 +78,6 @@ function setDuration(value: number): void {
   timeline.value.position = Math.min(
     timeline.value.position,
     timeline.value.duration,
-  );
-}
-
-function sendTimeline(): void {
-  if (!requireMedia())
-    return;
-  setPosition(timeline.value.position);
-  store.fanout(
-    listenerFns.mediaTimeline,
-    { ...timeline.value },
-    'media timeline',
   );
 }
 
@@ -213,20 +169,6 @@ async function onThumbnailFile(event: Event): Promise<void> {
     preparingArtwork.value = false;
   }
 }
-
-function sendThumbnail(): void {
-  if (!requireMedia() || preparingArtwork.value)
-    return;
-  if (!thumb.value.thumbnail.startsWith('data:image/png;base64,')) {
-    toast('Choose a PNG thumbnail before sending.');
-    return;
-  }
-  store.fanout(
-    listenerFns.mediaThumb,
-    { ...thumb.value },
-    'media thumbnail',
-  );
-}
 </script>
 
 <template>
@@ -242,11 +184,10 @@ function sendThumbnail(): void {
           </p>
         </div>
         <label class="flex cursor-pointer items-center gap-2 text-[12px] font-medium text-we-muted">
-          <Checkbox
+          <USwitch
             data-media-enabled
             :model-value="mediaActive"
-            class="size-4.5"
-            @update:model-value="(value) => setMediaEnabled(value === true)"
+            @update:model-value="(value) => store.setMediaEnabled(value === true)"
           />
           {{ mediaActive ? 'Enabled' : 'Disabled' }}
         </label>
@@ -273,35 +214,26 @@ function sendThumbnail(): void {
       </div>
       <div class="space-y-3">
         <div class="we-field">
-          <Label for="media-title" class="we-field-label">Title</Label>
-          <Input id="media-title" v-model="mediaProps.title" class="h-9 text-[12px]" />
+          <label for="media-title" class="we-field-label">Title</label>
+          <UInput id="media-title" v-model="mediaProps.title" size="sm" />
         </div>
         <div class="we-field">
-          <Label for="media-artist" class="we-field-label">Artist</Label>
-          <Input id="media-artist" v-model="mediaProps.artist" class="h-9 text-[12px]" />
+          <label for="media-artist" class="we-field-label">Artist</label>
+          <UInput id="media-artist" v-model="mediaProps.artist" size="sm" />
         </div>
         <div class="we-field">
-          <Label for="media-album" class="we-field-label">Album</Label>
-          <Input id="media-album" v-model="mediaProps.albumTitle" class="h-9 text-[12px]" />
+          <label for="media-album" class="we-field-label">Album</label>
+          <UInput id="media-album" v-model="mediaProps.albumTitle" size="sm" />
         </div>
         <div class="we-field">
-          <Label for="media-content-type" class="we-field-label">Content type</Label>
-          <NativeSelect
+          <label for="media-content-type" class="we-field-label">Content type</label>
+          <USelect
             id="media-content-type"
+            :items="contentTypes"
             :model-value="mediaProps.contentType"
-            class="h-9 text-[12px]"
-            @change="setContentType"
-          >
-            <NativeSelectOption value="music">
-              Music
-            </NativeSelectOption>
-            <NativeSelectOption value="video">
-              Video
-            </NativeSelectOption>
-            <NativeSelectOption value="image">
-              Image
-            </NativeSelectOption>
-          </NativeSelect>
+            size="sm"
+            @update:model-value="setContentType"
+          />
         </div>
       </div>
       <div class="we-section-footer">
@@ -310,9 +242,9 @@ function sendThumbnail(): void {
           ready-label="Metadata callback ready"
           missing-label="No metadata callback registered"
         />
-        <Button size="sm" class="h-9 px-3 text-[12px]" :disabled="!mediaActive" @click="sendProperties">
+        <UButton size="sm" color="primary" :disabled="!mediaActive" @click="store.sendMediaProperties()">
           Send metadata
-        </Button>
+        </UButton>
       </div>
     </section>
 
@@ -327,56 +259,48 @@ function sendThumbnail(): void {
           </p>
         </div>
       </div>
-      <ToggleGroup
-        type="single"
+      <div
         aria-label="Media playback state"
-        :model-value="String(lastPlaybackState)"
         class="mb-3 grid grid-cols-3 gap-1"
-        @update:model-value="
-          (value) => {
-            if (value) sendPlayback(Number(value) as WallpaperMediaPlaybackState);
-          }
-        "
       >
-        <ToggleGroupItem
+        <UButton
           v-for="playback in playbackStates"
           :key="playback.state"
-          :value="String(playback.state)"
+          size="sm"
+          color="neutral"
+          :variant="lastPlaybackState === playback.state ? 'soft' : 'outline'"
+          :aria-pressed="lastPlaybackState === playback.state"
           :disabled="!mediaActive"
-          class="h-9 text-[12px]"
+          @click="store.sendMediaPlayback(playback.state)"
         >
           {{ playback.label }}
-        </ToggleGroupItem>
-      </ToggleGroup>
+        </UButton>
+      </div>
 
       <div class="we-two-column grid grid-cols-2 gap-3">
-        <NumberField
-          id="media-position"
-          :model-value="timeline.position"
-          :min="0"
-          :max="timeline.duration"
-          @update:model-value="(value) => value !== undefined && setPosition(value)"
-        >
-          <Label for="media-position" class="mb-1.5 block text-[11px] text-we-muted">Position (s)</Label>
-          <NumberFieldContent>
-            <NumberFieldDecrement />
-            <NumberFieldInput />
-            <NumberFieldIncrement />
-          </NumberFieldContent>
-        </NumberField>
-        <NumberField
-          id="media-duration"
-          :model-value="timeline.duration"
-          :min="0"
-          @update:model-value="(value) => value !== undefined && setDuration(value)"
-        >
-          <Label for="media-duration" class="mb-1.5 block text-[11px] text-we-muted">Duration (s)</Label>
-          <NumberFieldContent>
-            <NumberFieldDecrement />
-            <NumberFieldInput />
-            <NumberFieldIncrement />
-          </NumberFieldContent>
-        </NumberField>
+        <div>
+          <label for="media-position" class="mb-1.5 block text-[11px] text-we-muted">Position (s)</label>
+          <UInputNumber
+            id="media-position"
+            :model-value="timeline.position"
+            :min="0"
+            :max="timeline.duration"
+            size="sm"
+            aria-label="Position (s)"
+            @update:model-value="(value) => value !== null && value !== undefined && setPosition(value)"
+          />
+        </div>
+        <div>
+          <label for="media-duration" class="mb-1.5 block text-[11px] text-we-muted">Duration (s)</label>
+          <UInputNumber
+            id="media-duration"
+            :model-value="timeline.duration"
+            :min="0"
+            size="sm"
+            aria-label="Duration (s)"
+            @update:model-value="(value) => value !== null && value !== undefined && setDuration(value)"
+          />
+        </div>
       </div>
       <div class="we-section-footer">
         <div class="flex flex-col gap-1">
@@ -391,9 +315,9 @@ function sendThumbnail(): void {
             missing-label="No timeline callback registered"
           />
         </div>
-        <Button size="sm" variant="outline" class="h-9 px-3 text-[12px]" :disabled="!mediaActive" @click="sendTimeline">
+        <UButton size="sm" color="neutral" variant="outline" :disabled="!mediaActive" @click="store.sendMediaTimeline()">
           Send timeline
-        </Button>
+        </UButton>
       </div>
     </section>
 
@@ -424,10 +348,10 @@ function sendThumbnail(): void {
           <img :src="thumb.thumbnail" alt="Media artwork preview" class="size-full object-cover">
         </div>
         <div class="min-w-0 flex-1">
-          <Button size="sm" variant="outline" class="h-9 gap-1.5 text-[12px]" :disabled="preparingArtwork" @click="pickThumbnail">
+          <UButton size="sm" color="neutral" variant="outline" :disabled="preparingArtwork" @click="pickThumbnail">
             <Upload class="size-3" />
             {{ preparingArtwork ? 'Preparing image…' : 'Choose image' }}
-          </Button>
+          </UButton>
           <p class="mt-2 text-[11px] leading-4 text-we-faint">
             Converted to PNG with five extracted colors.
           </p>
@@ -440,7 +364,7 @@ function sendThumbnail(): void {
         </summary>
         <div class="space-y-3 border-t border-we-border/70 py-3">
           <div v-for="field in paletteFields" :key="field.key" class="we-field">
-            <Label :for="`thumb-${field.key}`" class="we-field-label">{{ field.label }}</Label>
+            <label :for="`thumb-${field.key}`" class="we-field-label">{{ field.label }}</label>
             <div class="flex gap-2">
               <input
                 :id="`thumb-${field.key}`"
@@ -451,10 +375,11 @@ function sendThumbnail(): void {
               <label :for="`thumb-${field.key}-value`" class="sr-only">
                 {{ field.label }} color value
               </label>
-              <Input
+              <UInput
                 :id="`thumb-${field.key}-value`"
                 v-model="thumb[field.key]"
-                class="h-9 font-mono text-[11px]"
+                size="sm"
+                class="font-mono"
               />
             </div>
           </div>
@@ -467,9 +392,9 @@ function sendThumbnail(): void {
           ready-label="Artwork callback ready"
           missing-label="No artwork callback registered"
         />
-        <Button size="sm" class="h-9 px-3 text-[12px]" :disabled="!mediaActive || preparingArtwork" @click="sendThumbnail">
+        <UButton size="sm" color="primary" :disabled="!mediaActive || preparingArtwork" @click="store.sendMediaArtwork()">
           Send artwork
-        </Button>
+        </UButton>
       </div>
     </section>
   </div>

@@ -2,14 +2,9 @@ import type * as NodeFsPromises from 'node:fs/promises';
 import type * as NodePath from 'node:path';
 import type { Plugin, ResolvedConfig } from 'vite';
 import type {
-  WallpaperBoolValue,
-  WallpaperColorValue,
-  WallpaperComboValue,
-  WallpaperDirectoryValue,
-  WallpaperFileValue,
-  WallpaperSliderValue,
-  WallpaperTextValue,
-} from '../types/listeners';
+  PropertyDefinitionToValue as InferredPropertyDefinitionToValue,
+  WallpaperUserPropertiesOf as InferredWallpaperUserPropertiesOf,
+} from '../types/inference';
 import type {
   WallpaperBoolProperty,
   WallpaperColorProperty,
@@ -172,21 +167,7 @@ export function groupProperty(
  * // → WallpaperColorValue
  */
 export type PropertyDefinitionToValue<T extends WallpaperPropertyDefinition>
-  = T extends { type: 'color' }
-    ? WallpaperColorValue
-    : T extends { type: 'slider' }
-      ? WallpaperSliderValue
-      : T extends { type: 'bool' }
-        ? WallpaperBoolValue
-        : T extends { type: 'combo' }
-          ? WallpaperComboValue
-          : T extends { type: 'textinput' }
-            ? WallpaperTextValue
-            : T extends { type: 'file' }
-              ? WallpaperFileValue
-              : T extends { type: 'directory' }
-                ? WallpaperDirectoryValue
-                : never;
+  = InferredPropertyDefinitionToValue<T>;
 
 /**
  * Infer the strongly-typed `applyUserProperties` argument from a property
@@ -211,27 +192,22 @@ export type PropertyDefinitionToValue<T extends WallpaperPropertyDefinition>
  *   plugins: [wallpaperEnginePlugin({ title: 'My Wallpaper', properties: myProperties })],
  * });
  *
- * // wallpaper.ts
- * import type { WallpaperUserPropertiesOf } from 'wallpaper-engine/plugin';
- * import type { myProperties } from './properties';
+ * @deprecated Use `WallpaperPropertyListenerOf<typeof properties>` from
+ * `wallpaper-engine` with `satisfies` for a contextually typed listener.
  *
- * type MyProps = WallpaperUserPropertiesOf<typeof myProperties>;
- * // → { bgcolor: WallpaperColorValue; speed: WallpaperSliderValue }
+ * @example
+ * import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
  *
  * window.wallpaperPropertyListener = {
- *   applyUserProperties(props: Partial<MyProps>) {
- *     if (props.bgcolor) el.style.background = wallpaperColorToRgb(props.bgcolor.value);
- *     if (props.speed !== undefined) setSpeed(props.speed.value); // number ✓
+ *   applyUserProperties(values) {
+ *     if (values.bgcolor)
+ *       el.style.background = wallpaperColorToRgb(values.bgcolor.value);
  *   },
- * };
+ * } satisfies WallpaperPropertyListenerOf<typeof myProperties>;
  */
 export type WallpaperUserPropertiesOf<
   T extends Record<string, WallpaperPropertyDefinition>,
-> = {
-  readonly [K in keyof T as T[K] extends { type: 'group' }
-    ? never
-    : K]: PropertyDefinitionToValue<T[K]>;
-};
+> = InferredWallpaperUserPropertiesOf<T>;
 
 // ---------------------------------------------------------------------------
 // Vite plugin
@@ -370,7 +346,11 @@ export function wallpaperEnginePlugin(
   const devtoolsEnabled = options.devtools !== false;
   const VIRTUAL_ID = 'virtual:wallpaper-engine/devtools';
   const RESOLVED_ID = `\0${VIRTUAL_ID}`;
+  const FRONTEND_ID = 'virtual:wallpaper-engine/devtools-frontend';
+  const RESOLVED_FRONTEND_ID = `\0${FRONTEND_ID}`;
+  const FRONTEND_ROUTE = '__wallpaper-engine-devtools__/';
   let isServe = false;
+  let devtoolsBase = '/';
   let cachedClientCode: Promise<string> | undefined;
   let preservationState: PreservationState | undefined;
   let resolvedConfig: ResolvedConfig | undefined;
@@ -396,8 +376,10 @@ export function wallpaperEnginePlugin(
 
     configResolved(config) {
       isServe = config.command === 'serve';
-      if (isServe)
+      if (isServe) {
+        devtoolsBase = normalizeDevtoolsBase(config.base);
         return;
+      }
       resolvedConfig = config;
       return (async () => {
         const state = await capturePreservationState(
@@ -440,8 +422,28 @@ export function wallpaperEnginePlugin(
     },
 
     async configureServer(server) {
-      if (!devtoolsEnabled)
+      if (!isServe || !devtoolsEnabled)
         return;
+      const frontendPath = `${devtoolsBase}${FRONTEND_ROUTE}`;
+      server.middlewares.use((request, response, next) => {
+        const pathname = new URL(request.url ?? '/', 'http://localhost').pathname;
+        if (
+          pathname !== frontendPath
+          || (request.method !== 'GET' && request.method !== 'HEAD')
+        ) {
+          next();
+          return;
+        }
+
+        response.statusCode = 200;
+        response.setHeader('Content-Type', 'text/html; charset=utf-8');
+        response.setHeader('Cache-Control', 'no-store');
+        response.end(
+          request.method === 'HEAD'
+            ? undefined
+            : devtoolsFrontendHtml(`${devtoolsBase}@id/${FRONTEND_ID}`),
+        );
+      });
       const [fs, { fileURLToPath }] = await Promise.all([
         import(/* @vite-ignore */ 'node:fs'),
         import(/* @vite-ignore */ 'node:url'),
@@ -454,9 +456,11 @@ export function wallpaperEnginePlugin(
       // correctly across Bun workspace symlinks.
       fs.watchFile(clientPath, { interval: 500 }, () => {
         cachedClientCode = undefined;
-        const mod = server.moduleGraph.getModuleById(RESOLVED_ID);
-        if (mod)
-          server.moduleGraph.invalidateModule(mod);
+        for (const id of [RESOLVED_ID, RESOLVED_FRONTEND_ID]) {
+          const mod = server.moduleGraph.getModuleById(id);
+          if (mod)
+            server.moduleGraph.invalidateModule(mod);
+        }
         server.ws.send({ type: 'full-reload' });
       });
       server.httpServer?.once('close', () => {
@@ -465,13 +469,24 @@ export function wallpaperEnginePlugin(
     },
 
     resolveId(id) {
+      if (!isServe || !devtoolsEnabled)
+        return null;
       if (id === VIRTUAL_ID)
         return RESOLVED_ID;
+      if (id === FRONTEND_ID)
+        return RESOLVED_FRONTEND_ID;
       return null;
     },
 
     async load(id) {
-      if (id !== RESOLVED_ID)
+      if (!isServe || !devtoolsEnabled)
+        return null;
+      let role: 'runtime' | 'frontend';
+      if (id === RESOLVED_ID)
+        role = 'runtime';
+      else if (id === RESOLVED_FRONTEND_ID)
+        role = 'frontend';
+      else
         return null;
       const properties = options.properties
         ? assignIndices(options.properties)
@@ -481,12 +496,9 @@ export function wallpaperEnginePlugin(
         properties,
         localization: options.localization ?? {},
       };
-      return (
-        `window.__WE_DEVTOOLS_CONFIG__ = ${
-          JSON.stringify(cfg)
-        };\n${
-          await loadClientCode()}`
-      );
+      const config = safeJsonForScript(cfg);
+      const frontendUrl = `${devtoolsBase}${FRONTEND_ROUTE}`;
+      return `window.__WE_DEVTOOLS_ROLE__ = '${role}';\nwindow.__WE_DEVTOOLS_FRONTEND_URL__ = ${safeJsonForScript(frontendUrl)};\nwindow.__WE_DEVTOOLS_CONFIG__ = ${config};\n${await loadClientCode()}`;
     },
 
     transformIndexHtml() {
@@ -495,7 +507,7 @@ export function wallpaperEnginePlugin(
       return [
         {
           tag: 'script',
-          attrs: { type: 'module', src: `/@id/${VIRTUAL_ID}` },
+          attrs: { type: 'module', src: `${devtoolsBase}@id/${VIRTUAL_ID}` },
           injectTo: 'head-prepend',
         },
       ];
@@ -563,6 +575,29 @@ export function wallpaperEnginePlugin(
 // Internal helpers
 // ---------------------------------------------------------------------------
 type JsonObject = Record<string, unknown>;
+
+function normalizeDevtoolsBase(base: string | undefined): string {
+  if (base === undefined || base === '' || base === './')
+    return '/';
+  const normalized = base.startsWith('/') ? base : `/${base}`;
+  return normalized.endsWith('/') ? normalized : `${normalized}/`;
+}
+
+function safeJsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replaceAll('<', '\\u003C')
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029');
+}
+
+function devtoolsFrontendHtml(moduleUrl: string): string {
+  const safeModuleUrl = moduleUrl
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Wallpaper Engine Devtools</title><script type="module" src="${safeModuleUrl}"></script></head><body></body></html>`;
+}
 
 interface CapturedPreview {
   fileName: string;

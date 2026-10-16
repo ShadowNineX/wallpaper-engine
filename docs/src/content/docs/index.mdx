@@ -5,60 +5,41 @@ template: splash
 hero:
   image:
     html: '<img src="./favicon.svg" alt="wallpaper-engine logo" width="256" height="256" style="width: 100%; height: auto;">'
-  tagline: Build Wallpaper Engine web wallpapers with one typed property schema, host-aware runtime APIs, and a simulator that runs in Vite.
+  tagline: Turn a browser canvas into your desktop. Typed properties, audio, media, and a Vite simulator make room for the interesting part—your wallpaper.
   actions:
-    - text: Install
-      link: ./getting-started/installation/
-      icon: right-arrow
-    - text: Quick start
+    - text: Build your first wallpaper
       link: ./getting-started/quick-start/
+      icon: right-arrow
+    - text: Explore examples
+      link: ./examples/
       variant: minimal
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import ExampleGallery from '../../components/ExampleGallery.astro';
 
-## One schema from editor to runtime
+## One schema. A shorter path to your desktop.
 
-Define a shared property record with `wallpaper-engine/plugin`. The Vite plugin turns it into Wallpaper Engine metadata while TypeScript derives the callback values consumed by your wallpaper.
+Define the controls once. Their types follow you into the wallpaper, and the
+Vite plugin handles the editor metadata around them.
 
-```text
-shared property schema
-└── Vite plugin
-    ├── build → generated project.json
-    └── serve → development simulator (default; `devtools: false` disables it)
+<ol class="we-doc-flow">
+  <li><strong>Define once</strong><p>Describe colors, sliders, files, and other controls in one typed property record.</p></li>
+  <li><strong>Preview in the browser</strong><p>Send properties, audio, and media to your wallpaper from the development simulator.</p></li>
+  <li><strong>Build for the host</strong><p>Vite emits your assets and <code>project.json</code>. Check the result in Wallpaper Engine.</p></li>
+</ol>
 
-Wallpaper Engine or development simulator
-└── module-scope host listeners
-    └── application + helpers
-```
+## Start with something you can see
 
-<CardGrid>
-  <LinkCard
-    title="Typed host contracts"
-    description="Model properties, audio, media, plugins, hardware integrations, and ambient browser globals."
-    href="./guides/host-listeners/"
-  />
-  <LinkCard
-    title="Vite build integration"
-    description="Generate project.json, validate previews, and link builds into Wallpaper Engine projects."
-    href="./build/project-metadata/"
-  />
-  <LinkCard
-    title="Development simulator"
-    description="Drive property, runtime, audio, and media callbacks without launching Wallpaper Engine."
-    href="./devtools/simulation/"
-  />
-  <LinkCard
-    title="Tree-shakeable helpers"
-    description="Handle Wallpaper Engine colors, files, audio, media, LED frames, and render pacing."
-    href="./helpers/"
-  />
-</CardGrid>
+Each example includes the page, the runtime code, and the Vite configuration.
+Pick a result, copy the files, and start changing things.
+
+<ExampleGallery />
 
 ## Start building
 
 - [Install the package](./getting-started/installation/) and choose the entry points your wallpaper needs.
 - [Complete the typed quick start](./getting-started/quick-start/).
+- Build an audio visualization or media card from the [complete examples](./examples/).
 - Browse the [API reference](./reference/) for exact public signatures.
 - Study the [consumer demo source](https://github.com/ShadowNineX/wallpaper-engine/tree/main/demo/src).
 
@@ -68,7 +49,3 @@ Wallpaper Engine or development simulator
 - [GitHub repository](https://github.com/ShadowNineX/wallpaper-engine)
 - [Issue tracker](https://github.com/ShadowNineX/wallpaper-engine/issues)
 - [MIT license](https://github.com/ShadowNineX/wallpaper-engine/blob/main/LICENSE)
-
-## Next steps
-
-Start with [installation](./getting-started/installation/), then follow the [quick start](./getting-started/quick-start/) to connect one property schema to Vite and your runtime listener.

@@ -6,7 +6,6 @@ import type {
   WallpaperPropertyDefinition,
 } from '../../../wallpaper-engine/src/types/project';
 import { computed } from 'vue';
-import { Label } from '@/components/ui/label';
 import { tr } from '../config';
 import PropertyPathControl from './PropertyPathControl.vue';
 import PropertyValueControl from './PropertyValueControl.vue';
@@ -48,12 +47,12 @@ const valueDefinition = computed<ValuePropertyDefinition | undefined>(() =>
     :title="`${propKey} · ${def.type}`"
   >
     <div class="mb-2.5 flex min-w-0 items-center">
-      <Label
+      <label
         :for="propKey"
         class="min-w-0 break-words text-[12px] font-medium text-we-text"
       >
         {{ label }}
-      </Label>
+      </label>
     </div>
 
     <PropertyPathControl

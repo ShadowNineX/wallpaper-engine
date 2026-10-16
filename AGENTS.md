@@ -15,22 +15,23 @@ Do not cross-import between public entry points or add runtime dependencies to t
 ## Architecture & Data Flow
 
 1. A wallpaper defines one property record with builders from `wallpaper-engine/plugin` (see `demo/src/wallpaper.ts`).
-2. `WallpaperUserPropertiesOf<typeof properties>` derives the runtime callback shape from that record.
+2. `WallpaperPropertyListenerOf<typeof properties>` from the root entry contextually types the listener with `satisfies`. The older plugin `WallpaperUserPropertiesOf` utility is deprecated.
 3. During development, `wallpaperEnginePlugin()` injects the bundled devtools client. During production builds, it emits `project.json` and omits the simulator.
-4. The devtools client installs Wallpaper Engine-compatible globals, stores simulated state in Pinia, and delivers property/audio/media callbacks to the wallpaper.
+4. The devtools host installs Wallpaper Engine-compatible globals synchronously, owns simulated Pinia state, and delivers property/audio/media callbacks to the wallpaper. Its iframe or popup frontend sends schema-validated commands over a dedicated MessageChannel; callbacks and object URLs remain host-owned.
 5. Wallpaper runtime code registers host listeners immediately at module scope and maps callback payloads into local Vue state. Do not defer host registration to `onMounted`, `window.onload`, or a timer; startup events may otherwise be missed.
 
 The build order is load-bearing: devtools produces `packages/devtools/dist/client.js`; the library plugin build copies it to `packages/wallpaper-engine/dist/plugin/devtools/client.js`. Always use the root build for publishable output.
 
-Runtime property callbacks are partial after initial delivery. Type them as `Partial<WallpaperUserPropertiesOf<...>>` and guard each key before reading it. Playback integers are host-defined; compare them through `window.wallpaperMediaIntegration` or `getMediaPlaybackStatus()`, never hard-code numbers.
+Runtime property callbacks are partial after initial delivery. Use `satisfies WallpaperPropertyListenerOf<typeof properties>` on the listener and guard each key before reading it; partial updates are inferred automatically. Playback integers are host-defined; compare them through `window.wallpaperMediaIntegration` or `getMediaPlaybackStatus()`, never hard-code numbers.
 
 ## Key Directories
 
 - `packages/wallpaper-engine/src/`: published types, helpers, property builders, and Vite plugin.
 - `packages/wallpaper-engine/tests/`: public helper and plugin contracts.
 - `packages/devtools/src/`: private Vue 3/Pinia host simulator.
-- `packages/devtools/src/components/ui/`: reusable UI primitives; feature controls belong outside this directory.
-- `packages/devtools/src/tabs/`: Properties, Runtime, Audio, and Media panels.
+- `packages/devtools/src/components/`: feature controls built with explicit Nuxt UI component imports. Configure shared Nuxt UI defaults in `ui.config.ts`.
+- `packages/devtools/src/tabs/`: Properties, Runtime, Audio, Media, and Performance panels.
+- `packages/devtools/src/bridge/`: TypeBox schemas, host action dispatch, and incremental frontend state/command transport. Keep the handshake scoped to the expected origin, window, and token.
 - `packages/devtools/tests/`: module, store, global-adapter, component, and tab tests.
 - `demo/src/`: end-to-end consumer wallpaper. `wallpaper.ts` is the shared property schema; `App.vue` owns host integration and animation; `components/` is presentational.
 - `.github/workflows/`: test/build and tag-based npm publication.
@@ -69,7 +70,7 @@ Package-local commands use `bun run --filter=<workspace> <script>`, where worksp
 - ESLint uses `@antfu/eslint-config` with single quotes and required semicolons. Run `bun run lint:fix` rather than introducing a second formatter; workspace VS Code settings disable Prettier.
 - TypeScript is strict with bundler resolution, `verbatimModuleSyntax`, and unchecked indexed access. Use `import type` and guard indexed values (`array[0]` is possibly `undefined`).
 - Every public exported symbol in `wallpaper-engine` requires JSDoc with an `@example`.
-- Property builders follow `xxxProperty(opts)`: inject the discriminant and pass remaining options through. Update `PropertyDefinitionToValue` for new property kinds.
+- Property builders follow `xxxProperty(opts)`: inject the discriminant and pass remaining options through. Update the shared inference mapping in `src/types/inference.ts` for new property kinds.
 - Add host APIs to both `Window` and matching bare `var`/`function` declarations in `packages/wallpaper-engine/src/types/window.ts`.
 - Devtools uses Vue 3 `<script setup>`, setup-style Pinia stores, and thin controls: typed props, computed state lookup, direct reactive mutation, then one store delivery action.
 - Keep raw listener callbacks at module scope so host globals are independent of component lifecycles.
@@ -87,7 +88,7 @@ Package-local commands use `bun run --filter=<workspace> <script>`, where worksp
 - `packages/wallpaper-engine/src/types/{project,listeners,window}.ts`: project schema and host contracts.
 - `packages/wallpaper-engine/tsdown.config.ts`: two-stage package build and devtools copy guard.
 - `packages/devtools/src/{main,globals,store}.ts`: simulator bootstrap, host adapter, and central state/event flow.
-- `packages/devtools/vite.config.ts`: single-file bundle and Shadow DOM CSS inlining.
+- `packages/devtools/vite.config.ts`: single-file bundle, Nuxt UI integration, and frontend CSS inlining.
 - `demo/src/{wallpaper,App}.ts`: use `wallpaper.ts` for definitions; note the runtime file is `App.vue`.
 - `README.md`: public API documentation; update it with public API changes.
 - `CHANGELOG.md`: Keep a Changelog release notes.
@@ -99,7 +100,7 @@ Package-local commands use `bun run --filter=<workspace> <script>`, where worksp
 - Vite is an optional peer (`>=5`) and belongs only to plugin consumers.
 - Library builds use tsdown; devtools/demo use Vite; Vue workspaces use `vue-tsc`; tests use Vitest; coverage uses V8.
 - Vue, icons, fonts, Tailwind CSS, and devtools dependencies are bundled into the self-contained client. Consumers do not install Vue for devtools.
-- Tailwind v4 CSS is isolated in an open Shadow DOM and inlined into the client JavaScript. Do not assume a separate production CSS asset exists.
+- Nuxt UI and Tailwind v4 CSS live in the dedicated iframe/popup document and are inlined into the client JavaScript. The host dock shell uses Shadow DOM. Do not assume a separate production CSS asset exists.
 - Do not reorder or parallelize the root devtools/library build stages; the library clean/copy hooks can erase or race the embedded client.
 
 ## Testing & QA
@@ -115,6 +116,6 @@ Tests live only under each package's `tests/**/*.test.ts` and import Vitest APIs
 Coverage thresholds:
 
 - Library: 85% statements, 80% branches, 95% functions, 85% lines.
-- Devtools: 80% statements, 70% branches, 80% functions, 80% lines; `src/components/ui/**` and `src/main.ts` are excluded.
+- Devtools: 80% statements, 70% branches, 80% functions, 80% lines; `src/main.ts` is excluded.
 
 Before finishing a library or devtools change, run the affected package's lint, typecheck, and targeted tests. Before publishing or changing build integration, run the root `bun run lint`, `bun run typecheck`, `bun run test:run`, and `bun run build`.

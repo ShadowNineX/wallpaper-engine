@@ -22,11 +22,15 @@ declare global {
      * Must be set as a global — not inside `window.onload` or similar events.
      *
      * @example
+     * import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
+     * import type { properties } from './properties';
+     *
      * window.wallpaperPropertyListener = {
-     *   applyUserProperties(properties) {
-     *     if (properties.mycolor) { ... }
+     *   applyUserProperties(values) {
+     *     if (values.speed)
+     *       console.log(values.speed.value);
      *   },
-     * };
+     * } satisfies WallpaperPropertyListenerOf<typeof properties>;
      */
     wallpaperPropertyListener?: WallpaperPropertyListener;
 

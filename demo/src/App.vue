@@ -10,9 +10,9 @@ import {
 } from "vue";
 import type {
   WallpaperMediaPlaybackState,
+  WallpaperPropertyListenerOf,
   WallpaperMediaPropertiesEvent,
 } from "wallpaper-engine";
-import type { WallpaperUserPropertiesOf } from "wallpaper-engine/plugin";
 import {
   createAudioAnalyzer,
   createFpsLimiter,
@@ -26,7 +26,9 @@ import SourceFooter from "./components/SourceFooter.vue";
 import SystemHeader from "./components/SystemHeader.vue";
 import { properties } from "./wallpaper";
 
-type UserProps = WallpaperUserPropertiesOf<typeof properties>;
+type PropertyUpdate = Parameters<
+  NonNullable<WallpaperPropertyListenerOf<typeof properties>["applyUserProperties"]>
+>[0];
 type BackgroundSource =
   | "generated"
   | "image"
@@ -871,7 +873,7 @@ function setWallpaperPaused(value: boolean): void {
   resumeWallpaper();
 }
 
-function applyColorAndMotionProperties(values: Partial<UserProps>): void {
+function applyColorAndMotionProperties(values: PropertyUpdate): void {
   if (values.backgroundcolor) {
     backgroundColor.value = wallpaperColorToHex(values.backgroundcolor.value);
   }
@@ -896,7 +898,7 @@ function applyColorAndMotionProperties(values: Partial<UserProps>): void {
   }
 }
 
-function applyOverlayProperties(values: Partial<UserProps>): void {
+function applyOverlayProperties(values: PropertyUpdate): void {
   if (values.showclock) showClock.value = values.showclock.value;
   if (values.clockformat) {
     clockFormat.value = values.clockformat.value as ClockFormat;
@@ -908,7 +910,7 @@ function applyOverlayProperties(values: Partial<UserProps>): void {
   }
 }
 
-function applyBackgroundProperties(values: Partial<UserProps>): void {
+function applyBackgroundProperties(values: PropertyUpdate): void {
   if (values.customimage) customImage.value = values.customimage.value;
   if (values.customvideo) customVideo.value = values.customvideo.value;
   if (values.galleryinterval) {
@@ -942,7 +944,7 @@ function applyBackgroundProperties(values: Partial<UserProps>): void {
   }
 }
 
-function refreshRandomBackground(values: Partial<UserProps>): void {
+function refreshRandomBackground(values: PropertyUpdate): void {
   if (
     (values.randomimages || values.backgroundsource) &&
     backgroundSource.value === "randomimage" &&
@@ -959,7 +961,7 @@ function refreshRandomBackground(values: Partial<UserProps>): void {
   }
 }
 
-function applyUserPropertyUpdate(values: Partial<UserProps>): void {
+function applyUserPropertyUpdate(values: PropertyUpdate): void {
   applyColorAndMotionProperties(values);
   applyOverlayProperties(values);
   applyBackgroundProperties(values);
@@ -983,7 +985,7 @@ if (typeof globalThis.wallpaperRegisterAudioListener === "function") {
 
 globalThis.wallpaperPropertyListener = {
   applyUserProperties(rawProperties) {
-    applyUserPropertyUpdate(rawProperties as Partial<UserProps>);
+    applyUserPropertyUpdate(rawProperties);
   },
   applyGeneralProperties(values) {
     if (values.fps === undefined) return;
@@ -994,7 +996,7 @@ globalThis.wallpaperPropertyListener = {
   setPaused: setWallpaperPaused,
   userDirectoryFilesAddedOrChanged: updateDirectoryFiles,
   userDirectoryFilesRemoved: removeDirectoryFiles,
-};
+} satisfies WallpaperPropertyListenerOf<typeof properties>;
 
 if (typeof globalThis.wallpaperRegisterMediaStatusListener === "function") {
   globalThis.wallpaperRegisterMediaStatusListener((event) => {

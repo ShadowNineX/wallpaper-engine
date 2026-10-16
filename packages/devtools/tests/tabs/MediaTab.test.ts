@@ -1,9 +1,7 @@
 import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { toast } from 'vue-sonner';
 
-vi.mock('vue-sonner', () => ({ toast: vi.fn() }));
 vi.mock('../../../wallpaper-engine/src/helpers', () => ({
   createAverageColorExtractor: () => ({
     getColorAsync: () => Promise.resolve({ hex: '#000000' }),
@@ -11,13 +9,21 @@ vi.mock('../../../wallpaper-engine/src/helpers', () => ({
   }),
 }));
 
-beforeEach(() => {
+let messages: string[] = [];
+let releaseNotifications: (() => void) | undefined;
+
+beforeEach(async () => {
   vi.resetModules();
   setActivePinia(createPinia());
+  messages = [];
+  const { setNotificationHandler } = await import('../../src/notifications');
+  releaseNotifications = setNotificationHandler(message => messages.push(message));
   window.__WE_DEVTOOLS_CONFIG__ = { properties: {}, localization: {} };
 });
 
 afterEach(() => {
+  releaseNotifications?.();
+  releaseNotifications = undefined;
   delete window.__WE_DEVTOOLS_CONFIG__;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -40,21 +46,21 @@ describe('mediaTab', () => {
     await wrapper.get('[data-media-enabled]').trigger('click');
 
     expect(metadata).toHaveBeenCalledOnce();
-    expect(toast).toHaveBeenCalledWith(
+    expect(messages).toContain(
       'Some media callbacks failed. Check the browser console for details.',
     );
-    expect(toast).not.toHaveBeenCalledWith('Media integration enabled.');
+    expect(messages).not.toContain('Media integration enabled.');
     wrapper.unmount();
   });
 
   it('keeps finite timeline values when a numeric input is cleared', async () => {
-    const [{ default: MediaTab }, { useDevtoolsStore }, { NumberField }] = await Promise.all([
+    const [{ default: MediaTab }, { useDevtoolsStore }, { default: UInputNumber }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
       import('../../src/store'),
-      import('../../src/components/ui/number-field'),
+      import('@nuxt/ui/components/InputNumber.vue'),
     ]);
     const wrapper = mount(MediaTab);
-    const fields = wrapper.findAllComponents(NumberField);
+    const fields = wrapper.findAllComponents(UInputNumber);
     fields[0]?.vm.$emit('update:modelValue', Number.NaN);
     fields[1]?.vm.$emit('update:modelValue', Number.NaN);
     await flushPromises();
@@ -79,17 +85,18 @@ describe('mediaTab', () => {
     await input.trigger('change');
     await flushPromises();
 
-    expect(toast).toHaveBeenCalledWith(expect.stringContaining('Unable to decode or convert'));
+    expect(messages.some(message => message.includes('Unable to decode or convert'))).toBe(true);
     const choose = wrapper.findAll('button').find(button => button.text() === 'Choose image');
     expect(choose?.attributes('disabled')).toBeUndefined();
     expect(wrapper.get('[aria-busy]').attributes('aria-busy')).toBe('false');
     wrapper.unmount();
   });
 
-  it('edits content type through the native selector and sends metadata', async () => {
-    const [{ default: MediaTab }, { listenerFns }] = await Promise.all([
+  it('edits content type through the Nuxt select and sends metadata', async () => {
+    const [{ default: MediaTab }, { listenerFns }, { default: USelect }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
       import('../../src/store'),
+      import('@nuxt/ui/components/Select.vue'),
     ]);
     const mediaPropertiesListener = vi.fn();
     listenerFns.mediaProps.push(mediaPropertiesListener);
@@ -103,7 +110,8 @@ describe('mediaTab', () => {
     await enabled.trigger('click');
     expect(enabled.attributes('data-state')).toBe('checked');
     mediaPropertiesListener.mockClear();
-    await wrapper.get('select#media-content-type').setValue('video');
+    wrapper.findComponent(USelect).vm.$emit('update:modelValue', 'video');
+    await flushPromises();
     await buttons
       .find(button => button.text().includes('Send metadata'))
       ?.trigger('click');
@@ -111,9 +119,7 @@ describe('mediaTab', () => {
     expect(mediaPropertiesListener).toHaveBeenCalledWith(
       expect.objectContaining({ contentType: 'video' }),
     );
-    expect(
-      wrapper.get('[data-slot="native-select-wrapper"]').attributes('data-slot'),
-    ).toBe('native-select-wrapper');
+    expect(wrapper.get('button#media-content-type').attributes('role')).toBe('combobox');
   });
 
   it('associates artwork file and palette inputs with labels', async () => {
@@ -201,9 +207,10 @@ describe('mediaTab', () => {
   });
 
   it('delivers status, playback, timeline, artwork, and disabled transitions', async () => {
-    const [{ default: MediaTab }, { listenerFns }] = await Promise.all([
+    const [{ default: MediaTab }, { listenerFns }, { default: UInputNumber }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
       import('../../src/store'),
+      import('@nuxt/ui/components/InputNumber.vue'),
     ]);
     const status = vi.fn();
     const properties = vi.fn();
@@ -232,12 +239,10 @@ describe('mediaTab', () => {
     await button('Paused')?.trigger('click');
     expect(playback).toHaveBeenCalledWith({ state: 1 });
 
-    const increases = wrapper.findAll('button[aria-label="Increase"]');
-    const decreases = wrapper.findAll('button[aria-label="Decrease"]');
-    await increases[0]?.trigger('pointerdown', { button: 0 });
-    await increases[0]?.trigger('pointerup', { button: 0 });
-    await decreases[1]?.trigger('pointerdown', { button: 0 });
-    await decreases[1]?.trigger('pointerup', { button: 0 });
+    const fields = wrapper.findAllComponents(UInputNumber);
+    fields[0]?.vm.$emit('update:modelValue', 31);
+    fields[1]?.vm.$emit('update:modelValue', 179);
+    await flushPromises();
     await button('Send timeline')?.trigger('click');
     expect(timeline).toHaveBeenCalledWith({ position: 31, duration: 179 });
 

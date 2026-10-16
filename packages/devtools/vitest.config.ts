@@ -1,10 +1,12 @@
 import { fileURLToPath, URL } from 'node:url';
+import ui from '@nuxt/ui/vite';
 import vue from '@vitejs/plugin-vue';
 import Icons from 'unplugin-icons/vite';
 import { defineConfig } from 'vitest/config';
+import { uiOptions } from './ui.config.ts';
 
 export default defineConfig({
-  plugins: [vue(), Icons({ compiler: 'vue3' })],
+  plugins: [vue(), ui(uiOptions), Icons({ compiler: 'vue3' })],
   resolve: {
     alias: {
       'unfonts.css': fileURLToPath(new URL('./src/style.css', import.meta.url)),
@@ -16,10 +18,11 @@ export default defineConfig({
     include: ['tests/**/*.test.ts'],
     clearMocks: true,
     restoreMocks: true,
+    setupFiles: ['tests/setup.ts'],
     coverage: {
       provider: 'v8',
       include: ['src/**/*.{ts,vue}'],
-      exclude: ['src/components/ui/**', 'src/main.ts'],
+      exclude: ['src/main.ts'],
       reporter: ['text', 'json-summary'],
       thresholds: {
         statements: 80,

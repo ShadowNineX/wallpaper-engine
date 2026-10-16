@@ -60,8 +60,7 @@ function processPulseTempo(
 ): void {
   const periodFrames = (60 * 30) / bpm;
   for (let frame = 0; frame < frameCount; frame++) {
-    const deltaSeconds = frame % 2 === 0 ? 0.031 : 0.035;
-    analyzer.process(frame % periodFrames === 0 ? KICK : SILENCE, deltaSeconds);
+    analyzer.process(frame % periodFrames === 0 ? KICK : SILENCE, 1 / 30);
   }
 }
 
@@ -345,6 +344,76 @@ describe('createAudioAnalyzer', () => {
     expect(analyzer.bpm).toBeCloseTo(171.5, 0);
   });
 
+  it.each([15, 20, 30, 60])(
+    'uses elapsed time to estimate 120 BPM at %i callbacks per second',
+    (sampleRate) => {
+      const analyzer = createAudioAnalyzer();
+      let previousBeat = -1;
+      for (let frame = 0; frame < sampleRate * 12; frame++) {
+        const beat = Math.floor((frame * 2) / sampleRate);
+        analyzer.process(beat !== previousBeat ? KICK : SILENCE, 1 / sampleRate);
+        previousBeat = beat;
+      }
+
+      expect(analyzer.bpm).toBeCloseTo(120, 0);
+    },
+  );
+
+  it('tracks tempo with irregular callback intervals', () => {
+    const analyzer = createAudioAnalyzer();
+    const intervals = [0.02, 0.05, 0.025, 0.04];
+    let elapsed = 0;
+    let previousBeat = -1;
+    for (let frame = 0; elapsed < 16; frame++) {
+      const deltaSeconds = intervals[frame % intervals.length]!;
+      elapsed += deltaSeconds;
+      const beat = Math.floor(elapsed * 2);
+      analyzer.process(beat !== previousBeat ? KICK : SILENCE, deltaSeconds);
+      previousBeat = beat;
+    }
+
+    expect(analyzer.bpm).toBeCloseTo(120, 0);
+  });
+
+  it('does not acquire tempo when no time elapses', () => {
+    const analyzer = createAudioAnalyzer();
+    for (let frame = 0; frame < 300; frame++)
+      analyzer.process(frame % 15 === 0 ? KICK : SILENCE, 0);
+
+    expect(analyzer.bpm).toBe(0);
+  });
+
+  it('retains zero-time attacks until elapsed time advances', () => {
+    const analyzer = createAudioAnalyzer();
+    for (let frame = 0; frame < 360; frame++) {
+      if (frame % 15 === 0)
+        analyzer.process(KICK, 0);
+      analyzer.process(SILENCE, 1 / 30);
+    }
+
+    expect(analyzer.bpm).toBeCloseTo(120, 0);
+  });
+
+  it('retains tempo across a callback gap just below the timeout', () => {
+    const analyzer = createAudioAnalyzer();
+    processPulseTempo(analyzer, 120);
+    analyzer.process(KICK, 3.999);
+    expect(analyzer.bpm).toBeCloseTo(120, 0);
+  });
+
+  it.each([4, 60, Number.MAX_VALUE])('discards stale tempo history after a %s-second non-silent callback gap', (gap) => {
+    const analyzer = createAudioAnalyzer();
+    processPulseTempo(analyzer, 120);
+    expect(analyzer.bpm).toBeCloseTo(120, 0);
+
+    analyzer.process(KICK, gap);
+    expect(analyzer.bpm).toBe(0);
+    processPulseTempo(analyzer, 90, 120);
+    expect(analyzer.bpm).toBe(0);
+    processPulseTempo(analyzer, 90, 120);
+    expect(analyzer.bpm).toBeCloseTo(90, 0);
+  });
+
   it('tracks a sustained non-octave tempo change', () => {
     const analyzer = createAudioAnalyzer();
     processPulseTempo(analyzer, 120);
@@ -375,7 +444,7 @@ describe('createAudioAnalyzer', () => {
     const frame = Array.from<number>({ length: 128 }).fill(0);
     for (let frameIndex = 0; frameIndex < 240; frameIndex++) {
       writeTrackFrame(frame, frameIndex);
-      analyzer.process(frame, 0.033);
+      analyzer.process(frame, 1 / 30);
     }
 
     expect(analyzer.bpm).toBeCloseTo(120, 0);

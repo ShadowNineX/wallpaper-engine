@@ -3,6 +3,9 @@ title: Audio
 description: Register Wallpaper Engine audio visualization safely, process its stereo spectrum, and test every simulator mode.
 ---
 
+For a complete page and Vite configuration, start with the
+[audio-reactive wallpaper example](../../examples/audio-reactive/).
+
 Register the audio callback while the runtime module evaluates:
 
 ```ts
@@ -122,7 +125,9 @@ mutually exclusive.
 
 `bpm` is persistent rather than a current-call event. The analyzer records a
 continuous positive log-spectral-flux onset envelope with an adaptive local
-baseline at Wallpaper Engine's nominal 30 Hz callback cadence. Once four
+baseline, resampled to 30 Hz using the supplied elapsed time. Integrating the
+interpolated envelope preserves attacks between analysis samples when callbacks
+arrive faster or fluctuate. Once four
 seconds of history are available, it scores 40–240 BPM candidates against
 fractional autocorrelation lags spanning one through four beats. Analysis
 continues across a rolling eight-second window. Long-range lags preserve
@@ -136,6 +141,10 @@ non-silent passages; a substantially different tempo must remain both strong
 and consistent before replacing it. This prevents marginal windows from
 alternating between a number and `0`. The value returns to `0` after four
 seconds without a significant onset or when `reset()` is called.
+Any individual callback gap of four seconds or more also clears tempo history,
+even if the resumed frame contains an attack. Fresh periodic history is required
+before another estimate appears. Zero elapsed time does not advance tempo history;
+any observed attack is retained until the next call with positive elapsed time.
 
 This follows the same log-spectral-flux → periodicity approach used by
 [librosa's tempo estimator](https://librosa.org/doc/latest/generated/librosa.feature.tempo.html),
@@ -243,6 +252,8 @@ Set an instrument to `0%` to isolate the remaining track components, or raise it
 
 :::note[Simulator cadence]
 The simulator timer uses `1000 / 30` ms. Browsers may throttle background tabs. Wallpaper Engine owns production cadence and values.
+Track loop advances from elapsed time, so timer rounding and delayed callbacks
+do not speed up or slow down the configured tempo.
 :::
 
 See Wallpaper Engine's official [audio visualizer documentation](https://docs.wallpaperengine.io/en/web/audio/visualizer.html) for host behavior.

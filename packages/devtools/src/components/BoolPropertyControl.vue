@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { WallpaperBoolValue } from '../../../wallpaper-engine/src/types/listeners';
 import type { WallpaperBoolProperty } from '../../../wallpaper-engine/src/types/project';
+import USwitch from '@nuxt/ui/components/Switch.vue';
 import { computed } from 'vue';
-import { Checkbox } from '@/components/ui/checkbox';
 import { useDevtoolsStore } from '../store';
 
 const props = defineProps<{
@@ -29,10 +29,9 @@ function onBool(checked: unknown): void {
     :for="propKey"
     class="flex cursor-pointer items-center gap-2 text-[12px] text-we-muted"
   >
-    <Checkbox
+    <USwitch
       :id="propKey"
       :model-value="runtimeValue?.value ?? def.value"
-      class="size-4.5"
       @update:model-value="onBool"
     />
     <span>{{ runtimeValue?.value ?? def.value ? "Enabled" : "Disabled" }}</span>

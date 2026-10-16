@@ -27,6 +27,7 @@ export default defineConfig({
       title: 'wallpaper-engine',
       description: 'Typed host APIs, Vite tooling, runtime helpers, and a development simulator for Wallpaper Engine web wallpapers.',
       favicon: '/favicon.svg',
+      customCss: ['./src/styles/theme.css'],
       social: [
         {
           icon: 'github',
@@ -45,6 +46,14 @@ export default defineConfig({
             { label: 'Overview', slug: '' },
             { label: 'Installation', slug: 'getting-started/installation' },
             { label: 'Quick Start', slug: 'getting-started/quick-start' },
+          ],
+        },
+        {
+          label: 'Examples',
+          items: [
+            { label: 'Overview', slug: 'examples' },
+            { label: 'Audio-Reactive Wallpaper', slug: 'examples/audio-reactive' },
+            { label: 'Now-Playing Card', slug: 'examples/now-playing' },
           ],
         },
         {
@@ -93,6 +102,7 @@ export default defineConfig({
             { label: 'Root Types', slug: 'reference/root' },
             { label: 'Plugin API', slug: 'reference/plugin' },
             { label: 'Helpers API', slug: 'reference/helpers' },
+            { label: 'Web API Coverage', slug: 'reference/web-api-coverage' },
           ],
         },
       ],

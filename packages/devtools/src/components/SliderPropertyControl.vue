@@ -2,9 +2,9 @@
 import type { WallpaperSliderValue } from '../../../wallpaper-engine/src/types/listeners';
 import type { WallpaperSliderProperty } from '../../../wallpaper-engine/src/types/project';
 import { computed } from 'vue';
-import { Slider } from '@/components/ui/slider';
 import { tr } from '../config';
 import { useDevtoolsStore } from '../store';
+import RangeSlider from './RangeSlider.vue';
 
 const props = defineProps<{
   propKey: string;
@@ -21,8 +21,7 @@ const step = computed(
     ?? (props.def.fraction ? 10 ** -(props.def.precision ?? 1) : 1),
 );
 
-function onSlider(values: number[] | undefined): void {
-  const next = values?.[0];
+function onSlider(next: number | undefined): void {
   const current = runtimeValue.value;
   if (next === undefined || !current)
     return;
@@ -33,10 +32,10 @@ function onSlider(values: number[] | undefined): void {
 
 <template>
   <div class="flex items-center gap-3">
-    <Slider
+    <RangeSlider
       :id="propKey"
       :aria-label="tr(def.text)"
-      :model-value="[runtimeValue?.value ?? def.value]"
+      :model-value="runtimeValue?.value ?? def.value"
       :min="def.min"
       :max="def.max"
       :step="step"

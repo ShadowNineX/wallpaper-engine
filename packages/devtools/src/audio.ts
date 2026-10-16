@@ -51,12 +51,19 @@ export const audioSettings = reactive<AudioSettings>({
 let timer: ReturnType<typeof setInterval> | null = null;
 let phase = 0;
 let trackFrame = 0;
+let lastTickTime: number | undefined;
 export const audioState = reactive({ mode: 'off' as AudioMode });
 /** Last 128-sample frame sent to listeners, updated every tick. */
 export const lastFrame = shallowRef<number[]>([]);
+let remoteMode: ((mode: AudioMode) => void) | undefined;
+
+/** Frontends forward playback commands; only the host owns the timer. */
+export function setAudioTransport(sender?: (mode: AudioMode) => void): void {
+  remoteMode = sender;
+}
 
 type ActiveAudioMode = Exclude<AudioMode, 'off'>;
-type FrameWriter = (frame: number[]) => void;
+type FrameWriter = (frame: number[], deltaSeconds: number) => void;
 
 function writeSilenceFrame(frame: number[]): void {
   frame.fill(0);
@@ -105,9 +112,10 @@ function writeStereoFrame(frame: number[]): void {
   }
 }
 
-function writeTrackFrame(frame: number[]): void {
+function writeTrackFrame(frame: number[], deltaSeconds: number): void {
+  // Pattern positions use 30 reference frames per second at 120 BPM.
+  trackFrame = (trackFrame + deltaSeconds * 30 * audioSettings.trackTempo / 120) % 60;
   const frameIndex = trackFrame;
-  trackFrame = (trackFrame + audioSettings.trackTempo / 120) % 60;
   const trackTime = frameIndex / 30;
   const kickAge = (frameIndex % 30) / 30;
   const clapAge = ((frameIndex + 15) % 30) / 30;
@@ -151,14 +159,19 @@ function applyOutput(frame: number[]): void {
 }
 
 function tick(): void {
-  if (listenerFns.audio.length === 0)
+  if (listenerFns.audio.length === 0) {
+    lastTickTime = undefined;
     return;
+  }
   const mode = audioState.mode;
   if (mode === 'off')
     return;
 
+  const now = performance.now();
+  const deltaSeconds = lastTickTime === undefined ? 0 : Math.max(0, now - lastTickTime) / 1000;
+  lastTickTime = now;
   const frame = Array.from<number>({ length: 128 }).fill(0);
-  FRAME_WRITERS[mode](frame);
+  FRAME_WRITERS[mode](frame, deltaSeconds);
   applyOutput(frame);
   lastFrame.value = frame;
   for (const listener of listenerFns.audio) {
@@ -176,6 +189,12 @@ export function resetAudioSettings(): void {
 }
 
 export function setAudioMode(mode: AudioMode): void {
+  if (remoteMode) {
+    audioState.mode = mode;
+    remoteMode(mode);
+    return;
+  }
+  lastTickTime = undefined;
   if (audioState.mode !== mode) {
     phase = 0;
     trackFrame = 0;

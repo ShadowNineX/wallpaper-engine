@@ -237,9 +237,12 @@ ambiguity. Initial candidates require three consecutive agreements. After
 acquisition, low-confidence non-silent frames retain the last accepted BPM,
 while a substantially different candidate must remain strong and consistent
 before replacing it. The estimate clears after four seconds without a
-significant onset or on `reset()`. Tempo analysis assumes Wallpaper Engine's
-nominal 30 Hz callback cadence; `deltaSeconds` still controls cooldown, peak
-decay, and the real-time silence timeout.
+  significant onset or on `reset()`. Tempo analysis integrates the interpolated
+  onset envelope into 30 Hz samples using `deltaSeconds`, so callback cadence
+  changes do not scale BPM. Zero elapsed time adds no tempo history, but retains
+  observed attacks for the next call with positive elapsed time. A callback
+  gap of at least four seconds clears stale tempo history, including when the
+  resumed frame is non-silent. Elapsed time also controls cooldown and peak decay.
 
 ## Audio functions
 

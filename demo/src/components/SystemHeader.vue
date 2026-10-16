@@ -42,15 +42,22 @@ const audioBpmLabel = computed(() =>
         title="Configured limit · measured render rate · latest rendered-frame delta"
       >
         <Waves :size="13" />
-        LIMIT {{ fpsLimitLabel }} · ACTUAL {{ measuredFps }} · Δ
-        {{ frameDeltaLabel }} MS
+        <span class="system-readout">
+          LIMIT <span class="system-value system-value--rate">{{ fpsLimitLabel }}</span>
+          · ACTUAL <span class="system-value system-value--rate">{{ measuredFps }}</span>
+          · Δ <span class="system-value system-value--delta">{{ frameDeltaLabel }}</span> MS
+        </span>
       </span>
       <span
         class="system-pill"
         title="Current RMS level · decaying peak envelope · latest beat strength"
       >
-        AUDIO RMS {{ audioRmsLabel }} · PEAK {{ audioPeakLabel }} · BEAT
-        {{ audioBeatLabel }} · BPM {{ audioBpmLabel }}
+        <span class="system-readout">
+          AUDIO RMS <span class="system-value system-value--level">{{ audioRmsLabel }}</span>
+          · PEAK <span class="system-value system-value--level">{{ audioPeakLabel }}</span>
+          · BEAT <span class="system-value system-value--level">{{ audioBeatLabel }}</span>
+          · BPM <span class="system-value">{{ audioBpmLabel }}</span>
+        </span>
       </span>
     </div>
   </header>

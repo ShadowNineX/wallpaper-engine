@@ -5,6 +5,9 @@ description: Consume media status, metadata, artwork, playback, and timeline eve
 
 Wallpaper Engine exposes five independent media streams. Register every stream your wallpaper needs at module scope so startup state is not missed.
 
+For a complete page and Vite configuration, see the
+[now-playing card example](../../examples/now-playing/).
+
 ## Event inventory
 
 | Registration function | Event fields | Meaning |

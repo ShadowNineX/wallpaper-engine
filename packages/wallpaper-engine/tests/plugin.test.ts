@@ -1,6 +1,7 @@
 import type {
   WallpaperProjectMetadata as RootWallpaperProjectMetadata,
   WallpaperPropertyListener,
+  WallpaperPropertyListenerOf,
   WallpaperUserProperties,
 } from '../src/index';
 import type {
@@ -221,6 +222,12 @@ describe('groupProperty', () => {
     expectTypeOf<
       keyof WallpaperUserPropertiesOf<typeof _definitions>
     >().toEqualTypeOf<'enabled'>();
+
+    type Update = Parameters<NonNullable<
+      WallpaperPropertyListenerOf<typeof _definitions>['applyUserProperties']
+    >>[0];
+
+    expectTypeOf<keyof Update>().toEqualTypeOf<'enabled'>();
   });
 });
 
@@ -982,7 +989,7 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     }
   });
 
-  it('resolves only its virtual module id', () => {
+  it('resolves its runtime and frontend virtual module ids only while serving', () => {
     const plugin = wallpaperEnginePlugin({ title: 'T' });
     if (typeof plugin.resolveId !== 'function') {
       throw new TypeError('resolveId hook is not callable');
@@ -995,7 +1002,27 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
         undefined,
         {} as never,
       ),
+    ).toBeNull();
+    if (typeof plugin.configResolved !== 'function')
+      throw new TypeError('configResolved hook is not callable');
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+
+    expect(
+      plugin.resolveId.call(
+        {} as never,
+        'virtual:wallpaper-engine/devtools',
+        undefined,
+        {} as never,
+      ),
     ).toBe('\0virtual:wallpaper-engine/devtools');
+    expect(
+      plugin.resolveId.call(
+        {} as never,
+        'virtual:wallpaper-engine/devtools-frontend',
+        undefined,
+        {} as never,
+      ),
+    ).toBe('\0virtual:wallpaper-engine/devtools-frontend');
     expect(
       plugin.resolveId.call({} as never, 'other', undefined, {} as never),
     ).toBeNull();
@@ -1016,11 +1043,15 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     if (typeof plugin.load !== 'function') {
       throw new TypeError('load hook is not callable');
     }
+    if (typeof plugin.configResolved !== 'function') {
+      throw new TypeError('configResolved hook is not callable');
+    }
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
 
     expect(
       await plugin.load.call({} as never, 'unrelated', {} as never),
     ).toBeNull();
-    const [first, second] = await Promise.all([
+    const [first, second, frontend] = await Promise.all([
       plugin.load.call(
         {} as never,
         '\0virtual:wallpaper-engine/devtools',
@@ -1029,16 +1060,89 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
       plugin.load.call(
         {} as never,
         '\0virtual:wallpaper-engine/devtools',
+        {} as never,
+      ),
+      plugin.load.call(
+        {} as never,
+        '\0virtual:wallpaper-engine/devtools-frontend',
         {} as never,
       ),
     ]);
 
+    expect(first).toContain('window.__WE_DEVTOOLS_ROLE__ = \'runtime\';');
+    expect(first).toContain('window.__WE_DEVTOOLS_FRONTEND_URL__ = "/__wallpaper-engine-devtools__/";');
     expect(first).toContain('window.__WE_DEVTOOLS_CONFIG__ = {\"title\":\"Configured\"');
     expect(first).not.toContain('__WE_DEV_FILES_TOKEN__');
     expect(first).toContain('\"mode\":{\"index\":0,\"order\":0,\"type\":\"combo\"');
     expect(first).toContain('globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;');
     expect(second).toBe(first);
+    expect(frontend).toContain('window.__WE_DEVTOOLS_ROLE__ = \'frontend\';');
+    expect(frontend).toContain('window.__WE_DEVTOOLS_CONFIG__ = {\"title\":\"Configured\"');
     expect(readFileMock).toHaveBeenCalledOnce();
+  });
+
+  it('serves a base-aware frontend route for GET and HEAD only', async () => {
+    const use = vi.fn();
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (
+      typeof plugin.configResolved !== 'function'
+      || typeof plugin.configureServer !== 'function'
+    ) {
+      throw new TypeError('plugin hooks are not callable');
+    }
+    plugin.configResolved.call({} as never, {
+      base: '/wallpaper/',
+      command: 'serve',
+    } as never);
+    plugin.configureServer.call({} as never, {
+      httpServer: { once: vi.fn() },
+      middlewares: { use },
+      moduleGraph: { getModuleById: vi.fn(), invalidateModule: vi.fn() },
+      ws: { send: vi.fn() },
+    } as never);
+    await vi.waitFor(() => expect(use).toHaveBeenCalledOnce());
+    const middleware = use.mock.calls[0]?.[0] as (
+      request: { method?: string; url?: string },
+      response: { end: ReturnType<typeof vi.fn>; setHeader: ReturnType<typeof vi.fn>; statusCode: number },
+      next: ReturnType<typeof vi.fn>,
+    ) => void;
+    const response = { end: vi.fn(), setHeader: vi.fn(), statusCode: 0 };
+    const next = vi.fn();
+
+    middleware({ method: 'GET', url: '/wallpaper/__wallpaper-engine-devtools__/?ignored=yes' }, response, next);
+    expect(response.statusCode).toBe(200);
+    expect(response.setHeader).toHaveBeenCalledWith('Content-Type', 'text/html; charset=utf-8');
+    expect(response.setHeader).toHaveBeenCalledWith('Cache-Control', 'no-store');
+    expect(response.end).toHaveBeenCalledWith(expect.stringContaining('<title>Wallpaper Engine Devtools</title>'));
+    expect(response.end).toHaveBeenCalledWith(expect.stringContaining('src="/wallpaper/@id/virtual:wallpaper-engine/devtools-frontend"'));
+
+    const headResponse = { end: vi.fn(), setHeader: vi.fn(), statusCode: 0 };
+    middleware({ method: 'HEAD', url: '/wallpaper/__wallpaper-engine-devtools__/' }, headResponse, vi.fn());
+    expect(headResponse.statusCode).toBe(200);
+    expect(headResponse.end).toHaveBeenCalledWith(undefined);
+
+    middleware({ method: 'GET', url: '/wallpaper/__wallpaper-engine-devtools__/extra' }, response, next);
+    expect(next).toHaveBeenCalledOnce();
+  });
+
+  it('encodes devtools configuration before placing it in a module', async () => {
+    const plugin = wallpaperEnginePlugin({ title: '</script><script>broken()</script>' });
+    if (
+      typeof plugin.configResolved !== 'function'
+      || typeof plugin.load !== 'function'
+    ) {
+      throw new TypeError('plugin hooks are not callable');
+    }
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+
+    const module = await plugin.load.call(
+      {} as never,
+      '\0virtual:wallpaper-engine/devtools',
+      {} as never,
+    );
+
+    expect(module).toContain('\\u003C/script>\\u003Cscript>broken()\\u003C/script>');
+    expect(module).not.toContain('</script>');
   });
 
   it('watches the bundled client, invalidates its module, and reloads the page', async () => {
@@ -1050,9 +1154,14 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     const invalidateModule = vi.fn();
     const send = vi.fn();
     const plugin = wallpaperEnginePlugin({ title: 'T' });
-    if (typeof plugin.configureServer !== 'function') {
+    if (
+      typeof plugin.configureServer !== 'function'
+      || typeof plugin.configResolved !== 'function'
+    ) {
       throw new TypeError('configureServer hook is not callable');
     }
+
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
 
     plugin.configureServer.call({} as never, {
       moduleGraph: {
@@ -1065,11 +1174,12 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
           onServerClose = callback;
         }),
       },
+      middlewares: { use: vi.fn() },
     } as never);
     await vi.waitFor(() => expect(watchFileMock).toHaveBeenCalledOnce());
 
     onClientChange?.();
-    expect(invalidateModule).toHaveBeenCalledOnce();
+    expect(invalidateModule).toHaveBeenCalledTimes(2);
     expect(send).toHaveBeenCalledWith({ type: 'full-reload' });
 
     onServerClose?.();
@@ -1085,5 +1195,29 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     plugin.configureServer.call({} as never, {} as never);
 
     expect(watchFileMock).not.toHaveBeenCalled();
+  });
+
+  it('does not expose either virtual entry when devtools are disabled', async () => {
+    const plugin = wallpaperEnginePlugin({ title: 'T', devtools: false });
+    if (
+      typeof plugin.configResolved !== 'function'
+      || typeof plugin.resolveId !== 'function'
+      || typeof plugin.load !== 'function'
+    ) {
+      throw new TypeError('plugin hooks are not callable');
+    }
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+
+    expect(plugin.resolveId.call(
+      {} as never,
+      'virtual:wallpaper-engine/devtools-frontend',
+      undefined,
+      {} as never,
+    )).toBeNull();
+    await expect(plugin.load.call(
+      {} as never,
+      '\0virtual:wallpaper-engine/devtools-frontend',
+      {} as never,
+    )).resolves.toBeNull();
   });
 });

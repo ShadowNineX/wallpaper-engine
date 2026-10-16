@@ -117,7 +117,7 @@ const properties = {
 };
 ```
 
-A group is a collapsible layout marker. Every following property belongs to it until the next group marker. The builder injects `type: 'group'` and `value: ''`; group keys are removed by `WallpaperUserPropertiesOf` and are not delivered by the host.
+A group is a collapsible layout marker. Every following property belongs to it until the next group marker. The builder injects `type: 'group'` and `value: ''`; group keys are omitted from `WallpaperPropertyListenerOf` callback parameters and are not delivered by the host.
 
 ## Localization
 

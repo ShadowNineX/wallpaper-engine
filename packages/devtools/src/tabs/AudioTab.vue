@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
 import type { AudioMode, AudioSettings } from '../audio';
+import UButton from '@nuxt/ui/components/Button.vue';
 import { storeToRefs } from 'pinia';
 import { computed, onBeforeUnmount, onMounted, shallowRef } from 'vue';
 import ArrowsLeftRight from '~icons/ph/arrows-left-right-duotone';
@@ -9,9 +10,6 @@ import SpeakerSlash from '~icons/ph/speaker-slash-duotone';
 import WaveSine from '~icons/ph/wave-sine-duotone';
 import AudioLines from '~icons/ph/waveform-duotone';
 import WaveformSlash from '~icons/ph/waveform-slash-duotone';
-import { Label } from '@/components/ui/label';
-import { Slider } from '@/components/ui/slider';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import {
   AUDIO_MODE_LABELS,
   audioSettings,
@@ -20,6 +18,7 @@ import {
   setAudioMode,
 } from '../audio';
 import CallbackStatus from '../components/CallbackStatus.vue';
+import RangeSlider from '../components/RangeSlider.vue';
 import { useDevtoolsStore } from '../store';
 
 const { listenerCounts } = storeToRefs(useDevtoolsStore());
@@ -180,13 +179,51 @@ const activeModeDescription = computed(
   () => modes.find(mode => mode.value === audioState.mode)?.description ?? '',
 );
 const audioListenerLabel = computed(() => `${listenerCounts.value.audio} registered audio ${listenerCounts.value.audio === 1 ? 'listener' : 'listeners'}`);
+const spectrumCanRender = computed(
+  () => audioState.mode !== 'off' && listenerCounts.value.audio > 0,
+);
+const spectrumStatus = computed(() => {
+  if (audioState.mode === 'off') {
+    return {
+      label: 'Stopped',
+      description: 'Callbacks are stopped. Choose a mode to begin.',
+      tone: 'text-we-faint',
+      dot: 'bg-we-faint',
+    };
+  }
+  if (listenerCounts.value.audio === 0) {
+    return {
+      label: 'Waiting',
+      description: 'No audio listener is registered.',
+      tone: 'text-amber-300',
+      dot: 'bg-amber-300',
+    };
+  }
+  if (audioState.mode === 'silence') {
+    return {
+      label: 'Silence',
+      description: `Sending a zeroed spectrum to ${audioListenerLabel.value}.`,
+      tone: 'text-we-muted',
+      dot: 'bg-we-muted',
+    };
+  }
+  return {
+    label: 'Live',
+    description: `Streaming ${AUDIO_MODE_LABELS[audioState.mode]} at about 30 Hz.`,
+    tone: 'text-emerald-300',
+    dot: 'bg-emerald-300',
+  };
+});
+const spectrumAriaLabel = computed(
+  () => `Stereo spectrum preview: left channel above, right channel below. ${spectrumStatus.value.label}: ${spectrumStatus.value.description}`,
+);
 function updateAudioSetting(
   key: keyof AudioSettings,
-  values: number[] | undefined,
+  value: number | number[] | undefined,
 ): void {
-  const value = values?.[0];
-  if (value !== undefined)
-    audioSettings[key] = value;
+  const next = Array.isArray(value) ? value[0] : value;
+  if (next !== undefined)
+    audioSettings[key] = next;
 }
 
 function formatAudioSetting(control: AudioControl): string {
@@ -299,7 +336,7 @@ function drawFrame(): void {
       target.width,
       target.height,
       lastFrame.value,
-      audioState.mode !== 'off',
+      spectrumCanRender.value,
     );
   }
   animationFrame = requestAnimationFrame(drawFrame);
@@ -318,7 +355,7 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
             Audio simulation
           </h2>
           <p class="we-card-description text-pretty">
-            Send 128-sample stereo spectrum frames at approximately 30 Hz.
+            Preview 128-sample stereo spectrum frames generated at about 30 Hz.
           </p>
         </div>
         <CallbackStatus
@@ -328,91 +365,105 @@ onBeforeUnmount(() => cancelAnimationFrame(animationFrame));
         />
       </div>
 
-      <div
-        class="mb-4 overflow-hidden rounded-md border border-we-border bg-we-surface p-1.5"
-      >
+      <div class="mb-4 overflow-hidden rounded-lg border border-we-border bg-we-surface">
         <canvas
           ref="canvas"
           width="392"
           height="56"
-          class="block h-14 w-full"
-          aria-label="Stereo spectrum preview: left channel above, right channel below"
+          class="block h-14 w-full px-1.5 pt-1.5"
+          :aria-label="spectrumAriaLabel"
+          aria-describedby="we-audio-spectrum-status"
         />
+        <div
+          id="we-audio-spectrum-status"
+          role="status"
+          aria-live="polite"
+          class="flex min-w-0 items-center gap-2 border-t border-we-border/70 px-2.5 py-2 text-[10px] leading-4"
+        >
+          <span
+            class="size-1.5 shrink-0 rounded-full"
+            :class="spectrumStatus.dot"
+            aria-hidden="true"
+          />
+          <span class="shrink-0 font-semibold" :class="spectrumStatus.tone">
+            {{ spectrumStatus.label }}
+          </span>
+          <span class="truncate text-we-faint">
+            {{ spectrumStatus.description }}
+          </span>
+        </div>
       </div>
 
-      <ToggleGroup
-        type="single"
-        variant="outline"
-        :spacing="1"
-        :model-value="audioState.mode"
-        class="we-audio-modes grid w-full"
+      <div
+        class="we-audio-modes grid w-full rounded-xl border border-we-border bg-we-surface p-1"
         aria-label="Audio processing mode"
-        @update:model-value="
-          (value) => {
-            if (value) setAudioMode(value as AudioMode);
-          }
-        "
       >
-        <ToggleGroupItem
+        <UButton
           v-for="mode in modes"
           :key="mode.value"
-          :value="mode.value"
-          class="h-9 min-w-0 justify-center gap-1.5 whitespace-nowrap rounded-md border-we-border/70 bg-we-surface px-2 text-[11px] shadow-none transition-colors hover:border-we-border-strong hover:bg-we-btn data-[state=on]:border-we-primary/60 data-[state=on]:bg-we-primary/12 data-[state=on]:text-we-text"
+          type="button"
+          color="primary"
+          :variant="audioState.mode === mode.value ? 'soft' : 'ghost'"
+          :aria-pressed="audioState.mode === mode.value"
+          class="h-10 min-w-0 justify-center gap-1.5 whitespace-nowrap px-2 text-[11px] transition-[background-color,color,box-shadow]"
           :title="mode.description"
+          @click="setAudioMode(mode.value)"
         >
           <component
             :is="mode.icon"
-            class="size-3.5 shrink-0 text-we-faint group-data-[state=on]:text-we-primary"
+            class="size-3.5 shrink-0"
             aria-hidden="true"
           />
           <span class="truncate font-medium leading-4">
             {{ AUDIO_MODE_LABELS[mode.value] }}
           </span>
-        </ToggleGroupItem>
-      </ToggleGroup>
+        </UButton>
+      </div>
       <p class="mt-2 min-h-4 text-[11px] leading-4 text-we-faint" aria-live="polite">
         {{ activeModeDescription }}
       </p>
 
       <div
         v-if="activeControls.length > 0"
-        class="mt-5 space-y-4 border-t border-we-border pt-4"
+        class="mt-5 space-y-5 border-t border-we-border pt-4"
       >
         <div
           v-for="control in activeControls"
           :key="control.key"
-          class="we-field"
+          class="grid gap-1.5"
         >
-          <div>
-            <Label
-              :for="`audio-${control.key}`"
-              class="we-field-label"
-            >
-              {{ control.label }}
-            </Label>
-            <div class="mt-0.5 text-[11px] text-we-faint">
-              {{ control.description }}
+          <div class="flex min-w-0 items-baseline justify-between gap-3">
+            <div class="flex min-w-0 items-baseline gap-2">
+              <label
+                :for="`audio-${control.key}`"
+                class="we-field-label shrink-0 text-we-text"
+              >
+                {{ control.label }}
+              </label>
+              <span class="truncate text-[10px] text-we-faint">
+                {{ control.description }}
+              </span>
             </div>
-          </div>
-          <div class="flex min-w-0 items-center gap-3">
-            <Slider
-              :id="`audio-${control.key}`"
-              :aria-label="control.label"
-              :model-value="[audioSettings[control.key]]"
-              :min="control.min"
-              :max="control.max"
-              :step="control.step"
-              class="min-w-0 flex-1"
-              @update:model-value="
-                (values) => updateAudioSetting(control.key, values)
-              "
-            />
-            <span
-              class="min-w-14 rounded-md border border-we-border bg-we-surface px-2 py-1.5 text-right text-[11px] tabular-nums text-we-muted"
+            <output
+              :for="`audio-${control.key}`"
+              class="min-w-14 shrink-0 text-right font-mono text-[11px] font-medium tabular-nums text-we-muted"
             >
               {{ formatAudioSetting(control) }}
-            </span>
+            </output>
           </div>
+          <RangeSlider
+            :id="`audio-${control.key}`"
+            :aria-label="control.label"
+            :aria-valuetext="formatAudioSetting(control)"
+            :model-value="audioSettings[control.key]"
+            :min="control.min"
+            :max="control.max"
+            :step="control.step"
+            class="min-w-0 py-1"
+            @update:model-value="
+              (value) => updateAudioSetting(control.key, value)
+            "
+          />
         </div>
       </div>
     </section>

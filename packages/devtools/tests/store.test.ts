@@ -1,7 +1,6 @@
 import type { WallpaperPropertyDefinition } from '../../wallpaper-engine/src/types/project';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { toast } from 'vue-sonner';
 
 const {
   releaseDevDirectoryMock,
@@ -15,8 +14,6 @@ vi.mock('../src/dev-files', () => ({
   releaseDevDirectory: releaseDevDirectoryMock,
   releaseDevFile: releaseDevFileMock,
 }));
-vi.mock('vue-sonner', () => ({ toast: vi.fn() }));
-
 const properties = {
   appearance: { type: 'group', text: 'Appearance', value: '' },
   color: { type: 'color', text: 'Color', value: '0.1 0.2 0.3' },
@@ -44,7 +41,10 @@ const properties = {
   },
 } satisfies Record<string, WallpaperPropertyDefinition>;
 
-beforeEach(() => {
+let messages: string[] = [];
+let releaseNotifications: (() => void) | undefined;
+
+beforeEach(async () => {
   vi.resetModules();
   releaseDevDirectoryMock.mockReset();
   releaseDevFileMock.mockReset();
@@ -53,9 +53,14 @@ beforeEach(() => {
     properties,
     localization: { 'en-us': { ui_bars: 'Spectrum bars' } },
   };
+  messages = [];
+  const { setNotificationHandler } = await import('../src/notifications');
+  releaseNotifications = setNotificationHandler(message => messages.push(message));
 });
 
 afterEach(() => {
+  releaseNotifications?.();
+  releaseNotifications = undefined;
   delete window.__WE_DEVTOOLS_CONFIG__;
 });
 
@@ -85,9 +90,9 @@ describe('devtools property state', () => {
     expect(applyGeneralProperties).toHaveBeenCalledWith({ fps: 60 });
     expect(setPaused).toHaveBeenCalledWith(false);
     expect(log).toHaveBeenCalledTimes(2);
-    expect(toast).toHaveBeenCalledWith('Some wallpaper callbacks failed. Check the browser console for details.');
+    expect(messages).toContain('Some wallpaper callbacks failed. Check the browser console for details.');
     expect(() => store.deliverProperty('speed')).not.toThrow();
-    expect(toast).toHaveBeenCalledWith('Wallpaper callback failed. Check the browser console for details.');
+    expect(messages).toContain('Wallpaper callback failed. Check the browser console for details.');
   });
 
   it('creates host-shaped runtime values for every supported property', async () => {
@@ -134,7 +139,7 @@ describe('devtools property state', () => {
     });
     expect(applyGeneralProperties).toHaveBeenCalledWith({ fps: 30 });
     expect(setPaused).toHaveBeenCalledWith(true);
-    expect(toast).toHaveBeenCalledWith('Startup state replayed.');
+    expect(messages).toContain('Startup state replayed.');
   });
 
   it('replays fetch-all directory files through their dedicated callback', async () => {
@@ -215,7 +220,7 @@ describe('devtools property state', () => {
 
     useDevtoolsStore().deliverAllProperties();
 
-    expect(toast).toHaveBeenCalledWith('No property listener registered.');
+    expect(messages).toContain('No property listener registered.');
   });
 
   it('does not share mutable property values between Pinia instances', async () => {
@@ -320,11 +325,77 @@ describe('devtools property state', () => {
     );
     expect(releaseDevDirectoryMock).toHaveBeenCalledWith('random-directory');
     expect(releaseDevDirectoryMock).toHaveBeenCalledWith('gallery-directory');
-    expect(toast).toHaveBeenCalledWith('Properties reset to defaults.');
+    expect(messages).toContain('Properties reset to defaults.');
   });
 });
 
 describe('devtools media state', () => {
+  it('delivers general and plugin actions through the typed host facade', async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const applyGeneralProperties = vi.fn();
+    const setPaused = vi.fn();
+    const onPluginLoaded = vi.fn();
+    listenerFns.property = { applyGeneralProperties, setPaused };
+    listenerFns.plugin = { onPluginLoaded };
+    const store = useDevtoolsStore();
+    store.general.fps = 30;
+
+    store.applyFps();
+    store.applyPaused(true);
+    store.firePluginLoaded('cue');
+
+    expect(applyGeneralProperties).toHaveBeenCalledWith({ fps: 30 });
+    expect(setPaused).toHaveBeenCalledWith(true);
+    expect(onPluginLoaded).toHaveBeenCalledWith('cue', '0.0.0-dev');
+    expect(store.general.paused).toBe(true);
+    expect(messages).toContain('FPS limit sent: 30');
+    expect(messages).toContain('Wallpaper paused.');
+    expect(messages).toContain('iCUE plugin loaded.');
+  });
+
+  it('guards inactive media and fans out every typed media action', async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const status = vi.fn();
+    const properties = vi.fn();
+    const thumbnail = vi.fn();
+    const playback = vi.fn();
+    const timeline = vi.fn();
+    listenerFns.mediaStatus.push(status);
+    listenerFns.mediaProps.push(properties);
+    listenerFns.mediaThumb.push(thumbnail);
+    listenerFns.mediaPlayback.push(playback);
+    listenerFns.mediaTimeline.push(timeline);
+    const store = useDevtoolsStore();
+
+    store.sendMediaProperties();
+    expect(messages).toContain('Enable media integration before sending media events.');
+    expect(properties).not.toHaveBeenCalled();
+
+    store.setMediaEnabled(true);
+    status.mockClear();
+    properties.mockClear();
+    thumbnail.mockClear();
+    playback.mockClear();
+    timeline.mockClear();
+    store.mediaProps.title = 'Typed action track';
+    store.mediaTimeline.position = 45;
+    store.sendMediaProperties();
+    store.sendMediaPlayback(1);
+    store.sendMediaTimeline();
+    store.sendMediaArtwork();
+    store.setMediaEnabled(false);
+
+    expect(properties).toHaveBeenCalledWith(expect.objectContaining({ title: 'Typed action track' }));
+    expect(playback).toHaveBeenCalledWith({ state: 1 });
+    expect(timeline).toHaveBeenCalledWith({ position: 45, duration: 180 });
+    expect(thumbnail).toHaveBeenCalledWith(expect.objectContaining({ primaryColor: '#202020' }));
+    expect(status).toHaveBeenCalledWith({ enabled: false });
+    expect(properties).toHaveBeenCalledTimes(1);
+    expect(thumbnail).toHaveBeenCalledTimes(1);
+    expect(playback).toHaveBeenCalledTimes(1);
+    expect(timeline).toHaveBeenCalledTimes(1);
+  });
+
   it('only delivers media status while integration is disabled', async () => {
     const { listenerFns, useDevtoolsStore } = await loadStore();
     const status = vi.fn();
@@ -398,8 +469,8 @@ describe('devtools media state', () => {
 
     expect(delivered).toBe(false);
     expect(receivingListener).toHaveBeenCalledWith({ title: 'New track' });
-    expect(toast).toHaveBeenCalledWith('Some media properties callbacks failed. Check the browser console for details.');
-    expect(toast).not.toHaveBeenCalledWith('Sent media properties.');
+    expect(messages).toContain('Some media properties callbacks failed. Check the browser console for details.');
+    expect(messages).not.toContain('Sent media properties.');
   });
 
   it('continues all media streams after a failed enabled-status callback', async () => {

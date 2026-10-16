@@ -13,18 +13,20 @@ const SUPPORTED_EXTENSION_SET = new Set<string>([
   ...WALLPAPER_VIDEO_EXTENSIONS,
 ]);
 
-interface PickedFile {
+export interface PickedFile {
   file: File;
   relativePath: string;
 }
 
-interface BrowserSelection {
+export interface BrowserSelection {
   name: string;
   files: PickedFile[];
 }
 
 const localUrls = new Set<string>();
 const directoriesById = new Map<string, DevDirectorySelection>();
+const pendingPickers = new Set<() => void>();
+let selectionGeneration = 0;
 
 export const devFilePickerAvailable
   = typeof URL.createObjectURL === 'function'
@@ -63,13 +65,16 @@ function chooseInBrowser(
     document.body.append(input);
 
     let settled = false;
-    const finish = (selection: BrowserSelection | null): void => {
+    const cancel = () => finish(null);
+    function finish(selection: BrowserSelection | null): void {
       if (settled)
         return;
       settled = true;
+      pendingPickers.delete(cancel);
       input.remove();
       resolveSelection(selection);
-    };
+    }
+    pendingPickers.add(cancel);
     input.addEventListener('cancel', () => finish(null), { once: true });
     input.addEventListener(
       'change',
@@ -115,6 +120,7 @@ function chooseInBrowser(
       input.click();
     }
     catch (error) {
+      pendingPickers.delete(cancel);
       input.remove();
       rejectSelection(error);
     }
@@ -178,8 +184,18 @@ function createEntry(
 export async function pickDevFile(
   fileType?: WallpaperFileType,
 ): Promise<DevFileEntry | null> {
-  const selection = await chooseInBrowser('file', fileType);
-  const picked = selection?.files[0];
+  const selection = await pickBrowserSelection('file', fileType);
+  return selection ? acceptDevFile(selection) : null;
+}
+
+export async function pickBrowserSelection(kind: 'file' | 'directory', fileType?: WallpaperFileType): Promise<BrowserSelection | null> {
+  const generation = selectionGeneration;
+  const selection = await chooseInBrowser(kind, fileType);
+  return generation === selectionGeneration ? selection : null;
+}
+
+export function acceptDevFile(selection: BrowserSelection): DevFileEntry | null {
+  const picked = selection.files[0];
   return picked ? createEntry(picked) : null;
 }
 
@@ -187,10 +203,11 @@ export async function pickDevDirectory(
   fileType?: WallpaperFileType,
   directoryId?: string,
 ): Promise<DevDirectorySelection | null> {
-  const picked = await chooseInBrowser('directory', fileType);
-  if (!picked)
-    return null;
+  const picked = await pickBrowserSelection('directory', fileType);
+  return picked ? acceptDevDirectory(picked, directoryId) : null;
+}
 
+export function acceptDevDirectory(picked: BrowserSelection, directoryId?: string): DevDirectorySelection {
   const id = directoryId ?? crypto.randomUUID();
   const previous = directoriesById.get(id);
   const previousByPath = new Map(
@@ -235,12 +252,18 @@ export function releaseDevDirectory(directoryId: string): void {
   for (const file of selection.files) releaseDevFile(file.url);
 }
 
+/** Release simulator-owned media and invalidate pending browser selections. */
+export function releaseDevFiles(): void {
+  selectionGeneration++;
+  for (const cancel of [...pendingPickers])
+    cancel();
+  for (const url of [...localUrls])
+    releaseDevFile(url);
+  directoriesById.clear();
+}
+
 window.addEventListener(
   'beforeunload',
-  () => {
-    for (const url of localUrls) URL.revokeObjectURL(url);
-    localUrls.clear();
-    directoriesById.clear();
-  },
+  releaseDevFiles,
   { once: true },
 );

@@ -8,6 +8,7 @@ dist
 
 # generated during publish
 packages/wallpaper-engine/README.md
+packages/wallpaper-engine/LICENSE
 
 # code coverage
 coverage

@@ -1,60 +1,14 @@
 <script setup lang="ts">
+import UButton from '@nuxt/ui/components/Button.vue';
+import UInputNumber from '@nuxt/ui/components/InputNumber.vue';
 import { storeToRefs } from 'pinia';
-import { toast } from 'vue-sonner';
 import Pause from '~icons/ph/pause-duotone';
 import Play from '~icons/ph/play-duotone';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import {
-  NumberField,
-  NumberFieldContent,
-  NumberFieldDecrement,
-  NumberFieldIncrement,
-  NumberFieldInput,
-} from '@/components/ui/number-field';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
-import { invokeHostCallback } from '../callbacks';
 import CallbackStatus from '../components/CallbackStatus.vue';
-import { listenerFns, useDevtoolsStore } from '../store';
+import { useDevtoolsStore } from '../store';
 
 const store = useDevtoolsStore();
-const general = store.general;
-const { listenerCounts } = storeToRefs(store);
-
-function applyFps(): void {
-  if (!Number.isFinite(general.fps)) {
-    toast('Enter a valid FPS limit before sending.');
-    return;
-  }
-  const listener = listenerFns.property;
-  if (!listener?.applyGeneralProperties) {
-    toast('No applyGeneralProperties listener registered.');
-    return;
-  }
-  if (invokeHostCallback(() => listener.applyGeneralProperties?.({ fps: general.fps })))
-    toast(`FPS limit sent: ${general.fps === 0 ? 'unlimited' : general.fps}`);
-}
-
-function applyPaused(paused: boolean): void {
-  general.paused = paused;
-  const listener = listenerFns.property;
-  if (!listener?.setPaused) {
-    toast('No setPaused listener registered.');
-    return;
-  }
-  if (invokeHostCallback(() => listener.setPaused?.(paused)))
-    toast(paused ? 'Wallpaper paused.' : 'Wallpaper resumed.');
-}
-
-function firePluginLoaded(name: 'led' | 'cue'): void {
-  const listener = listenerFns.plugin;
-  if (!listener?.onPluginLoaded) {
-    toast('No onPluginLoaded listener registered.');
-    return;
-  }
-  if (invokeHostCallback(() => listener.onPluginLoaded?.(name, '0.0.0-dev')))
-    toast(`${name === 'led' ? 'LED' : 'iCUE'} plugin loaded.`);
-}
+const { general, listenerCounts } = storeToRefs(store);
 </script>
 
 <template>
@@ -79,33 +33,28 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
       <div class="divide-y divide-we-border/70 border-y border-we-border/70">
         <div class="we-field py-3.5">
           <div>
-            <Label for="general-fps" class="we-field-label">FPS limit</Label>
+            <label for="general-fps" class="we-field-label">FPS limit</label>
             <div class="mt-0.5 text-[11px] text-we-faint">
               0 is unlimited
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <NumberField
+            <UInputNumber
               id="general-fps"
               :model-value="general.fps"
               :min="0"
               :max="240"
+              size="sm"
               class="min-w-0 flex-1"
               @update:model-value="
                 (value) => {
                   if (value !== undefined && Number.isFinite(value)) general.fps = value;
                 }
               "
-            >
-              <NumberFieldContent>
-                <NumberFieldDecrement />
-                <NumberFieldInput />
-                <NumberFieldIncrement />
-              </NumberFieldContent>
-            </NumberField>
-            <Button size="sm" class="h-9 px-3 text-[12px]" @click="applyFps">
+            />
+            <UButton size="sm" color="primary" @click="store.applyFps()">
               Send
-            </Button>
+            </UButton>
           </div>
         </div>
 
@@ -118,26 +67,31 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
               Sends immediately
             </div>
           </div>
-          <ToggleGroup
-            type="single"
+          <div
             aria-label="Wallpaper run state"
-            :model-value="general.paused ? 'paused' : 'running'"
             class="grid grid-cols-2 gap-1"
-            @update:model-value="
-              (value) => {
-                if (value) applyPaused(value === 'paused');
-              }
-            "
           >
-            <ToggleGroupItem value="running" class="h-9 gap-1.5 text-[12px]">
+            <UButton
+              size="sm"
+              color="neutral"
+              :variant="general.paused ? 'outline' : 'soft'"
+              :aria-pressed="!general.paused"
+              @click="store.applyPaused(false)"
+            >
               <Play class="size-3" />
               Running
-            </ToggleGroupItem>
-            <ToggleGroupItem value="paused" class="h-9 gap-1.5 text-[12px]">
+            </UButton>
+            <UButton
+              size="sm"
+              color="neutral"
+              :variant="general.paused ? 'soft' : 'outline'"
+              :aria-pressed="general.paused"
+              @click="store.applyPaused(true)"
+            >
               <Pause class="size-3" />
               Paused
-            </ToggleGroupItem>
-          </ToggleGroup>
+            </UButton>
+          </div>
         </div>
       </div>
     </section>
@@ -159,24 +113,24 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
         />
       </div>
       <div class="grid grid-cols-2 gap-2">
-        <Button
+        <UButton
           size="sm"
+          color="neutral"
           variant="outline"
-          class="h-10 justify-start gap-2 px-3 text-[12px]"
-          @click="firePluginLoaded('led')"
+          @click="store.firePluginLoaded('led')"
         >
           <span class="size-2 rounded-full bg-sky-400" />
           Load LED plugin
-        </Button>
-        <Button
+        </UButton>
+        <UButton
           size="sm"
+          color="neutral"
           variant="outline"
-          class="h-10 justify-start gap-2 px-3 text-[12px]"
-          @click="firePluginLoaded('cue')"
+          @click="store.firePluginLoaded('cue')"
         >
           <span class="size-2 rounded-full bg-amber-400" />
           Load iCUE plugin
-        </Button>
+        </UButton>
       </div>
     </section>
   </div>

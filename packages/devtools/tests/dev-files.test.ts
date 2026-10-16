@@ -59,6 +59,28 @@ describe('browser development file picker', () => {
     expect(document.querySelector('input[type="file"]')).toBeNull();
   });
 
+  it.each(['file', 'directory'] as const)('cancels an open %s picker on disposal', async (kind) => {
+    vi.spyOn(HTMLInputElement.prototype, 'click').mockImplementation(() => {});
+    const { pickDevFile, pickDevDirectory, releaseDevFiles } = await import('../src/dev-files');
+    const pending = kind === 'file' ? pickDevFile('image') : pickDevDirectory('image');
+    expect(document.querySelector('input[type="file"]')).not.toBeNull();
+
+    releaseDevFiles();
+    await expect(pending).resolves.toBeNull();
+    expect(document.querySelector('input[type="file"]')).toBeNull();
+    expect(createObjectURLMock).not.toHaveBeenCalled();
+  });
+
+  it.each(['file', 'directory'] as const)('discards a resolved %s selection if disposal precedes its continuation', async (kind) => {
+    installPicker([directoryFile(new Uint8Array([1]), 'cover.png', 'Gallery/cover.png', 10)]);
+    const { pickDevFile, pickDevDirectory, releaseDevFiles } = await import('../src/dev-files');
+    const pending = kind === 'file' ? pickDevFile('image') : pickDevDirectory('image');
+    releaseDevFiles();
+
+    await expect(pending).resolves.toBeNull();
+    expect(createObjectURLMock).not.toHaveBeenCalled();
+  });
+
   it('replaces same-sized files when selecting a different directory', async () => {
     vi.useFakeTimers();
     installPicker(

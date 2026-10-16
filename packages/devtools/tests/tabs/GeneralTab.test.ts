@@ -1,17 +1,22 @@
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { toast } from 'vue-sonner';
 
-vi.mock('vue-sonner', () => ({ toast: vi.fn() }));
+let messages: string[] = [];
+let releaseNotifications: (() => void) | undefined;
 
-beforeEach(() => {
+beforeEach(async () => {
   vi.resetModules();
   setActivePinia(createPinia());
+  messages = [];
+  const { setNotificationHandler } = await import('../../src/notifications');
+  releaseNotifications = setNotificationHandler(message => messages.push(message));
   window.__WE_DEVTOOLS_CONFIG__ = { properties: {}, localization: {} };
 });
 
 afterEach(() => {
+  releaseNotifications?.();
+  releaseNotifications = undefined;
   delete window.__WE_DEVTOOLS_CONFIG__;
 });
 
@@ -34,8 +39,11 @@ describe('generalTab', () => {
     }
 
     expect(log).toHaveBeenCalledTimes(3);
-    expect(toast).toHaveBeenCalledTimes(3);
-    expect(toast).toHaveBeenLastCalledWith('Wallpaper callback failed. Check the browser console for details.');
+    expect(messages).toEqual([
+      'Wallpaper callback failed. Check the browser console for details.',
+      'Wallpaper callback failed. Check the browser console for details.',
+      'Wallpaper callback failed. Check the browser console for details.',
+    ]);
     wrapper.unmount();
   });
 
@@ -81,10 +89,10 @@ describe('generalTab', () => {
       .find(button => button.text().includes('Load LED plugin'))
       ?.trigger('click');
 
-    expect(toast).toHaveBeenCalledWith(
+    expect(messages).toContain(
       'No applyGeneralProperties listener registered.',
     );
-    expect(toast).toHaveBeenCalledWith('No setPaused listener registered.');
-    expect(toast).toHaveBeenCalledWith('No onPluginLoaded listener registered.');
+    expect(messages).toContain('No setPaused listener registered.');
+    expect(messages).toContain('No onPluginLoaded listener registered.');
   });
 });

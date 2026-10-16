@@ -1,7 +1,7 @@
 {
   "name": "docs",
   "type": "module",
-  "version": "0.0.0",
+  "version": "1.4.0",
   "private": true,
   "scripts": {
     "dev": "astro dev",
@@ -12,11 +12,11 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
-    "@astrojs/starlight": "^0.41.6",
-    "astro": "^7.1.6"
+    "@astrojs/starlight": "^0.41.11",
+    "astro": "^7.4.0"
   },
   "devDependencies": {
-    "@antfu/eslint-config": "^9.2.0",
+    "@antfu/eslint-config": "^9.5.1",
     "@astrojs/check": "^0.9.10",
     "typescript": "~6.0.3"
   }

@@ -1,18 +1,28 @@
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
 
-vi.mock('vue-sonner', () => ({
-  Toaster: { template: '<div data-testid=\'toaster\' />' },
-  toast: vi.fn(),
-}));
+const savedTabs = new Map<string, string>();
+const originalLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
 
 beforeEach(() => {
   vi.resetModules();
   vi.stubGlobal('__WE_DEVTOOLS_VERSION__', '1.2.3');
   vi.stubGlobal('__WE_DEVTOOLS_GIT_VERSION__', 'abc1234-dirty');
   setActivePinia(createPinia());
+  savedTabs.clear();
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      clear: () => savedTabs.clear(),
+      getItem: (key: string) => savedTabs.get(key) ?? null,
+      key: (index: number) => [...savedTabs.keys()][index] ?? null,
+      get length() { return savedTabs.size; },
+      removeItem: (key: string) => savedTabs.delete(key),
+      setItem: (key: string, value: string) => savedTabs.set(key, value),
+    } satisfies Storage,
+  });
   window.__WE_DEVTOOLS_CONFIG__ = {
     title: 'Aether test wallpaper',
     properties: {
@@ -22,137 +32,125 @@ beforeEach(() => {
   };
 });
 
-afterEach(() => {
+afterEach(async () => {
+  const { setAudioMode } = await import('../src/audio');
+  setAudioMode('off');
   delete window.__WE_DEVTOOLS_CONFIG__;
+  if (originalLocalStorage)
+    Object.defineProperty(window, 'localStorage', originalLocalStorage);
+  else
+    Reflect.deleteProperty(window, 'localStorage');
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
+function findTab(wrapper: ReturnType<typeof mount>, label: string) {
+  const tab = wrapper
+    .findAll('[role="tab"]')
+    .find(candidate => candidate.text().includes(label));
+  if (!tab)
+    throw new Error(`Missing ${label} tab`);
+  return tab;
+}
+
 describe('devtools app shell', () => {
-  it.each([false, true])('resizes audio presets with reduced motion = %s', async (reducedMotion) => {
-    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
-      matches: reducedMotion && query === '(prefers-reduced-motion: reduce)',
-      media: query,
-      onchange: null,
-      addListener: vi.fn(),
-      removeListener: vi.fn(),
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-      dispatchEvent: vi.fn(),
-    }));
-    const [{ default: App }, { setAudioMode }] = await Promise.all([
-      import('../src/App.vue'),
-      import('../src/audio'),
-    ]);
-    const wrapper = mount(App);
-    try {
-      await wrapper.get('[role="tab"][aria-label="Audio: Off"]')
-        .trigger('mousedown', { button: 0, ctrlKey: false });
-      const panel = wrapper.get<HTMLElement>('.we-devtools-panel').element;
-      const cancel = vi.fn();
-      const animate = vi.fn(() => ({ cancel, addEventListener: vi.fn() }));
-      Object.defineProperty(panel, 'animate', { configurable: true, value: animate });
-      vi.spyOn(panel, 'getBoundingClientRect').mockImplementation(() => ({
-        height: 400 + panel.querySelectorAll('[role="slider"]').length * 30,
-      } as DOMRect));
+  it('disables controls while disconnected and prevents duplicate popup requests while opening', async () => {
+    const { default: App } = await import('../src/App.vue');
+    const wrapper = mount(App, {
+      props: {
+        embedded: true,
+        connected: false,
+        opening: true,
+        placement: 'right',
+      },
+    });
 
-      await wrapper.findAll('button').find(button => button.text() === 'Track loop')!.trigger('click');
-      await nextTick();
-      expect(wrapper.findAll('[role="slider"]')).toHaveLength(6);
-      if (!reducedMotion) {
-        expect(animate).toHaveBeenLastCalledWith(
-          [{ height: '400px' }, { height: '580px' }],
-          expect.objectContaining({ duration: 260 }),
-        );
-      }
+    expect(wrapper.get('[role="status"]').text()).toContain('Waiting for the wallpaper connection');
+    expect(wrapper.get('#we-devtools-content').attributes('inert')).toBeDefined();
+    const opening = wrapper.get('button[aria-label="Opening devtools in separate window"]');
+    expect(opening.attributes('disabled')).toBeDefined();
+    await opening.trigger('click');
+    expect(wrapper.emitted('detach')).toBeUndefined();
 
-      await wrapper.findAll('button').find(button => button.text() === 'Off')!.trigger('click');
-      await nextTick();
-      expect(wrapper.findAll('[role="slider"]')).toHaveLength(0);
-      if (reducedMotion) {
-        expect(animate).not.toHaveBeenCalled();
-      }
-      else {
-        expect(cancel).toHaveBeenCalledOnce();
-        expect(animate).toHaveBeenLastCalledWith(
-          [{ height: '580px' }, { height: '400px' }],
-          expect.objectContaining({ duration: 260 }),
-        );
-      }
-    }
-    finally {
-      setAudioMode('off');
-      wrapper.unmount();
-    }
+    await wrapper.setProps({ connected: true, detached: true, opening: false, placement: 'bottom' });
+    expect(wrapper.find('[role="status"]').exists()).toBe(false);
+    expect(wrapper.get('#we-devtools-content').attributes('inert')).toBeUndefined();
+    expect(wrapper.get('[aria-label="Dock devtools bottom"]').attributes('aria-pressed')).toBe('false');
+    await wrapper.get('[aria-label="Dock devtools right"]').trigger('click');
+    await wrapper.get('[aria-label="Return devtools to wallpaper"]').trigger('click');
+    await wrapper.get('[aria-label="Hide devtools"]').trigger('click');
+    expect(wrapper.emitted('dock')).toEqual([['right']]);
+    expect(wrapper.emitted('detach')).toHaveLength(1);
+    expect(wrapper.emitted('close')).toHaveLength(1);
   });
 
-  it('renders all simulator tabs, switches content, and collapses in place', async () => {
+  it('emits pointer and keyboard drag phases only from an active embedded header', async () => {
     const { default: App } = await import('../src/App.vue');
-    const wrapper = mount(App);
+    const wrapper = mount(App, { props: { embedded: true, connected: true } });
+    const header = wrapper.get('.we-command-bar');
+
+    await header.trigger('pointerdown', { button: 0, pointerId: 4, clientX: 12, clientY: 24 });
+    window.dispatchEvent(new PointerEvent('pointermove', { pointerId: 4, clientX: 20, clientY: 32 }));
+    window.dispatchEvent(new PointerEvent('pointerup', { pointerId: 4, clientX: 28, clientY: 40 }));
+    await header.trigger('keydown', { key: 'ArrowLeft' });
+
+    expect(wrapper.emitted('drag')).toEqual([
+      ['start', 12, 24],
+      ['move', 20, 32],
+      ['end', 28, 40],
+      ['start', 0, 0],
+      ['move', -20, 0],
+      ['end', -20, 0],
+    ]);
+
+    await wrapper.get('[aria-label="Hide devtools"]').trigger('pointerdown', { button: 0, pointerId: 5, clientX: 1, clientY: 1 });
+    await wrapper.setProps({ connected: false });
+    await header.trigger('pointerdown', { button: 0, pointerId: 6, clientX: 1, clientY: 1 });
+    await wrapper.setProps({ connected: true, detached: true });
+    await header.trigger('keydown', { key: 'ArrowRight' });
+    expect(wrapper.emitted('drag')).toHaveLength(6);
+  });
+
+  it('renders semantic Nuxt tabs and persists navigation between frontend views', async () => {
+    const { default: App } = await import('../src/App.vue');
+    const wrapper = mount(App, { props: { embedded: true } });
     await nextTick();
 
     expect(wrapper.text()).toContain('Wallpaper Engine Devtools');
     expect(wrapper.text()).toContain('Aether test wallpaper');
     const version = wrapper.get('[data-devtools-version]');
     expect(version.text()).toBe('v1.2.3');
-    expect(version.attributes('title')).toBe(
-      'Devtools 1.2.3 (git abc1234-dirty)',
-    );
-    expect(
-      wrapper
-        .findAll('[role="tab"]')
-        .map(tab => tab.attributes('aria-label')),
-    ).toEqual([
-      'Properties: No listener',
-      'Runtime: Running',
-      'Audio: Off',
-      'Media: Disabled',
+    expect(version.attributes('title')).toBe('Devtools 1.2.3 (git abc1234-dirty)');
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(5);
+    expect(wrapper.findAll('[data-tab-status]').map(status => status.text())).toEqual([
+      'No listener',
+      'Running',
+      'Off',
+      'Disabled',
+      'Host metrics',
     ]);
-    expect(wrapper.text()).toContain('User properties');
-    const selectedTab = wrapper.get('[role="tab"][aria-selected="true"]');
-    const tabPanel = wrapper.get('[role="tabpanel"]');
-    expect(tabPanel.attributes('id')).toBe(selectedTab.attributes('aria-controls'));
-    expect(tabPanel.attributes('aria-labelledby')).toBe(selectedTab.attributes('id'));
 
-    const runtimeTab = wrapper
-      .findAll('[role="tab"]')
-      .find(tab => tab.text().includes('Runtime'));
-    await runtimeTab?.trigger('mousedown', { button: 0, ctrlKey: false });
-    await nextTick();
+    const selected = wrapper.get('[role="tab"][aria-selected="true"]');
+    const panel = wrapper.get('[role="tabpanel"]');
+    expect(panel.attributes('id')).toBe(selected.attributes('aria-controls'));
+    expect(panel.attributes('aria-labelledby')).toBe(selected.attributes('id'));
+
+    const runtime = findTab(wrapper, 'Runtime');
+    await runtime.trigger('mousedown', { button: 0, ctrlKey: false });
+    await flushPromises();
     expect(wrapper.text()).toContain('Wallpaper runtime');
-    expect(wrapper.get('[role="tabpanel"]').attributes('id')).toBe(runtimeTab?.attributes('aria-controls'));
+    expect(savedTabs.get('we-devtools:active-tab:Aether test wallpaper')).toBe('general');
 
-    const mediaTab = wrapper
-      .findAll('[role="tab"]')
-      .find(tab => tab.text().includes('Media'));
-    await mediaTab?.trigger('mousedown', { button: 0, ctrlKey: false });
-    expect(wrapper.text()).toContain('Media integration');
-
-    const panel = wrapper.get('.fixed');
-    const collapse = wrapper.get('button[aria-label="Collapse devtools"]');
-    await collapse.trigger('click');
-    const content = wrapper.get('#we-devtools-content');
-    expect(content.attributes('inert')).toBeDefined();
-    expect(content.attributes('aria-hidden')).toBe('true');
-    expect(collapse.attributes('aria-expanded')).toBe('false');
-    expect(panel.classes()).toContain('w-[320px]');
-    const collapsedHeader = wrapper.get('header');
-    const collapsedTitle = wrapper.get('header .font-semibold');
-    expect(collapsedHeader.classes()).not.toContain('border-b');
-    expect(collapsedTitle.classes()).toContain('whitespace-normal');
-    expect(collapsedTitle.classes()).not.toContain('truncate');
-    expect(
-      wrapper.get('button[aria-label="Expand devtools"]').attributes('aria-label'),
-    ).toBe('Expand devtools');
-    await wrapper.get('button[aria-label="Expand devtools"]').trigger('click');
-    expect(content.attributes('inert')).toBeUndefined();
-    expect(content.attributes('aria-hidden')).toBe('false');
-    expect(panel.classes()).toContain('w-110');
-    expect(collapsedHeader.classes()).toContain('border-b');
-    expect(collapsedTitle.classes()).toContain('truncate');
+    savedTabs.set('we-devtools:active-tab:Aether test wallpaper', 'performance');
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: 'we-devtools:active-tab:Aether test wallpaper',
+    }));
+    await flushPromises();
+    expect(wrapper.text()).toContain('Runtime performance');
+    expect(findTab(wrapper, 'Performance').attributes('aria-selected')).toBe('true');
   });
 
-  it('shows each simulator\'s live state inside its tab', async () => {
+  it('shows each simulator live state in its tab status', async () => {
     const [{ default: App }, { audioState }, { useDevtoolsStore }]
       = await Promise.all([
         import('../src/App.vue'),
@@ -161,12 +159,7 @@ describe('devtools app shell', () => {
       ]);
     const wrapper = mount(App);
     const store = useDevtoolsStore();
-    const status = (label: string) => {
-      const tab = wrapper
-        .findAll('[role="tab"]')
-        .find(candidate => candidate.text().includes(label));
-      return tab?.get('[data-tab-status]').text();
-    };
+    const status = (label: string) => findTab(wrapper, label).get('[data-tab-status]').text();
 
     expect(status('Properties')).toBe('No listener');
     expect(status('Runtime')).toBe('Running');
@@ -181,70 +174,11 @@ describe('devtools app shell', () => {
 
     expect(status('Properties')).toBe('Ready');
     expect(status('Runtime')).toBe('Paused');
-    expect(status('Audio')).toBe('Stereo pan');
+    expect(status('Audio')).toBe('No listener');
     expect(status('Media')).toBe('Enabled');
-    audioState.mode = 'off';
-  });
 
-  it('keeps the panel right edge anchored throughout collapse and expansion', async () => {
-    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(1200);
-    let resizeCallback: ResizeObserverCallback | undefined;
-    vi.stubGlobal(
-      'ResizeObserver',
-      class {
-        constructor(callback: ResizeObserverCallback) {
-          resizeCallback = callback;
-        }
-
-        observe(): void {}
-        unobserve(): void {}
-        disconnect(): void {}
-      },
-    );
-
-    const { default: App } = await import('../src/App.vue');
-    const wrapper = mount(App);
+    store.listenerCounts.audio = 1;
     await nextTick();
-    expect(resizeCallback).toBeDefined();
-
-    const panel = wrapper.get<HTMLElement>('.fixed').element;
-    let renderedWidth = 440;
-    Object.defineProperty(panel, 'offsetWidth', {
-      configurable: true,
-      get: () => renderedWidth,
-    });
-    Object.defineProperty(panel, 'offsetHeight', {
-      configurable: true,
-      get: () => 600,
-    });
-    const left = () => Number.parseFloat(panel.style.left);
-    const initialRightEdge = left() + renderedWidth;
-    expect(initialRightEdge).toBe(1188);
-
-    await wrapper.get('button[aria-label="Collapse devtools"]').trigger('click');
-    expect(left()).toBe(868);
-
-    renderedWidth = 360;
-    resizeCallback?.([], {} as ResizeObserver);
-    await nextTick();
-    expect(left()).toBe(868);
-
-    renderedWidth = 320;
-    resizeCallback?.([], {} as ResizeObserver);
-    await nextTick();
-    expect(left() + renderedWidth).toBe(initialRightEdge);
-
-    await wrapper.get('button[aria-label="Expand devtools"]').trigger('click');
-    expect(left()).toBe(748);
-
-    renderedWidth = 360;
-    resizeCallback?.([], {} as ResizeObserver);
-    await nextTick();
-    expect(left()).toBe(748);
-
-    renderedWidth = 440;
-    resizeCallback?.([], {} as ResizeObserver);
-    await nextTick();
-    expect(left() + renderedWidth).toBe(initialRightEdge);
+    expect(status('Audio')).toBe('Stereo pan');
   });
 });

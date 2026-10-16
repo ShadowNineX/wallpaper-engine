@@ -1,0 +1,343 @@
+<section
+  class="property-playground not-content"
+  data-property-playground
+  style="--preview-accent: #60a5fa; --preview-intensity: 0.5;"
+  aria-labelledby="property-playground-title"
+>
+  <div class="playground-copy">
+    <h2 id="property-playground-title">Make it yours</h2>
+    <p>
+      Pick a color, tune the intensity, and toggle the title. The project below
+      starts with these same defaults.
+    </p>
+  </div>
+
+  <div class="playground-layout">
+    <form class="property-controls" data-property-controls>
+      <fieldset>
+        <legend>Wallpaper properties</legend>
+
+        <label class="control-row color-control">
+          <span>
+            <strong>Accent</strong>
+            <small>Background color</small>
+          </span>
+          <span class="color-input-wrap">
+            <input
+              id="playground-accent"
+              type="color"
+              name="accent"
+              value="#60a5fa"
+              aria-describedby="accent-value"
+            />
+            <output id="accent-value" for="playground-accent">#60A5FA</output>
+          </span>
+        </label>
+
+        <label class="control-row range-control">
+          <span>
+            <strong>Intensity</strong>
+            <small>Title opacity</small>
+          </span>
+          <span class="range-input-wrap">
+            <input
+              id="playground-intensity"
+              type="range"
+              name="intensity"
+              min="0"
+              max="1"
+              step="0.01"
+              value="0.5"
+              aria-describedby="intensity-value"
+            />
+            <output id="intensity-value" for="playground-intensity">0.50</output>
+          </span>
+        </label>
+
+        <label class="control-row checkbox-control">
+          <span>
+            <strong>Show title</strong>
+            <small>Toggle the heading</small>
+          </span>
+          <input id="playground-show-title" type="checkbox" name="showTitle" checked />
+        </label>
+      </fieldset>
+
+      <button type="reset">Reset defaults</button>
+    </form>
+
+    <div class="wallpaper-preview" aria-label="Wallpaper result preview">
+      <h3 data-preview-title>My Wallpaper</h3>
+    </div>
+  </div>
+</section>
+
+<script>
+  const DEFAULTS = {
+    accent: '#60a5fa',
+    intensity: 0.5,
+    showTitle: true,
+  } as const;
+
+  for (const playground of document.querySelectorAll<HTMLElement>('[data-property-playground]')) {
+    const form = playground.querySelector<HTMLFormElement>('[data-property-controls]');
+    const accent = form?.elements.namedItem('accent');
+    const intensity = form?.elements.namedItem('intensity');
+    const showTitle = form?.elements.namedItem('showTitle');
+    const accentValue = form?.querySelector<HTMLOutputElement>('#accent-value');
+    const intensityValue = form?.querySelector<HTMLOutputElement>('#intensity-value');
+    const title = playground.querySelector<HTMLElement>('[data-preview-title]');
+
+    if (
+      !(accent instanceof HTMLInputElement)
+      || !(intensity instanceof HTMLInputElement)
+      || !(showTitle instanceof HTMLInputElement)
+      || !accentValue
+      || !intensityValue
+      || !title
+      || !form
+    ) {
+      continue;
+    }
+
+    const render = () => {
+      const numericIntensity = Number.parseFloat(intensity.value);
+      const safeIntensity = Number.isFinite(numericIntensity)
+        ? Math.min(1, Math.max(0, numericIntensity))
+        : DEFAULTS.intensity;
+
+      playground.style.setProperty('--preview-accent', accent.value);
+      playground.style.setProperty('--preview-intensity', String(safeIntensity));
+      accentValue.value = accent.value.toUpperCase();
+      intensityValue.value = safeIntensity.toFixed(2);
+      title.hidden = !showTitle.checked;
+    };
+
+    form.addEventListener('input', render);
+    form.addEventListener('reset', (event) => {
+      event.preventDefault();
+      accent.value = DEFAULTS.accent;
+      intensity.value = String(DEFAULTS.intensity);
+      showTitle.checked = DEFAULTS.showTitle;
+      render();
+    });
+    render();
+  }
+</script>
+
+<style>
+  .property-playground {
+    container-name: property-playground;
+    container-type: inline-size;
+    margin-block: 2.5rem;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 1rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .playground-copy {
+    max-width: 42rem;
+  }
+
+  .playground-copy h2 {
+    margin: 0;
+    color: var(--sl-color-white);
+    font-size: clamp(1.45rem, 3vw, 2rem);
+    line-height: 1.15;
+    letter-spacing: -0.025em;
+  }
+
+  .playground-copy p {
+    margin: 0.65rem 0 0;
+    color: var(--sl-color-gray-2);
+    line-height: 1.65;
+  }
+
+  .playground-layout {
+    display: grid;
+    gap: 1.25rem;
+    margin-top: 1.5rem;
+  }
+
+  .property-controls {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  fieldset {
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  legend {
+    margin-bottom: 0.65rem;
+    color: var(--sl-color-gray-3);
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .control-row {
+    display: flex;
+    min-height: 4.5rem;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.8rem 0;
+    border-bottom: 1px solid var(--sl-color-hairline-light);
+  }
+
+  .control-row:first-of-type {
+    border-top: 1px solid var(--sl-color-hairline-light);
+  }
+
+  .control-row > span:first-child {
+    display: grid;
+    gap: 0.15rem;
+  }
+
+  .control-row strong {
+    color: var(--sl-color-white);
+    font-size: 0.95rem;
+    line-height: 1.3;
+  }
+
+  .control-row small {
+    color: var(--sl-color-gray-3);
+    font-size: 0.78rem;
+  }
+
+  .color-input-wrap,
+  .range-input-wrap {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  output {
+    min-width: 4.4rem;
+    color: var(--sl-color-gray-2);
+    font-family: var(--__sl-font-mono);
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+    text-align: end;
+  }
+
+  input[type='color'] {
+    width: 2.75rem;
+    height: 2.75rem;
+    padding: 0.2rem;
+    border: 1px solid var(--sl-color-gray-4);
+    border-radius: 0.75rem;
+    background: var(--sl-color-bg);
+    cursor: pointer;
+  }
+
+  input[type='range'] {
+    width: min(10rem, 28vw);
+    accent-color: var(--sl-color-accent);
+    cursor: pointer;
+  }
+
+  input[type='checkbox'] {
+    width: 1.25rem;
+    height: 1.25rem;
+    cursor: pointer;
+  }
+
+  button {
+    min-height: 2.75rem;
+    align-self: flex-start;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid var(--sl-color-gray-4);
+    border-radius: 0.7rem;
+    background: transparent;
+    color: var(--sl-color-white);
+    font: 650 0.88rem/1 var(--__sl-font);
+    cursor: pointer;
+  }
+
+  button:hover {
+    border-color: var(--sl-color-accent);
+    background: var(--sl-color-accent-low);
+  }
+
+  button:focus-visible,
+  input:focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--sl-color-accent) 55%, transparent);
+    outline-offset: 3px;
+  }
+
+  .wallpaper-preview {
+    display: grid;
+    min-height: 18rem;
+    overflow: hidden;
+    place-content: center;
+    border-radius: 0.9rem;
+    background: var(--preview-accent);
+    color: #08111f;
+    text-align: center;
+  }
+
+  .wallpaper-preview h3 {
+    margin: 0;
+    font-size: clamp(1.7rem, 5vw, 2.8rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    opacity: var(--preview-intensity);
+  }
+
+  .wallpaper-preview h3[hidden] {
+    display: none;
+  }
+
+  @container property-playground (min-width: 44rem) {
+    .playground-layout {
+      grid-template-columns: minmax(16rem, 0.86fr) minmax(19rem, 1.14fr);
+      align-items: stretch;
+      gap: 1.75rem;
+    }
+  }
+
+  @container property-playground (max-width: 26rem) {
+    .control-row {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .color-input-wrap,
+    .range-input-wrap {
+      width: 100%;
+      justify-content: space-between;
+    }
+
+    input[type='range'] {
+      width: 100%;
+    }
+
+    .checkbox-control {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    .wallpaper-preview {
+      min-height: 13rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      scroll-behavior: auto !important;
+    }
+  }
+</style>

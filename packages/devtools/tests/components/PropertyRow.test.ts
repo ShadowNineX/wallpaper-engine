@@ -3,8 +3,6 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('vue-sonner', () => ({ toast: vi.fn() }));
-
 const {
   pickDevDirectoryMock,
   pickDevFileMock,
@@ -150,24 +148,26 @@ describe('propertyRow', () => {
     });
   });
 
-  it('uses an inline native select and sends combo value plus display text', async () => {
-    const { PropertyRow, listenerFns } = await loadPropertyRow();
+  it('uses the Nuxt select and sends combo value plus display text', async () => {
+    const [{ PropertyRow, listenerFns }, { default: USelect }] = await Promise.all([
+      loadPropertyRow(),
+      import('@nuxt/ui/components/Select.vue'),
+    ]);
     const applyUserProperties = vi.fn();
     listenerFns.property = { applyUserProperties };
     const wrapper = mount(PropertyRow, {
       props: { propKey: 'mode', def: definitions.mode },
     });
 
-    const select = wrapper.get('select#mode');
-    expect(select.findAll('option')).toHaveLength(2);
-    await select.setValue('wave');
+    const select = wrapper.findComponent(USelect);
+    expect(select.get('button#mode').text()).toContain('Bars');
+    select.vm.$emit('update:modelValue', 'wave');
+    await flushPromises();
 
     expect(applyUserProperties).toHaveBeenCalledWith({
       mode: { value: 'wave', text: 'Silk wave' },
     });
-    expect(
-      wrapper.get('[data-slot="native-select-wrapper"]').attributes('data-slot'),
-    ).toBe('native-select-wrapper');
+    expect(wrapper.get('button#mode').attributes('role')).toBe('combobox');
   });
 
   it('delivers color, text, and browsed file values as partial property updates', async () => {

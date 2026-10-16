@@ -1,0 +1,47 @@
+---
+title: Examples
+description: Complete vanilla TypeScript examples for typed properties, audio visualization, and media integration.
+---
+
+import ExampleGallery from '../../../components/ExampleGallery.astro';
+
+Pick something you want to see on your desktop. These examples use vanilla TypeScript and Vite. Each includes the page,
+runtime module, and Vite configuration, so you can run it without choosing a
+framework. Install `wallpaper-engine` and Vite as shown in the
+[quick start](../getting-started/quick-start/), then copy the files from one example
+into your project.
+
+<ExampleGallery />
+
+## Run an example
+
+Start Vite from your example's project directory:
+
+```bash
+bun x vite
+```
+
+Open the printed local URL and click the **WE Devtools** island to expand the
+simulator. Each example includes a short checklist for its relevant controls.
+The host adapter is installed before the runtime module registers its listeners.
+
+To build the wallpaper:
+
+```bash
+bun x vite build
+```
+
+The output includes `project.json` and excludes the development simulator. Test
+that output in Wallpaper Engine before publishing; see the
+[Workshop workflow](../build/workshop-workflow/).
+
+## Adapt an example to a framework
+
+Keep host registration in a module imported by your application's entry point.
+Callbacks can update application state instead of DOM elements. Register them
+during module evaluation so startup events do not depend on a component mounting.
+
+The [Vue demo source](https://github.com/ShadowNineX/wallpaper-engine/tree/main/demo/src)
+combines typed properties, audio analysis, media, files, and animation in one
+consumer wallpaper. For individual APIs, use the [guides](../guides/host-listeners/)
+and [API reference](../reference/).

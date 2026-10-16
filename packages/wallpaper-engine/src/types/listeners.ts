@@ -102,11 +102,15 @@ export interface WallpaperGeneralProperties {
  * `window.onload` or other events, or startup events may be missed.
  *
  * @example
+ * import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
+ * import type { properties } from './properties';
+ *
  * window.wallpaperPropertyListener = {
- *   applyUserProperties(properties) {
- *     if (properties.mycolor) { ... }
+ *   applyUserProperties(values) {
+ *     if (values.speed)
+ *       console.log(values.speed.value);
  *   },
- * };
+ * } satisfies WallpaperPropertyListenerOf<typeof properties>;
  */
 export interface WallpaperPropertyListener {
   /**

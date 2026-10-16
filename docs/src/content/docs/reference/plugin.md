@@ -186,17 +186,12 @@ Groups and unmatched definitions map to `never`.
 
 ### `WallpaperUserPropertiesOf<T>`
 
-```ts
-type WallpaperUserPropertiesOf<
-  T extends Record<string, WallpaperPropertyDefinition>,
-> = {
-  readonly [K in keyof T as T[K] extends { type: 'group' }
-    ? never
-    : K]: PropertyDefinitionToValue<T[K]>;
-};
-```
-
-Produces readonly runtime keys and removes groups. Host update parameters still need `Partial<...>`.
+:::caution[Deprecated]
+Use `WallpaperPropertyListenerOf<typeof properties>` from `wallpaper-engine`
+with `satisfies` on the listener object. It infers partial callback parameters
+without a separate value-type alias or cast. This plugin export remains available
+for existing projects. See [Type Inference](../../guides/type-inference/).
+:::
 
 ## Project-link type
 

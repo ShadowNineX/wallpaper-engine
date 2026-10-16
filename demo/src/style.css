@@ -192,6 +192,30 @@ button {
   text-transform: uppercase;
 }
 
+.system-readout {
+  white-space: nowrap;
+}
+
+.system-value {
+  display: inline-block;
+  inline-size: 3ch;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-align: right;
+}
+
+.system-value--rate {
+  inline-size: 4ch;
+}
+
+.system-value--delta {
+  inline-size: 6ch;
+}
+
+.system-value--level {
+  inline-size: 5ch;
+}
+
 .status-dot {
   width: calc(6 * var(--ui-unit));
   height: calc(6 * var(--ui-unit));

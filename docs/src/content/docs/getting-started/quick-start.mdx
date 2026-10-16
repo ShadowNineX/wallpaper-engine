@@ -1,0 +1,201 @@
+---
+title: Your First Wallpaper
+description: Build a wallpaper with live color, intensity, and title controls using one typed property schema.
+---
+
+import { Aside, Steps, TabItem, Tabs } from '@astrojs/starlight/components';
+import PropertyPlayground from '../../../components/PropertyPlayground.astro';
+
+A color picker, a slider, a checkbox. That's enough to turn a static page into a
+wallpaper someone can make their own. Try the controls below—then build the same
+thing with four small files.
+
+<PropertyPlayground />
+
+## From preview to project
+
+<Steps>
+
+1. **Install the two packages.**
+
+   In an empty project directory, install the package and Vite with
+   [Bun](https://bun.sh/):
+
+   ```bash
+   bun add wallpaper-engine
+   bun add --dev vite
+   ```
+
+2. **Add the four files.**
+
+   The property record is shared by the build and your runtime listener.
+   Switch tabs to copy each file into the matching location:
+
+   <Tabs>
+     <TabItem label="src/properties.ts">
+
+     ```ts
+     // src/properties.ts
+     import {
+       boolProperty,
+       colorProperty,
+       groupProperty,
+       sliderProperty,
+     } from 'wallpaper-engine/plugin';
+
+     export const properties = {
+       appearance: groupProperty({ text: 'Appearance' }),
+       accent: colorProperty({ text: 'Accent', value: '#60a5fa' }),
+       intensity: sliderProperty({
+         text: 'Intensity',
+         value: 0.5,
+         min: 0,
+         max: 1,
+         fraction: true,
+         precision: 2,
+       }),
+       showTitle: boolProperty({ text: 'Show title', value: true }),
+     };
+     ```
+
+     </TabItem>
+     <TabItem label="vite.config.ts">
+
+     ```ts
+     // vite.config.ts
+     import { defineConfig } from 'vite';
+     import { wallpaperEnginePlugin } from 'wallpaper-engine/plugin';
+     import { properties } from './src/properties';
+
+     export default defineConfig({
+       plugins: [
+         wallpaperEnginePlugin({
+           title: 'My Wallpaper',
+           properties,
+         }),
+       ],
+     });
+     ```
+
+     </TabItem>
+     <TabItem label="src/wallpaper.ts">
+
+     ```ts
+     // src/wallpaper.ts
+     import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
+     import type { properties } from './properties';
+     import { wallpaperColorToHex } from 'wallpaper-engine/helpers';
+     import 'wallpaper-engine';
+
+     window.wallpaperPropertyListener = {
+       applyUserProperties(values) {
+         if (values.accent) {
+           document.body.style.backgroundColor = wallpaperColorToHex(
+             values.accent.value,
+           );
+         }
+
+         if (values.intensity) {
+           document.documentElement.style.setProperty(
+             '--intensity',
+             String(values.intensity.value),
+           );
+         }
+
+         if (values.showTitle) {
+           document.body.classList.toggle('title-hidden', !values.showTitle.value);
+         }
+       },
+     } satisfies WallpaperPropertyListenerOf<typeof properties>;
+     ```
+
+     </TabItem>
+     <TabItem label="index.html">
+
+     ```html
+     <!-- index.html -->
+     <!doctype html>
+     <html lang="en">
+       <head>
+         <meta charset="UTF-8">
+         <meta name="viewport" content="width=device-width, initial-scale=1">
+         <title>My Wallpaper</title>
+         <style>
+           body {
+             display: grid;
+             min-height: 100vh;
+             margin: 0;
+             place-items: center;
+             background: #60a5fa;
+             color: #111827;
+             font: 600 2rem system-ui, sans-serif;
+           }
+
+           h1 { opacity: var(--intensity, 0.5); }
+           .title-hidden h1 { visibility: hidden; }
+         </style>
+       </head>
+       <body>
+         <h1>My Wallpaper</h1>
+         <script type="module" src="/src/wallpaper.ts"></script>
+       </body>
+     </html>
+     ```
+
+     </TabItem>
+   </Tabs>
+
+3. **Start the wallpaper.**
+
+   ```bash
+   bun x vite
+   ```
+
+   Open the printed local URL and click the **WE Devtools** island.
+   The **Properties** tab contains the same controls you tried above.
+
+</Steps>
+
+## Give it a test drive
+
+Change **Accent** to recolor the background. Move **Intensity** to fade the title.
+Toggle **Show title** to hide it. Then choose **Reset defaults** in devtools to
+bring everything back.
+
+The connection is small on purpose:
+
+- `properties.ts` defines the editor controls and their defaults.
+- `wallpaper.ts` applies host updates to your page. `satisfies WallpaperPropertyListenerOf<typeof properties>` infers the callback's keys and value types.
+- The Vite plugin supplies the browser simulator during development and writes `project.json` during a production build.
+
+<Aside type="tip" title="Changed keys only">
+  The first property delivery contains all values. Later deliveries contain only
+  what changed, so keep the `if (values.accent)` checks. Missing means unchanged.
+  Group headings organize the editor and never appear in callback values.
+</Aside>
+
+<Aside type="caution" title="Register before the wallpaper starts">
+  Import the listener module from your browser entry point and register during
+  module evaluation. Waiting for `onMounted`, `window.onload`, or a timer can
+  miss startup events. In a framework app, update application state from these
+  callbacks instead of changing the DOM directly.
+</Aside>
+
+## Take it into Wallpaper Engine
+
+Stop the development server and build:
+
+```bash
+bun x vite build
+```
+
+Your output directory now contains `index.html`, bundled assets, and
+`project.json`. The simulator stays out of production. Import that directory
+into Wallpaper Engine for the final host check; the
+[Workshop workflow](../../build/workshop-workflow/) walks through the handoff.
+
+## Pick the next thing to build
+
+- Make a shape respond to sound in the [audio-reactive example](../../examples/audio-reactive/).
+- Add track artwork and playback state with the [now-playing card](../../examples/now-playing/).
+- Explore every control in [Property Schemas](../../guides/property-schemas/) or the [typed listener guide](../../guides/type-inference/).

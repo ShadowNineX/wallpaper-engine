@@ -1,4 +1,4 @@
-import { toast } from 'vue-sonner';
+import { notify } from './notifications';
 
 /** Keep wallpaper failures from interrupting simulator state and cleanup. */
 export function invokeHostCallback(action: () => void, showToast = true): boolean {
@@ -9,7 +9,7 @@ export function invokeHostCallback(action: () => void, showToast = true): boolea
   catch (error) {
     console.error('[WE Dev] wallpaper callback threw', error);
     if (showToast)
-      toast('Wallpaper callback failed. Check the browser console for details.');
+      notify('Wallpaper callback failed. Check the browser console for details.');
     return false;
   }
 }

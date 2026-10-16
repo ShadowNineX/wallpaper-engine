@@ -4,14 +4,14 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import process from 'node:process';
 import { fileURLToPath, URL } from 'node:url';
-import tailwindcss from '@tailwindcss/vite';
+import ui from '@nuxt/ui/vite';
 import vue from '@vitejs/plugin-vue';
 import Unfonts from 'unplugin-fonts/vite';
 import Icons from 'unplugin-icons/vite';
 import { defineConfig } from 'vite';
+import { uiOptions } from './ui.config.ts';
 
-// The client is bundled into the published package, so report that version
-// instead of the private devtools workspace's placeholder version.
+// Report the published package version on its bundled devtools client.
 const REPOSITORY_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PUBLISHED_PACKAGE_JSON = fileURLToPath(
   new URL('../wallpaper-engine/package.json', import.meta.url),
@@ -42,7 +42,7 @@ const DEVTOOLS_GIT_VERSION = getGitVersion();
 /**
  * Rollup plugin: take any emitted `.css` asset, remove it from the bundle,
  * and expose its contents as `globalThis.__WE_DEVTOOLS_CSS__` at the top of
- * the entry chunk so `main.ts` can inject it into the Shadow DOM root.
+ * the entry chunk so the frontend can install it in its own document.
  */
 function inlineCss(): Plugin {
   return {
@@ -124,7 +124,7 @@ export default defineConfig(({ command }) => ({
         ],
       },
     }),
-    tailwindcss(),
+    ui(uiOptions),
     inlineCss(),
     copyToPluginDist(),
   ],
@@ -146,6 +146,7 @@ export default defineConfig(({ command }) => ({
       : {}),
   },
   build: {
+    rolldownOptions: { output: { codeSplitting: false } },
     outDir: fileURLToPath(new URL('./dist', import.meta.url)),
     emptyOutDir: true,
     minify: true,

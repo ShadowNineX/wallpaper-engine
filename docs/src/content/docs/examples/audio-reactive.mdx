@@ -1,0 +1,151 @@
+---
+title: Audio-Reactive Wallpaper
+description: Build a glowing audio visualization with a reusable spectrum analyzer, tempo readout, and host pause handling.
+---
+
+import { TabItem, Tabs } from '@astrojs/starlight/components';
+
+Let the music do the moving. This shape scales with the current audio level, holds a soft peak glow, and estimates the tempo once it has enough history. Host audio callbacks drive the whole thing—there is no animation timer to maintain.
+
+## Add the files
+
+Install the packages from the [quick start](../../getting-started/quick-start/),
+then copy these three files. Each tab contains one complete file.
+
+<Tabs>
+  <TabItem label="vite.config.ts">
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { wallpaperEnginePlugin } from 'wallpaper-engine/plugin';
+
+export default defineConfig({
+  plugins: [
+    wallpaperEnginePlugin({
+      title: 'Audio Glow',
+      supportsAudioProcessing: true,
+    }),
+  ],
+});
+```
+
+  </TabItem>
+  <TabItem label="index.html">
+
+```html
+<!-- index.html -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Audio Glow</title>
+    <style>
+      :root { --level: 0; --peak: 0; }
+      body {
+        display: grid;
+        min-height: 100vh;
+        margin: 0;
+        place-content: center;
+        gap: 3rem;
+        background: #10141c;
+        color: #e8edf7;
+        font: 1rem system-ui, sans-serif;
+        text-align: center;
+      }
+
+      .orb {
+        width: 10rem;
+        aspect-ratio: 1;
+        margin: auto;
+        border-radius: 50%;
+        background: #60a5fa;
+        transform: scale(calc(1 + var(--level) * 0.8));
+        box-shadow: 0 0 calc(20px + var(--peak) * 100px) #60a5fa;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="orb" aria-hidden="true"></div>
+    <p id="tempo">Listening for a steady beat</p>
+    <script type="module" src="/src/wallpaper.ts"></script>
+  </body>
+</html>
+```
+
+  </TabItem>
+  <TabItem label="src/wallpaper.ts">
+
+```ts
+// src/wallpaper.ts
+import { createAudioAnalyzer } from 'wallpaper-engine/helpers';
+import 'wallpaper-engine';
+
+const tempo = document.querySelector<HTMLParagraphElement>('#tempo');
+if (!tempo)
+  throw new Error('Missing tempo readout.');
+
+const analyzer = createAudioAnalyzer({
+  sensitivity: 0.65,
+  eventCooldown: 0.13,
+  peakDecayPerSecond: 1.5,
+});
+let previousTime: number | undefined;
+let paused = false;
+
+window.wallpaperPropertyListener = {
+  setPaused(value) {
+    paused = value;
+    previousTime = undefined;
+    analyzer.reset();
+    document.documentElement.style.setProperty('--level', '0');
+    document.documentElement.style.setProperty('--peak', '0');
+    tempo.textContent = paused ? 'Paused' : 'Listening for a steady beat';
+  },
+};
+
+window.wallpaperRegisterAudioListener((samples) => {
+  if (paused)
+    return;
+
+  const now = performance.now();
+  const deltaSeconds = previousTime === undefined
+    ? undefined
+    : (now - previousTime) / 1_000;
+  previousTime = now;
+  analyzer.process(samples, deltaSeconds);
+
+  document.documentElement.style.setProperty('--level', String(analyzer.rmsVolume));
+  document.documentElement.style.setProperty('--peak', String(analyzer.decayingPeakVolume));
+  tempo.textContent = analyzer.bpm > 0
+    ? `${Math.round(analyzer.bpm)} BPM`
+    : 'Listening for a steady beat';
+});
+```
+
+  </TabItem>
+</Tabs>
+
+The explicit `supportsAudioProcessing: true` option writes audio support into `project.json`. The plugin can also detect direct audio-listener calls in the built bundle; the explicit option keeps the intent clear when registration moves behind an abstraction.
+
+Register once at module scope and reuse the analyzer. Measured elapsed time keeps
+tempo tracking aligned when callbacks vary in cadence. Pausing clears the visual
+and analysis history, so resuming starts with a fresh timing baseline.
+
+## Try it in devtools
+
+Run `bun x vite`, then open **Audio** in the devtools panel:
+
+1. Choose **Track loop** and leave **Tempo** at **120 BPM**.
+2. Allow roughly five seconds of regular playback for the first tempo estimate.
+3. Adjust **Output** and individual instrument levels to see how the shape reacts.
+4. Choose **Silence** to watch the glow decay. **Off** stops callbacks and leaves
+   the last rendered state in place.
+5. In **Runtime**, pause and resume the wallpaper. The shape resets while paused.
+
+The simulator generates spectrum frames rather than audible sound. In Wallpaper
+Engine, the callback receives the host's captured spectrum. Tempo and instrument
+values are estimates; they do not identify individual audio sources or expose
+Windows master volume. See the [Audio guide](../../guides/audio/) for timing,
+warm-up, and detection limits.

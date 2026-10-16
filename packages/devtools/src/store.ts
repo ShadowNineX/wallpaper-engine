@@ -15,10 +15,10 @@ import type {
 import type { WallpaperPropertyDefinition } from '../../wallpaper-engine/src/types/project';
 import { defineStore } from 'pinia';
 import { reactive, ref } from 'vue';
-import { toast } from 'vue-sonner';
 import { invokeHostCallback } from './callbacks';
 import { propDefs, tr } from './config';
 import { releaseDevDirectory, releaseDevFile } from './dev-files';
+import { notify } from './notifications';
 
 type RuntimePropertyDefinition = Exclude<
   WallpaperPropertyDefinition,
@@ -125,11 +125,11 @@ function fanout<T>(
   label: string,
 ): boolean {
   if (list.length === 0) {
-    toast(`No ${label} listener registered.`);
+    notify(`No ${label} listener registered.`);
     return false;
   }
   const succeeded = deliver(list, payload);
-  toast(succeeded
+  notify(succeeded
     ? `Sent ${label}.`
     : `Some ${label} callbacks failed. Check the browser console for details.`);
   return succeeded;
@@ -203,7 +203,7 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     const l = listenerFns.property;
     if (!l) {
       if (showToast)
-        toast('No property listener registered.');
+        notify('No property listener registered.');
       return;
     }
     const userProperties: WallpaperUserProperties = {};
@@ -225,7 +225,7 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     const generalDelivered = invokeHostCallback(() => l.applyGeneralProperties?.({ fps: general.fps }), false);
     const pauseDelivered = invokeHostCallback(() => l.setPaused?.(general.paused), false);
     if (showToast) {
-      toast(succeeded && generalDelivered && pauseDelivered
+      notify(succeeded && generalDelivered && pauseDelivered
         ? 'Startup state replayed.'
         : 'Some wallpaper callbacks failed. Check the browser console for details.');
     }
@@ -292,7 +292,7 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     for (const [, selection] of previousDirectories)
       releaseDevDirectory(selection.id);
 
-    toast('Properties reset to defaults.');
+    notify('Properties reset to defaults.');
   }
 
   function setFileSelection(key: string, selection: DevFileEntry): void {
@@ -424,6 +424,83 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     return statusDelivered && propertiesDelivered && playbackDelivered && timelineDelivered && thumbnailDelivered;
   }
 
+  function applyFps(): void {
+    if (!Number.isFinite(general.fps)) {
+      notify('Enter a valid FPS limit before sending.');
+      return;
+    }
+    const listener = listenerFns.property;
+    if (!listener?.applyGeneralProperties) {
+      notify('No applyGeneralProperties listener registered.');
+      return;
+    }
+    if (invokeHostCallback(() => listener.applyGeneralProperties?.({ fps: general.fps })))
+      notify(`FPS limit sent: ${general.fps === 0 ? 'unlimited' : general.fps}`);
+  }
+
+  function applyPaused(paused: boolean): void {
+    general.paused = paused;
+    const listener = listenerFns.property;
+    if (!listener?.setPaused) {
+      notify('No setPaused listener registered.');
+      return;
+    }
+    if (invokeHostCallback(() => listener.setPaused?.(paused)))
+      notify(paused ? 'Wallpaper paused.' : 'Wallpaper resumed.');
+  }
+
+  function firePluginLoaded(name: 'led' | 'cue'): void {
+    const listener = listenerFns.plugin;
+    if (!listener?.onPluginLoaded) {
+      notify('No onPluginLoaded listener registered.');
+      return;
+    }
+    if (invokeHostCallback(() => listener.onPluginLoaded?.(name, '0.0.0-dev')))
+      notify(`${name === 'led' ? 'LED' : 'iCUE'} plugin loaded.`);
+  }
+
+  function requireActiveMedia(): boolean {
+    if (mediaActive.value)
+      return true;
+    notify('Enable media integration before sending media events.');
+    return false;
+  }
+
+  function setMediaEnabled(enabled: boolean): void {
+    mediaActive.value = enabled;
+    if (deliverAllMedia())
+      notify(enabled ? 'Media integration enabled.' : 'Media integration disabled.');
+    else
+      notify('Some media callbacks failed. Check the browser console for details.');
+  }
+
+  function sendMediaProperties(): void {
+    if (requireActiveMedia())
+      fanout(listenerFns.mediaProps, { ...mediaProps }, 'media properties');
+  }
+
+  function sendMediaPlayback(state: WallpaperMediaPlaybackState): void {
+    if (!requireActiveMedia())
+      return;
+    lastPlaybackState.value = state;
+    fanout(listenerFns.mediaPlayback, { state }, 'media playback');
+  }
+
+  function sendMediaTimeline(): void {
+    if (requireActiveMedia())
+      fanout(listenerFns.mediaTimeline, { ...mediaTimeline }, 'media timeline');
+  }
+
+  function sendMediaArtwork(): void {
+    if (!requireActiveMedia())
+      return;
+    if (!mediaThumb.thumbnail.startsWith('data:image/png;base64,')) {
+      notify('Choose a PNG thumbnail before sending.');
+      return;
+    }
+    fanout(listenerFns.mediaThumb, { ...mediaThumb }, 'media thumbnail');
+  }
+
   return {
     // listener counts
     listenerCounts,
@@ -449,5 +526,13 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     setDirectorySelection,
     clearDirectorySelection,
     deliverAllMedia,
+    applyFps,
+    applyPaused,
+    firePluginLoaded,
+    setMediaEnabled,
+    sendMediaProperties,
+    sendMediaPlayback,
+    sendMediaTimeline,
+    sendMediaArtwork,
   };
 });

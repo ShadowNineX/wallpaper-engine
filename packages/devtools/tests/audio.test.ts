@@ -119,9 +119,9 @@ describe('audio simulator', () => {
     const frames = listener.mock.calls.map(call => call[0] as number[]);
     const first = frames[0] as number[];
     const betweenKick = frames[7] as number[];
-    const clapBeat = frames[15] as number[];
+    const clapBeat = frames[16] as number[];
     const betweenHat = frames[3] as number[];
-    const repeated = frames[60] as number[];
+    const repeated = frames[61] as number[];
     const bandEnergy = (frame: number[], start: number, end: number) =>
       frame
         .slice(start, end)
@@ -141,7 +141,9 @@ describe('audio simulator', () => {
     expect(bandEnergy(first, 48, 64)).toBeGreaterThan(
       bandEnergy(betweenHat, 48, 64) * 2,
     );
-    expect(repeated).toEqual(first);
+    expect(bandEnergy(repeated, 0, 8)).toBeGreaterThan(
+      bandEnergy(betweenKick, 0, 8) * 4,
+    );
   });
 
   it('adjusts track output and individual instrument levels', () => {
@@ -204,8 +206,36 @@ describe('audio simulator', () => {
     vi.advanceTimersByTime(1_100);
     const slowFrames = listener.mock.calls.map(call => call[0] as number[]);
 
-    expect(peakIndex(regularFrames)).toBe(15);
-    expect(peakIndex(slowFrames)).toBe(30);
+    // Fake browser timers fire every 33 ms: the first clap after 500/1000 ms
+    // therefore lands 16/31 callbacks after the initial frame.
+    expect(peakIndex(regularFrames)).toBe(16);
+    expect(peakIndex(slowFrames)).toBe(31);
+  });
+
+  it('advances generated tracks by elapsed time rather than timer ticks', () => {
+    const clock = vi.spyOn(performance, 'now').mockReturnValue(0);
+    const listener = vi.fn();
+    listenerFns.audio.push(listener);
+    audioSettings.trackBassline = 0;
+    audioSettings.trackKick = 0;
+    audioSettings.trackHiHat = 0;
+    setAudioMode('track');
+
+    vi.advanceTimersByTime(33);
+    const first = lastFrame.value;
+    vi.advanceTimersByTime(33);
+    expect(lastFrame.value).toEqual(first);
+
+    clock.mockReturnValue(500);
+    vi.advanceTimersByTime(33);
+    expect(Math.max(...first)).toBeLessThan(0.001);
+    expect(Math.max(...lastFrame.value)).toBeGreaterThan(0.5);
+    expect(listener).toHaveBeenCalledTimes(3);
+
+    const clap = lastFrame.value;
+    clock.mockReturnValue(1500);
+    vi.advanceTimersByTime(33);
+    expect(lastFrame.value).toEqual(clap);
   });
 
   it('stops callbacks and clears the displayed frame when switched off', () => {

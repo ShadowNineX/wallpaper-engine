@@ -1,6 +1,6 @@
 ---
 title: Root Types & Host Globals
-description: Exhaustive reference for the 39 type exports and 12 ambient Wallpaper Engine browser globals in the package root.
+description: Exhaustive reference for the 40 type exports and 12 ambient Wallpaper Engine browser globals in the package root.
 ---
 
 The root entry has no runtime API. It exports types and imports the global augmentation declarations.
@@ -9,7 +9,7 @@ The root entry has no runtime API. It exports types and imports the global augme
 import type {
   WallpaperMediaPlaybackEvent,
   WallpaperProject,
-  WallpaperPropertyListener,
+  WallpaperPropertyListenerOf,
 } from 'wallpaper-engine';
 import 'wallpaper-engine';
 ```
@@ -38,7 +38,7 @@ All property definitions share `text: string` and optional `order`, `index`, and
 
 Source: [`src/types/project.ts`](https://github.com/ShadowNineX/wallpaper-engine/blob/main/packages/wallpaper-engine/src/types/project.ts), symbols listed above.
 
-## Runtime property and listener types (12)
+## Runtime property and listener types (13)
 
 | Type | Exact public shape |
 | --- | --- |
@@ -53,27 +53,29 @@ Source: [`src/types/project.ts`](https://github.com/ShadowNineX/wallpaper-engine
 | `WallpaperUserProperties` | `Record<string, WallpaperPropertyRuntimeValue>` |
 | `WallpaperGeneralProperties` | `{ fps?: number }`; `0` means unlimited |
 | `WallpaperPropertyListener` | Optional user/general/pause/directory callback object |
+| `WallpaperPropertyListenerOf<T>` | Listener inferred from a property-definition record; user updates are automatically partial and group keys are omitted |
 | `WallpaperPluginListener` | Optional `onPluginLoaded(name, version)` callback object |
 
-`WallpaperPropertyListener` callbacks:
+The base host contract is open-ended; its exact callback signatures are defined
+in [`types/listeners.ts`](https://github.com/ShadowNineX/wallpaper-engine/blob/main/packages/wallpaper-engine/src/types/listeners.ts).
+For application callbacks, infer the property keys and partial updates from your
+schema with `satisfies`:
 
 ```ts
-interface WallpaperPropertyListener {
-  applyUserProperties?: (properties: Partial<WallpaperUserProperties>) => void;
-  applyGeneralProperties?: (properties: WallpaperGeneralProperties) => void;
-  setPaused?: (isPaused: boolean) => void;
-  userDirectoryFilesAddedOrChanged?: (
-    propertyName: string,
-    changedFiles: string[],
-  ) => void;
-  userDirectoryFilesRemoved?: (
-    propertyName: string,
-    removedFiles: string[],
-  ) => void;
-}
+import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
+import type { properties } from './properties';
+
+window.wallpaperPropertyListener = {
+  applyUserProperties(values) {
+    // Keys and wrapper types come from properties; every key can be absent.
+    if (values.speed)
+      setSpeed(values.speed.value);
+  },
+} satisfies WallpaperPropertyListenerOf<typeof properties>;
 ```
 
-The host contract is open-ended. The default callback makes each key optional, even without TypeScript's `noUncheckedIndexedAccess` setting. Application callbacks inferred from a schema should use `Partial<WallpaperUserPropertiesOf<...>>` and guard each key because post-startup deliveries contain only changed keys.
+No cast or manual `Partial` is needed. See [Type Inference](../../guides/type-inference/)
+for migration and reusable callback types.
 
 `WallpaperPluginListener.onPluginLoaded?: (name: string, version: string) => void` reports `led` or `cue` integration readiness.
 

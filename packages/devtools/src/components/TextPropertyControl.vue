@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import type { WallpaperTextValue } from '../../../wallpaper-engine/src/types/listeners';
 import type { WallpaperTextInputProperty } from '../../../wallpaper-engine/src/types/project';
+import UInput from '@nuxt/ui/components/Input.vue';
 import { computed } from 'vue';
-import { Input } from '@/components/ui/input';
 import { useDevtoolsStore } from '../store';
 
 const props = defineProps<{
@@ -25,7 +25,7 @@ function onText(next: string | number): void {
 </script>
 
 <template>
-  <Input
+  <UInput
     :id="propKey"
     type="text"
     :model-value="runtimeValue?.value ?? def.value"

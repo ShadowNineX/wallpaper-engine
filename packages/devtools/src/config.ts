@@ -12,6 +12,8 @@ export interface DevtoolsConfig {
 declare global {
   interface Window {
     __WE_DEVTOOLS_CONFIG__?: DevtoolsConfig;
+    __WE_DEVTOOLS_ROLE__?: 'runtime' | 'frontend';
+    __WE_DEVTOOLS_FRONTEND_URL__?: string;
   }
 }
 

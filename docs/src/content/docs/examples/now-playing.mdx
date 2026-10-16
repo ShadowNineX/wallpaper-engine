@@ -1,0 +1,140 @@
+---
+title: Now-Playing Card
+description: Build a media card that handles independent metadata, artwork, playback, and integration-status events.
+---
+
+import { TabItem, Tabs } from '@astrojs/starlight/components';
+
+Give the current track a place on your desktop. This card brings together artwork, title, artist, and playback state, and stays useful even when a player never sends timeline events.
+
+## Add the files
+
+Install the packages from the [quick start](../../getting-started/quick-start/),
+then copy these three files. Each tab contains one complete file.
+
+<Tabs>
+  <TabItem label="vite.config.ts">
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite';
+import { wallpaperEnginePlugin } from 'wallpaper-engine/plugin';
+
+export default defineConfig({
+  plugins: [wallpaperEnginePlugin({ title: 'Now Playing' })],
+});
+```
+
+  </TabItem>
+  <TabItem label="index.html">
+
+```html
+<!-- index.html -->
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Now Playing</title>
+    <style>
+      body {
+        display: grid;
+        min-height: 100vh;
+        margin: 0;
+        place-items: center;
+        background: #10141c;
+        color: #e8edf7;
+        font: 1rem system-ui, sans-serif;
+      }
+
+      article { width: min(24rem, 85vw); }
+      img { width: 100%; aspect-ratio: 1; object-fit: cover; }
+      h1 { overflow-wrap: anywhere; }
+      #artist, #playback { color: #b7c2d4; }
+    </style>
+  </head>
+  <body>
+    <p id="disabled">Enable media integration to show the current track.</p>
+    <article id="media" hidden>
+      <img id="cover" alt="Current media artwork" hidden>
+      <h1 id="title">Nothing playing</h1>
+      <p id="artist"></p>
+      <p id="playback">stopped</p>
+    </article>
+    <script type="module" src="/src/wallpaper.ts"></script>
+  </body>
+</html>
+```
+
+  </TabItem>
+  <TabItem label="src/wallpaper.ts">
+
+```ts
+// src/wallpaper.ts
+import { getMediaPlaybackStatus } from 'wallpaper-engine/helpers';
+import 'wallpaper-engine';
+
+const card = document.querySelector<HTMLElement>('#media');
+const disabled = document.querySelector<HTMLParagraphElement>('#disabled');
+const cover = document.querySelector<HTMLImageElement>('#cover');
+const title = document.querySelector<HTMLHeadingElement>('#title');
+const artist = document.querySelector<HTMLParagraphElement>('#artist');
+const playback = document.querySelector<HTMLParagraphElement>('#playback');
+if (!card || !disabled || !cover || !title || !artist || !playback)
+  throw new Error('Missing media card elements.');
+
+window.wallpaperRegisterMediaStatusListener(({ enabled }) => {
+  card.hidden = !enabled;
+  disabled.hidden = enabled;
+  if (enabled)
+    return;
+
+  title.textContent = 'Nothing playing';
+  artist.textContent = '';
+  playback.textContent = 'stopped';
+  cover.removeAttribute('src');
+  cover.hidden = true;
+});
+
+window.wallpaperRegisterMediaPropertiesListener((event) => {
+  title.textContent = event.title || 'Nothing playing';
+  artist.textContent = event.artist;
+});
+
+window.wallpaperRegisterMediaThumbnailListener((event) => {
+  cover.hidden = !event.thumbnail;
+  if (event.thumbnail)
+    cover.src = event.thumbnail;
+  else
+    cover.removeAttribute('src');
+});
+
+window.wallpaperRegisterMediaPlaybackListener((event) => {
+  playback.textContent = getMediaPlaybackStatus(event.state);
+});
+```
+
+  </TabItem>
+</Tabs>
+
+
+
+Each callback updates only the fields it owns, so artwork and playback do not
+depend on metadata arriving first. Metadata is assigned with `textContent`.
+Artwork uses the host-provided data URL directly, and playback is resolved from
+host constants through the helper rather than hard-coded integers.
+
+## Try it in devtools
+
+Run `bun x vite`, then open **Media** in the devtools panel:
+
+1. Enable media integration to reveal the card.
+2. Edit the title and artist, then choose **Send metadata**.
+3. Change playback between playing, paused, and stopped.
+4. Select a local image and send the prepared artwork.
+5. Disable integration and confirm that the card hides and clears its content.
+
+Selected simulator artwork stays local to the browser. In Wallpaper Engine,
+media integration must be enabled in the application settings and the active
+player must supply media data. See the [Media guide](../../guides/media/) to add
+an optional progress timeline or use the thumbnail's palette colors.

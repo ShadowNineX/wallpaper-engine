@@ -15,13 +15,44 @@ wallpaperEnginePlugin({
 
 The client installs Wallpaper Engine-compatible globals before your application runs, stores simulated host state, and calls the listeners your wallpaper registers.
 
+## Mounting and isolation
+
+The client runs in two roles. The host installs globals synchronously in the
+wallpaper document and owns callbacks, simulated state, audio timers, and selected
+media URLs. A separate Vue frontend runs in a same-origin iframe or popup. It
+receives an initial state snapshot followed by incremental patches and sends
+explicit commands over a dedicated `MessageChannel`; TypeBox schemas validate
+messages and editable draft patches. Unchanged artwork is not resent with sliders.
+
+The initial connection checks the frontend's origin, window, protocol version,
+and session token before transferring a message port. Callback functions never
+cross this boundary. Nuxt UI controls, styles, and portals live in the dedicated
+frontend document; the host dock shell uses Shadow DOM. Both documents share an
+origin, so this separates lifecycles and styles rather than sandboxing trusted UI.
+Selected files cross as browser `File` objects so their URLs remain
+valid when the frontend closes.
+
+Repeated host execution reuses the connected instance. Hiding or moving the UI
+keeps the simulator running. Full host teardown stops timers and observers,
+disposes Pinia, revokes selected URLs, and restores owned host globals. The
+standalone devtools development page remains available for working on the UI.
+
 ## Shell and listener status
 
-The overlay is a draggable panel with four tabs: Properties, Runtime, Audio, and Media. It can collapse to a compact status bar and constrains itself to the viewport while moving, resizing, and switching tabs.
+The frontend has five tabs: Properties, Runtime, Audio, Media, and Performance.
+A small draggable floating island opens or hides the panel. Drag its header to
+move the panel, or focus the header and use arrow keys. Header buttons dock it on
+the right or bottom, open a separate window, and hide it. Drag the dock edge or
+focus it and use arrow keys to resize. The island also returns a separate window
+to the wallpaper.
+Closing a separate window restores the dock while retaining simulator state.
+Browsers may require popup permission; a blocked window leaves the dock usable.
 
-Use the arrow keys to navigate the tab list and Tab to enter the selected panel. Collapsed controls are removed from keyboard navigation. The panel adapts fields to narrow widths and respects reduced-motion preferences.
+Use the arrow keys to navigate the tab list and Tab to enter the selected panel.
+Controls wait for a host connection and reconnect automatically if it is lost.
+The panel adapts fields to narrow widths and respects reduced-motion preferences.
 
-Each tab keeps its icon and live status visible, with the same state available in its tooltip and accessible name. Callback readiness also appears beside the relevant controls; property keys and types remain available on their labels without occupying a second row. Controls show warnings or toasts when their matching callback is missing instead of silently pretending delivery succeeded.
+Each tab keeps its icon and live status visible and exposes that state to assistive technology. Callback readiness also appears beside the relevant controls; property keys and types remain available on their labels without occupying a second row. Controls show warnings or toasts when their matching callback is missing instead of silently pretending delivery succeeded.
 
 ## Properties
 
@@ -31,6 +62,9 @@ The Properties tab renders controls from the same property definitions passed to
 - **Replay all** sends every current non-group, non-`fetchall` user property, replays selected `fetchall` files through `userDirectoryFilesAddedOrChanged`, and sends the current FPS and pause state.
 - **Reset defaults** restores every user property to its configured default, clears selected local files and directories, sends one complete non-`fetchall` default payload, and removes previously delivered `fetchall` files. Runtime FPS and pause state are left unchanged.
 - Group markers become collapsible sections; they are never sent as runtime property values.
+- Display conditions react to property comparisons and boolean expressions. They
+  hide editor controls without removing values from runtime callbacks; unsupported
+  expressions remain visible with a warning.
 - Property labels and combo option labels resolve configured localization tokens.
 - File and directory controls filter local selections by configured image/video type.
 - Directory controls route `ondemand` requests and `fetchall` add/change/remove callbacks according to the definition.
@@ -46,7 +80,11 @@ A missing `wallpaperPropertyListener` produces visible feedback. Treat that as a
 | Load LED plugin | `wallpaperPluginListener.onPluginLoaded('led', '0.0.0-dev')` |
 | Load iCUE plugin | `wallpaperPluginListener.onPluginLoaded('cue', '0.0.0-dev')` |
 
-The simulator exposes development stubs for the LED and CUE objects so code can exercise readiness and frame delivery without hardware. It does not emulate real device layouts, SDK timing, or hardware failures.
+The simulator exposes one virtual keyboard with twelve LEDs through the LED and
+iCUE APIs. Device queries return its layout; color and RGB image calls update its
+simulated frame. It resets when the host adapter installs or tears down. This
+does not access hardware or emulate a manufacturer's layouts, SDK timing, or
+hardware failures.
 
 ## Audio
 
@@ -63,6 +101,10 @@ The Audio tab reports listener count, chooses one of seven modes, visualizes the
 | Track loop | Repeating kick, clap, hi-hat, and bass pattern |
 
 **Output** scales every audible generated mode. Sweep, Bass pulse, and Stereo pan each expose a rate control. Track loop additionally exposes **Tempo**, **Continuous bass**, **Kick**, **Clap**, and **Hi-hat** levels, so frequency bands and beat combinations can be isolated without changing wallpaper code. Silence remains exactly zero-valued.
+
+Property and audio sliders use tall pill handles and uncluttered tracks.
+Dragging and keyboard input retain each control's configured increment and
+precision.
 
 Active modes send at approximately 30 Hz. See [Audio](../../guides/audio/) for channel layout, clamping, detection, and the exact simulator-only generator distinctions.
 
@@ -81,9 +123,30 @@ A local image is decoded in the browser, resized to at most 1024 pixels on its l
 
 Enabling integration sends the complete current media state. After enabling it, **Send metadata**, **Send timeline**, and **Send artwork** deliver their respective drafts; playback-state controls deliver immediately. Missing callbacks and callback failures produce feedback, and a failing listener does not prevent the others from receiving the event.
 
+## Performance
+
+The Performance tab measures the wallpaper document, rather than the frontend:
+
+- Frame rate, average frame time, and P95 frame time from at most 120 recent
+  `requestAnimationFrame` intervals, published at most twice per second.
+- Long-task count and duration when the browser supports long-task observation.
+- Navigation milestones and the ten most costly resource entries currently
+  exposed by the browser's resource timing buffer.
+- Basic audits for observed long tasks, large image responses, and missing image
+  alternative text.
+
+Reset clears the current frame and long-task samples. Hidden documents suspend
+frame sampling and resume with a fresh timing baseline. Zero transfer sizes can
+mean cached responses or unavailable timing permissions; they are not evidence
+of a zero-cost resource. Navigation milestones remain unavailable until recorded.
+
+These are development diagnostics. Tooling affects scheduling, rAF measures
+browser rendering opportunities rather than your application's own render loop,
+and the panel does not measure GPU time or replace a browser profiler or Lighthouse.
+
 ## Local file privacy and lifetime
 
-Browser file pickers never upload selected files. The simulator creates page-local `blob:` URLs for file-property values and files delivered from directory selections; the selected directory value remains a browser-visible directory name. It keeps only the information needed to simulate callbacks and revokes stale URLs when selections are replaced or cleared and when the page unloads.
+Browser file pickers never upload selected files. The simulator creates page-local `blob:` URLs for file-property values and files delivered from directory selections; the selected directory value remains a browser-visible directory name. It keeps only the information needed to simulate callbacks and revokes stale URLs when selections are replaced or cleared, when the simulator unmounts, and when the page unloads.
 
 Application code should use `toFileUrl()` so both native host paths and development object URLs work. A `blob:` URL is temporary and cannot be persisted across reloads or treated as the user's native path.
 

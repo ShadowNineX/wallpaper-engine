@@ -6,16 +6,21 @@ description: Register Wallpaper Engine property, plugin, audio, media, pause, FP
 Wallpaper Engine discovers callbacks through browser globals. Register them as the runtime module evaluates—never inside `window.onload`, a component mount hook, or a timer.
 
 ```ts
+import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
+import type { properties } from './properties';
+import { wallpaperColorToHex } from 'wallpaper-engine/helpers';
 import 'wallpaper-engine';
 
 window.wallpaperPropertyListener = {
-  applyUserProperties(properties) {
-    if (properties.accent) {
-      // Apply only the changed key.
+  applyUserProperties(values) {
+    if (values.accent) {
+      document.body.style.backgroundColor = wallpaperColorToHex(values.accent.value);
     }
   },
-};
+} satisfies WallpaperPropertyListenerOf<typeof properties>;
 ```
+
+Here `properties` is the shared record from the [quick start](../../getting-started/quick-start/).
 
 Deferring registration can miss startup events. Import the module containing these assignments from the browser entry point before creating framework state that depends on them.
 
@@ -74,14 +79,17 @@ An FPS of `0` means unlimited. Preserve that meaning instead of substituting an 
 The initial host callback contains all user properties; later callbacks contain only changed keys. With an inferred schema:
 
 ```ts
-function applyUserPropertyUpdate(
-  values: Partial<WallpaperUserPropertiesOf<typeof properties>>,
-): void {
-  if (values.background)
-    setBackground(values.background.value);
-  if (values.speed)
-    setSpeed(values.speed.value);
-}
+import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
+import type { properties } from './properties';
+
+window.wallpaperPropertyListener = {
+  applyUserProperties(values) {
+    if (values.background)
+      setBackground(values.background.value);
+    if (values.speed)
+      setSpeed(values.speed.value);
+  },
+} satisfies WallpaperPropertyListenerOf<typeof properties>;
 ```
 
 A missing key means unchanged. See [Type Inference](../type-inference/) for the full boundary pattern.

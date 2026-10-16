@@ -1,0 +1,441 @@
+---
+const base = import.meta.env.BASE_URL.endsWith('/')
+  ? import.meta.env.BASE_URL
+  : `${import.meta.env.BASE_URL}/`;
+
+const hrefFor = (path: string) => `${base}${path.replace(/^\/+/, '')}`;
+---
+
+<div class="example-gallery not-content" aria-label="Wallpaper example recipes">
+  <div class="example-gallery-layout">
+    <article class="example-recipe typed-recipe">
+    <a href={hrefFor('getting-started/quick-start/')}>
+      <div class="typed-preview" aria-hidden="true">
+        <span class="typed-title">My Wallpaper</span>
+        <span class="typed-control">
+          <i></i>
+          <b></b>
+        </span>
+        <span class="typed-value">0.50</span>
+      </div>
+      <div class="recipe-copy">
+        <h3>Typed properties</h3>
+        <p>Change an accent, intensity, and title visibility from one shared schema.</p>
+        <span class="recipe-link">
+          Build the first wallpaper
+          <svg aria-hidden="true" viewBox="0 0 20 20">
+            <path d="M4 10h11m-4-4 4 4-4 4"></path>
+          </svg>
+        </span>
+      </div>
+    </a>
+    </article>
+
+    <article class="example-recipe audio-recipe">
+    <a href={hrefFor('examples/audio-reactive/')}>
+      <div class="audio-preview" aria-hidden="true">
+        <div class="audio-orb"></div>
+        <div class="spectrum">
+          <i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+        </div>
+        <span>Listening for a steady beat</span>
+      </div>
+      <div class="recipe-copy">
+        <h3>Audio-reactive glow</h3>
+        <p>Turn spectrum frames into level, peak, and tempo estimates.</p>
+        <span class="recipe-link">
+          Follow the audio recipe
+          <svg aria-hidden="true" viewBox="0 0 20 20">
+            <path d="M4 10h11m-4-4 4 4-4 4"></path>
+          </svg>
+        </span>
+      </div>
+    </a>
+    </article>
+
+    <article class="example-recipe media-recipe">
+    <a href={hrefFor('examples/now-playing/')}>
+      <div class="media-preview" aria-hidden="true">
+        <div class="media-art">
+          <i></i>
+        </div>
+        <div class="media-details">
+          <span class="media-title">Nothing playing</span>
+          <span class="media-artist">Waiting for media</span>
+          <span class="media-state">Stopped</span>
+        </div>
+      </div>
+      <div class="recipe-copy">
+        <h3>Now-playing card</h3>
+        <p>Handle status, metadata, artwork, and playback as independent events.</p>
+        <span class="recipe-link">
+          Build the media card
+          <svg aria-hidden="true" viewBox="0 0 20 20">
+            <path d="M4 10h11m-4-4 4 4-4 4"></path>
+          </svg>
+        </span>
+      </div>
+    </a>
+    </article>
+  </div>
+</div>
+
+<style>
+  .example-gallery {
+    container-name: example-gallery;
+    container-type: inline-size;
+    margin-block: 2rem 2.75rem;
+  }
+
+  .example-gallery-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .example-recipe {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--sl-color-hairline-light);
+    border-radius: 1rem;
+    background: var(--sl-color-bg-nav);
+  }
+
+  .example-recipe a {
+    display: grid;
+    height: 100%;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .example-recipe:focus-within {
+    outline: 3px solid color-mix(in srgb, var(--sl-color-accent) 55%, transparent);
+    outline-offset: 3px;
+  }
+
+  .example-recipe a:focus-visible {
+    outline: none;
+  }
+
+  .typed-recipe {
+    grid-column: span 7;
+  }
+
+  .audio-recipe {
+    grid-column: span 5;
+  }
+
+  .media-recipe {
+    grid-column: 3 / span 8;
+  }
+
+  .typed-recipe a {
+    grid-template-columns: minmax(12rem, 1.05fr) minmax(12rem, 0.95fr);
+  }
+
+  .typed-preview,
+  .audio-preview,
+  .media-preview {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .typed-preview {
+    display: grid;
+    min-height: 18rem;
+    align-content: center;
+    padding: 1.5rem;
+    background: #60a5fa;
+    color: #08111f;
+  }
+
+  .typed-preview::after {
+    position: absolute;
+    width: 13rem;
+    aspect-ratio: 1;
+    right: -5rem;
+    bottom: -6rem;
+    border: 1px solid rgb(8 17 31 / 24%);
+    border-radius: 50%;
+    content: '';
+  }
+
+  .typed-title {
+    font-size: clamp(1.45rem, 3vw, 2.15rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    opacity: 0.5;
+  }
+
+  .typed-control {
+    position: relative;
+    display: block;
+    width: min(13rem, 78%);
+    height: 0.4rem;
+    margin-top: 2.5rem;
+    border-radius: 1rem;
+    background: rgb(8 17 31 / 18%);
+  }
+
+  .typed-control i {
+    display: block;
+    width: 50%;
+    height: 100%;
+    border-radius: inherit;
+    background: #08111f;
+    opacity: 0.72;
+  }
+
+  .typed-control b {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0.8rem;
+    height: 2.1rem;
+    border: 2px solid #08111f;
+    border-radius: 1rem;
+    background: #60a5fa;
+    transform: translate(-50%, -50%);
+  }
+
+  .typed-value {
+    margin-top: 0.7rem;
+    font: 700 0.78rem/1 var(--__sl-font-mono);
+    font-variant-numeric: tabular-nums;
+    opacity: 0.72;
+  }
+
+  .audio-preview {
+    display: grid;
+    min-height: 18rem;
+    place-content: center;
+    padding: 1.5rem;
+    background: #0a101a;
+    color: #dbeafe;
+    text-align: center;
+  }
+
+  .audio-orb {
+    width: 6.5rem;
+    aspect-ratio: 1;
+    margin: auto;
+    border-radius: 50%;
+    background: #60a5fa;
+    box-shadow: 0 1rem 3.5rem -1rem rgb(96 165 250 / 80%);
+  }
+
+  .spectrum {
+    display: flex;
+    height: 2rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.28rem;
+    margin-top: 1.5rem;
+  }
+
+  .spectrum i {
+    width: 0.22rem;
+    height: 30%;
+    border-radius: 0.2rem;
+    background: #93c5fd;
+  }
+
+  .spectrum i:nth-child(2),
+  .spectrum i:nth-child(6) {
+    height: 60%;
+  }
+
+  .spectrum i:nth-child(3),
+  .spectrum i:nth-child(5) {
+    height: 88%;
+  }
+
+  .spectrum i:nth-child(4) {
+    height: 45%;
+  }
+
+  .audio-preview > span {
+    color: #a8b9d0;
+    font-size: 0.72rem;
+  }
+
+  .media-recipe a {
+    grid-template-columns: minmax(17rem, 1.25fr) minmax(14rem, 0.75fr);
+  }
+
+  .media-preview {
+    display: grid;
+    grid-template-columns: 7rem 1fr;
+    align-items: center;
+    gap: 1.25rem;
+    min-height: 14rem;
+    padding: 1.5rem;
+    background: #121a27;
+  }
+
+  .media-art {
+    position: relative;
+    aspect-ratio: 1;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background: #60a5fa;
+  }
+
+  .media-art::before,
+  .media-art::after,
+  .media-art i {
+    position: absolute;
+    border: 1px solid rgb(8 17 31 / 34%);
+    border-radius: 50%;
+    content: '';
+  }
+
+  .media-art::before {
+    inset: 18%;
+  }
+
+  .media-art::after {
+    inset: 34%;
+  }
+
+  .media-art i {
+    inset: 46%;
+    background: #08111f;
+  }
+
+  .media-details {
+    display: grid;
+    min-width: 0;
+    gap: 0.35rem;
+  }
+
+  .media-details span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .media-title {
+    color: #f8fafc;
+    font-size: 1.15rem;
+    font-weight: 750;
+  }
+
+  .media-artist {
+    color: #a8b9d0;
+    font-size: 0.85rem;
+  }
+
+  .media-state {
+    justify-self: start;
+    margin-top: 0.65rem;
+    padding: 0.28rem 0.55rem;
+    border-radius: 999px;
+    background: #1f2c40;
+    color: #bfdbfe;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .recipe-copy {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    justify-content: center;
+    padding: clamp(1.25rem, 3vw, 1.8rem);
+  }
+
+  .recipe-copy h3 {
+    margin: 0;
+    color: var(--sl-color-white);
+    font-size: 1.3rem;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+  }
+
+  .recipe-copy p {
+    margin: 0.65rem 0 0;
+    color: var(--sl-color-gray-2);
+    font-size: 0.92rem;
+    line-height: 1.55;
+  }
+
+  .recipe-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    margin-top: 1.1rem;
+    color: var(--sl-color-text-accent);
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .recipe-link svg {
+    width: 1.05rem;
+    height: 1.05rem;
+    fill: none;
+    stroke: currentColor;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-width: 1.6;
+    transition: transform 160ms ease-out;
+  }
+
+  .example-recipe:hover {
+    border-color: var(--sl-color-accent);
+  }
+
+  .example-recipe:hover .recipe-link svg {
+    transform: translateX(0.22rem);
+  }
+
+  @container example-gallery (min-width: 48rem) {
+    .example-gallery-layout {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+    }
+  }
+
+  @container example-gallery (max-width: 47.99rem) {
+    .typed-recipe a,
+    .media-recipe a {
+      grid-template-columns: minmax(12rem, 0.9fr) minmax(14rem, 1.1fr);
+    }
+  }
+
+  @container example-gallery (min-width: 38rem) and (max-width: 47.99rem) {
+    .audio-recipe a {
+      grid-template-columns: minmax(12rem, 0.9fr) minmax(14rem, 1.1fr);
+    }
+  }
+
+  @container example-gallery (max-width: 38rem) {
+    .example-gallery-layout {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .typed-recipe a,
+    .media-recipe a {
+      grid-template-columns: 1fr;
+    }
+
+    .typed-preview,
+    .audio-preview,
+    .media-preview {
+      min-height: 13rem;
+    }
+
+    .media-preview {
+      grid-template-columns: 5.5rem 1fr;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .recipe-link svg {
+      transition: none;
+    }
+  }
+</style>

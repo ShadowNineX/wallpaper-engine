@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { nextTick } from 'vue';
 
 beforeEach(() => {
   vi.resetModules();
@@ -166,5 +167,98 @@ describe('propertiesTab', () => {
     expect(mount(PropertiesTab).text()).toContain(
       'No user properties are configured',
     );
+  });
+
+  it('reactively hides conditional properties and keeps them in callback delivery', async () => {
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: {
+        enabled: { type: 'bool', text: 'Enabled', value: false, order: 1 },
+        mode: {
+          type: 'combo',
+          text: 'Mode',
+          value: 'basic',
+          options: [
+            { label: 'Basic', value: 'basic' },
+            { label: 'Advanced', value: 'advanced' },
+          ],
+          order: 2,
+        },
+        advanced: {
+          type: 'textinput',
+          text: 'Advanced setting',
+          value: 'kept',
+          condition: 'enabled.value == true && mode.value == \'advanced\'',
+          order: 3,
+        },
+      },
+      localization: {},
+    };
+    const [
+      { default: PropertiesTab },
+      { listenerFns, useDevtoolsStore },
+    ] = await Promise.all([
+      import('../../src/tabs/PropertiesTab.vue'),
+      import('../../src/store'),
+    ]);
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+    const wrapper = mount(PropertiesTab);
+
+    expect(wrapper.text()).not.toContain('Advanced setting');
+
+    store.currentValues.enabled = { value: true };
+    store.currentValues.mode = { value: 'advanced', text: 'Advanced' };
+    await nextTick();
+
+    expect(wrapper.text()).toContain('Advanced setting');
+
+    store.currentValues.enabled = { value: false };
+    await nextTick();
+
+    expect(wrapper.text()).not.toContain('Advanced setting');
+    await wrapper
+      .findAll('button')
+      .find(button => button.text().includes('Replay all'))
+      ?.trigger('click');
+    expect(applyUserProperties).toHaveBeenCalledWith({
+      enabled: { value: false },
+      mode: { value: 'advanced', text: 'Advanced' },
+      advanced: { value: 'kept' },
+    });
+  });
+
+  it('hides groups whose display condition is false with their contained properties', async () => {
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: {
+        enabled: { type: 'bool', text: 'Enabled', value: false, order: 1 },
+        optional: {
+          type: 'group',
+          text: 'Optional',
+          value: '',
+          condition: 'enabled.value == true',
+          order: 2,
+        },
+        secret: { type: 'textinput', text: 'Secret', value: 'value', order: 3 },
+        following: { type: 'group', text: 'Following', value: '', order: 4 },
+        visible: { type: 'textinput', text: 'Visible', value: 'yes', order: 5 },
+      },
+      localization: {},
+    };
+    const [{ default: PropertiesTab }, { useDevtoolsStore }] = await Promise.all([
+      import('../../src/tabs/PropertiesTab.vue'),
+      import('../../src/store'),
+    ]);
+    const store = useDevtoolsStore();
+    const wrapper = mount(PropertiesTab);
+
+    expect(wrapper.find('[data-property-group="optional"]').exists()).toBe(false);
+    expect(wrapper.text()).not.toContain('Secret');
+    expect(wrapper.get('[data-property-group="following"]').text()).toContain('Visible');
+
+    store.currentValues.enabled = { value: true };
+    await nextTick();
+
+    expect(wrapper.get('[data-property-group="optional"]').text()).toContain('Secret');
   });
 });

@@ -1,11 +1,8 @@
 <script setup lang="ts">
 import type { WallpaperComboValue } from '../../../wallpaper-engine/src/types/listeners';
 import type { WallpaperComboProperty } from '../../../wallpaper-engine/src/types/project';
+import USelect from '@nuxt/ui/components/Select.vue';
 import { computed } from 'vue';
-import {
-  NativeSelect,
-  NativeSelectOption,
-} from '@/components/ui/native-select';
 import { tr } from '../config';
 import { useDevtoolsStore } from '../store';
 
@@ -19,8 +16,9 @@ const runtimeValue = computed(
   () => store.currentValues[props.propKey] as WallpaperComboValue | undefined,
 );
 
-function onCombo(event: Event): void {
-  const selected = (event.target as HTMLSelectElement).value;
+const items = computed(() => props.def.options.map(option => ({ label: tr(option.label), value: option.value })));
+
+function onCombo(selected: string): void {
   const current = runtimeValue.value;
   if (!current)
     return;
@@ -32,20 +30,11 @@ function onCombo(event: Event): void {
 </script>
 
 <template>
-  <div class="*:data-[slot=native-select-wrapper]:w-full">
-    <NativeSelect
-      :id="propKey"
-      :model-value="runtimeValue?.value ?? def.value"
-      class="h-9 w-full bg-we-btn text-[12px] text-we-text hover:bg-we-btn-hover"
-      @change="onCombo"
-    >
-      <NativeSelectOption
-        v-for="option in def.options"
-        :key="option.value"
-        :value="option.value"
-      >
-        {{ tr(option.label) }}
-      </NativeSelectOption>
-    </NativeSelect>
-  </div>
+  <USelect
+    :id="propKey"
+    :model-value="runtimeValue?.value ?? def.value"
+    :items="items"
+    class="h-9 w-full bg-we-btn text-[12px] text-we-text hover:bg-we-btn-hover"
+    @update:model-value="onCombo"
+  />
 </template>

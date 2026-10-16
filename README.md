@@ -23,119 +23,55 @@
   <a href="https://github.com/ShadowNineX/wallpaper-engine">Repository</a>
 </p>
 
-`wallpaper-engine` lets one property schema drive Wallpaper Engine's editor metadata, inferred runtime callbacks, and a Vite development simulator. The published package has no runtime dependencies; Vite is an optional peer used only by the plugin entry point.
+`wallpaper-engine` provides TypeScript types, Vite integration, and browser utilities for [Wallpaper Engine](https://www.wallpaperengine.io/) web wallpapers. Define your properties once, use them in typed host callbacks, and preview changes in the browser before testing in Wallpaper Engine.
 
-## Install
+## Features
+
+- **Typed host APIs** for user properties, audio, media, files, and RGB integrations.
+- **Shared property schemas** that generate `project.json` and infer callback values.
+- **Browser devtools** with property controls, audio and media simulation, and performance diagnostics. Float, dock, or open the panel in a separate window.
+- **Runtime helpers** for colors, audio analysis and tempo estimation, media, files, and frame pacing.
+- **Build integration** for project metadata, previews, and links to local Wallpaper Engine projects.
+
+The published package has no runtime dependencies. The devtools client is bundled and included only during development.
+
+## Installation
 
 ```bash
 bun add wallpaper-engine
 ```
 
-Equivalent commands: `npm install wallpaper-engine` or `pnpm add wallpaper-engine`.
-
-Install Vite when using `wallpaper-engine/plugin`:
+For Vite integration, also install Vite:
 
 ```bash
 bun add --dev vite
 ```
 
-## Quick start
+Follow the **[Quick Start](https://shadowninex.github.io/wallpaper-engine/getting-started/quick-start/)** to create a wallpaper with typed properties and the development simulator. The [Installation guide](https://shadowninex.github.io/wallpaper-engine/getting-started/installation/) covers TypeScript setup and other package managers.
 
-```ts
-// src/properties.ts
-import { colorProperty } from 'wallpaper-engine/plugin';
+## Documentation and examples
 
-export const properties = {
-  accent: colorProperty({ text: 'Accent', value: '#60a5fa' }),
-};
+Setup instructions, working examples, and API details live in the [documentation](https://shadowninex.github.io/wallpaper-engine/).
 
-// vite.config.ts
-import { defineConfig } from 'vite';
-import { wallpaperEnginePlugin } from 'wallpaper-engine/plugin';
-import { properties } from './src/properties';
+| Topic | Documentation |
+| --- | --- |
+| Working examples | [Typed properties, audio, and media](https://shadowninex.github.io/wallpaper-engine/examples/) |
+| Property definitions and typed callbacks | [Property Schemas](https://shadowninex.github.io/wallpaper-engine/guides/property-schemas/) · [Type Inference](https://shadowninex.github.io/wallpaper-engine/guides/type-inference/) |
+| Audio and media integration | [Audio](https://shadowninex.github.io/wallpaper-engine/guides/audio/) · [Media](https://shadowninex.github.io/wallpaper-engine/guides/media/) |
+| Development and production | [Simulator](https://shadowninex.github.io/wallpaper-engine/devtools/simulation/) · [Build and Workshop workflow](https://shadowninex.github.io/wallpaper-engine/build/workshop-workflow/) |
+| Public API and host coverage | [API Reference](https://shadowninex.github.io/wallpaper-engine/reference/) · [Web API Coverage](https://shadowninex.github.io/wallpaper-engine/reference/web-api-coverage/) |
 
-export default defineConfig({
-  plugins: [wallpaperEnginePlugin({ title: 'My Wallpaper', properties })],
-});
+The [Vue demo](https://github.com/ShadowNineX/wallpaper-engine/tree/main/demo) combines these features in a complete consumer application. The package can also be used with vanilla TypeScript and other browser frameworks.
 
-// src/wallpaper.ts
-import type { WallpaperUserPropertiesOf } from 'wallpaper-engine/plugin';
-import { wallpaperColorToHex } from 'wallpaper-engine/helpers';
-import type { properties } from './properties';
-import 'wallpaper-engine';
+## Package entry points
 
-type UserProperties = WallpaperUserPropertiesOf<typeof properties>;
+| Import | Use |
+| --- | --- |
+| `wallpaper-engine` | Host types, typed listeners, and browser-global declarations |
+| `wallpaper-engine/plugin` | Vite plugin, property builders, and project generation |
+| `wallpaper-engine/helpers` | Tree-shakeable browser utilities |
 
-window.wallpaperPropertyListener = {
-  applyUserProperties(values: Partial<UserProperties>) {
-    if (values.accent) {
-      document.body.style.backgroundColor = wallpaperColorToHex(
-        values.accent.value,
-      );
-    }
-  },
-};
-```
-
-Register host listeners immediately at module scope. Wallpaper Engine may send startup events before framework lifecycle hooks, and later property callbacks contain only changed keys. The default `WallpaperPropertyListener.applyUserProperties` callback accepts `Partial<WallpaperUserProperties>` so every key requires a guard, including in projects without `noUncheckedIndexedAccess`.
-
-By default, the Vite plugin injects the simulator during development and emits `project.json` during production builds. Set `devtools: false` to disable development injection.
-
-Written builds preserve prior top-level Workshop metadata and preview bytes while regenerating ordinary properties, localization, and audio configuration. When `metadataFile` is configured, editor preview bytes are also synchronized to the source-controlled sibling `<metadata stem>.assets/<preview>` sidecar for clean-clone rebuilds. Configure Wallpaper Engine's browser color with `schemeColor`; when omitted, a valid editor-managed value from previous output is preserved.
-
-## Public entry points
-
-| Entry point | Responsibility | Format |
-| --- | --- | --- |
-| `wallpaper-engine` | Project, listener, audio, media, RGB, iCUE, and ambient browser-global types | ESM + CommonJS |
-| `wallpaper-engine/plugin` | Vite integration, property builders, inferred runtime types, metadata, and project links | ESM only |
-| `wallpaper-engine/helpers` | Side-effect-free, tree-shakeable browser utilities | ESM + CommonJS |
-
-### Audio spectrum analysis
-
-`wallpaper-engine/helpers` includes one-shot frame metrics and a reusable,
-allocation-free stateful analyzer for Wallpaper Engine's 128-value stereo
-spectrum callback:
-
-```ts
-import { analyzeAudioFrame, createAudioAnalyzer } from 'wallpaper-engine/helpers';
-
-const analyzer = createAudioAnalyzer({
-  sensitivity: 0.65,
-  eventCooldown: 0.13,
-  peakDecayPerSecond: 1.5,
-});
-let previousTime = performance.now();
-
-window.wallpaperRegisterAudioListener((audioArray) => {
-  const now = performance.now();
-  analyzer.process(audioArray, (now - previousTime) / 1000);
-  previousTime = now;
-
-  const current = analyzeAudioFrame(audioArray);
-  renderLevel(current.rmsVolume, analyzer.decayingPeakVolume);
-  if (analyzer.beat > 0)
-    pulse(analyzer.beat);
-});
-```
-
-`analyzeAudioFrame()` reports `averageVolume`, `rmsVolume`, `peakVolume`,
-left/right volume and stereo balance, plus ordered-spectrum `bass`,
-`midrange`, and `treble` averages. `createAudioAnalyzer()` retains those
-current metrics and adds a decaying peak envelope, a log-flux autocorrelation
-`bpm` estimate, and per-frame `kick`, `clap`, `hiHat`, `beat`, and general
-`onset` strengths. BPM estimation starts after four seconds, expands to a
-rolling eight-second window, and holds the last accepted tempo through
-low-confidence passages instead of flickering back to zero. Configure detector
-strictness with `sensitivity` (0–1), same-band retrigger delay with
-`eventCooldown` (seconds), and envelope decay with `peakDecayPerSecond`.
-
-All volume values are normalized magnitudes derived from the spectrum captured
-by Wallpaper Engine. They do not expose Windows master volume or a media
-player's volume slider. Instrument detections are spectrum-based transient
-estimates, not source separation.
-
-Full guides and exhaustive API references: **[shadowninex.github.io/wallpaper-engine](https://shadowninex.github.io/wallpaper-engine/)**.
+Vite is an optional peer dependency used only by the plugin entry point. Register host listeners immediately during module evaluation, and test the finished wallpaper in Wallpaper Engine; the simulator covers development workflows rather than every native host behavior.
 
 ## Development
 
@@ -143,15 +79,13 @@ Run workspace commands from the repository root with [Bun](https://bun.sh/):
 
 ```bash
 bun install
-bun run dev:demo
-bun run dev:docs
-bun run lint
-bun run typecheck
-bun run test:run
 bun run build
+bun run dev:demo
 ```
 
-`bun run build` preserves the required devtools-first, library-second package build order. The documentation site has its own `bun run build:docs` command.
+Use `bun run dev:docs` to work on the documentation. Before submitting changes, run `bun run lint`, `bun run typecheck`, and `bun run test:run`.
+
+The root build bundles devtools before building the library. Build the documentation separately with `bun run build:docs`.
 
 ## License
 
