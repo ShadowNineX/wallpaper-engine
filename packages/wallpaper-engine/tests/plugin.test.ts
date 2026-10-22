@@ -1,6 +1,7 @@
 import type {
   DefaultWEProps,
   WallpaperProjectMetadata as RootWallpaperProjectMetadata,
+  WallpaperPropertyDefinition,
   WallpaperPropertyListener,
   WallpaperPropertyListenerOf,
   WallpaperUserProperties,
@@ -866,6 +867,43 @@ describe('wallpaperEnginePlugin', () => {
     expect(project.general.properties.first.order).toBe(0);
     expect(project.general.properties.second.index).toBe(1);
     expect(project.general.properties.second.order).toBe(1);
+  });
+
+  it.each([
+    { name: 'single class', icon: 'fa-palette' },
+    { name: 'class list', icon: 'fa-palette fa-spin' },
+    { name: 'empty string', icon: '' },
+    { name: 'omitted field', icon: undefined },
+  ])('preserves icon metadata through every builder and project emission for $name', ({ icon }) => {
+    const common = { text: 'Property', ...(icon === undefined ? {} : { icon }) } satisfies Pick<WallpaperPropertyDefinition, 'text' | 'icon'>;
+    const properties = {
+      color: colorProperty({ ...common, value: '#ff0000' }),
+      slider: sliderProperty({ ...common, value: 1, min: 0, max: 10, precision: 2 }),
+      bool: boolProperty({ ...common, value: true }),
+      combo: comboProperty({ ...common, value: 'a', options: [{ label: 'A', value: 'a' }] }),
+      text: textInputProperty({ ...common, value: 'Hello' }),
+      file: fileProperty({ ...common, value: '' }),
+      directory: directoryProperty({ ...common, value: '', mode: 'ondemand' }),
+      group: groupProperty(common),
+    };
+    expectTypeOf<WallpaperPropertyDefinition['icon']>().toEqualTypeOf<string | undefined>();
+    // @ts-expect-error The native icon field is a CSS class string, not a numeric icon ID.
+    const _invalidIcon: WallpaperPropertyDefinition['icon'] = 42;
+    const { project } = runGenerateBundle(wallpaperEnginePlugin({ title: 'Icons', properties }));
+
+    for (const [key, property] of Object.entries(properties)) {
+      expect(property.icon).toBe(icon);
+      if (icon === undefined) {
+        expect(property).not.toHaveProperty('icon');
+        expect(project.general.properties[key]).not.toHaveProperty('icon');
+      }
+      else {
+        expect(project.general.properties[key]).toHaveProperty('icon', icon);
+      }
+    }
+    expect(project.general.properties.color.value).toBe('1 0 0');
+    expect(project.general.properties.slider.step).toBe(0.01);
+    expect(project.general.properties.group.value).toBe('');
   });
 
   it('preserves explicit index / order on properties', () => {

@@ -74,6 +74,11 @@ Specific error classes include `TypeError` for wrong metadata/link option shape 
 
 ## Property builders
 
+All builders accept the optional `icon?: string` field inherited from their
+property definition. It is preserved verbatim in `project.json`. See
+[Native property icons](../../guides/property-schemas/#native-property-icons)
+for the native Font Awesome class format and version compatibility.
+
 Every builder returns the corresponding `Wallpaper*Property` definition and injects its `type` discriminant.
 
 ### `colorProperty()`

@@ -11,6 +11,8 @@ migration); tags are used where they exist.
 
 ### Added
 
+- Added the optional Font Awesome `icon` field to every property definition and
+  builder, preserving it in generated `project.json` (issue #22).
 - Added built-in Wallpaper Engine properties to `WallpaperPropertyListenerOf<T>`
   and exported their `DefaultWEProps` definition type from the root entry and
   fallback definitions from `wallpaper-engine/helpers` (issue #23).

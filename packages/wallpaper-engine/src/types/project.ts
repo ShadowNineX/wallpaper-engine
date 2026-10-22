@@ -21,6 +21,15 @@ export type WallpaperLocalization = Record<string, Record<string, string>>;
 interface WallpaperPropertyBase {
   /** Display label shown in the properties panel, or a `ui_` token for localization */
   text: string;
+  /**
+   * Font Awesome CSS class or class list for the native Wallpaper Engine
+   * property label. The host supplies `fas fa-fw`; available icons depend on
+   * the installed Wallpaper Engine version.
+   *
+   * @example
+   * icon: 'fa-palette'
+   */
+  icon?: string;
   /** Sort index within the properties panel */
   order?: number;
   /** Internal sequential index (auto-assigned by the editor) */

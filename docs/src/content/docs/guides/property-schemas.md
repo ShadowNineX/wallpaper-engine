@@ -27,12 +27,36 @@ Every property accepts these editor-facing fields:
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `text` | `string` | Required display label, or a `ui_` localization token |
+| `icon` | `string` | Optional Font Awesome CSS class or class list for the native property label, such as `fa-palette` |
 | `value` | Kind-specific | Required default value; `groupProperty()` injects `''` |
 | `order` | `number` | Optional sort order in the property panel |
 | `index` | `number` | Optional internal editor index |
 | `condition` | `string` | JavaScript visibility expression referencing another property, such as `showclock.value == true` |
 
 When generating `project.json`, the plugin walks the record in JavaScript insertion order and assigns each missing `index` and `order` to its zero-based position. An explicitly defined `index` or `order` wins independently. Keep record order meaningful even when overriding one of those fields.
+
+### Native property icons
+
+All property builders accept `icon` and preserve it in `project.json`:
+
+```ts
+const accent = colorProperty({
+  text: 'Accent',
+  value: '#5b86ed',
+  icon: 'fa-palette',
+});
+```
+
+Wallpaper Engine's native wallpaper browser adds `fas fa-fw` to the icon element
+and applies your class string. An omitted or empty `icon` hides the element.
+Icon availability depends on the host's bundled Font Awesome version. This
+metadata does not change the inferred runtime value type. The development
+simulator does not load Wallpaper Engine's Font Awesome fonts.
+
+This behavior was checked against the installed Wallpaper Engine **2.8.42**:
+`ui/dist/scripts/scripts.js`, template `views/includes/browseruserproperties.html`,
+binds `property.icon` on the property-label icon element. Its
+`ui/dist/styles/main.css` bundles Font Awesome Pro **6.7.2**, including `fa-palette`.
 
 ## Builder and runtime matrix
 
