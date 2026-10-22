@@ -96,10 +96,23 @@ let restoreOpener: (() => void) | undefined;
 let originalUrl = '';
 let animationFrameId = 0;
 let animationFrames = new Map<number, FrameRequestCallback>();
+const originalLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage');
 
 beforeEach(() => {
   vi.resetModules();
   vi.useFakeTimers();
+  const savedState = new Map<string, string>();
+  Object.defineProperty(window, 'localStorage', {
+    configurable: true,
+    value: {
+      clear: () => savedState.clear(),
+      getItem: (key: string) => savedState.get(key) ?? null,
+      key: (index: number) => [...savedState.keys()][index] ?? null,
+      get length() { return savedState.size; },
+      removeItem: (key: string) => savedState.delete(key),
+      setItem: (key: string, value: string) => savedState.set(key, value),
+    } satisfies Storage,
+  });
   notifyMock.mockReset();
   mountedPinia.value = undefined;
   animationFrameId = 0;
@@ -128,6 +141,10 @@ afterEach(() => {
   restoreOpener = undefined;
   window.history.replaceState(null, '', originalUrl);
   delete window.__WE_DEVTOOLS_CONFIG__;
+  if (originalLocalStorage)
+    Object.defineProperty(window, 'localStorage', originalLocalStorage);
+  else
+    Reflect.deleteProperty(window, 'localStorage');
   vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
@@ -458,6 +475,8 @@ describe('bridge frontend', () => {
       const initial = backend.snapshot();
       port.receive({ kind: 'snapshot', revision: 1, snapshot: initial });
       await flushPromises();
+      expect(root().querySelector('[role="tab"][aria-selected="true"]')?.textContent).toContain('Properties');
+      expect(root().textContent).toContain('Asset');
       expect(root().textContent).not.toContain('Dependent setting');
 
       if (type === 'file') {
