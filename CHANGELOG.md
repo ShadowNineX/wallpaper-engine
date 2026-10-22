@@ -7,7 +7,7 @@ Release boundaries follow the `version` field of the published package's
 `package.json` (`packages/wallpaper-engine/package.json` after the monorepo
 migration); tags are used where they exist.
 
-## [1.4.0] - Unreleased
+## [1.5.0] - 2026-10-22
 
 ### Added
 
@@ -22,6 +22,44 @@ migration); tags are used where they exist.
 - Added built-in property controls and callback delivery to devtools, including
   audio recording unless `supportsAudioProcessing` is explicitly disabled, and
   the configured scheme color.
+
+### Changed
+
+- Uploaded coverage reports from both workspaces to Codecov and expanded
+  regression coverage for build, callback, file-state, and media failure paths.
+- Reused the same Bun and npm archives across package checks to avoid redundant
+  packing and verify manifest parity against the artifacts used by consumers.
+
+### Fixed
+
+- Matched built-in defaults, labels, icons, and simulator property order to
+  callbacks captured from native Wallpaper Engine 2.8.42 previews.
+- Represented native divider/group callback descriptors in broad property types
+  and made hardware plugin globals optional until the plugins load.
+- Preserved wallpaper Pinia context during queued and remote callbacks, isolated
+  listener registration during delivery, and retained reserved property names
+  through simulator state, snapshots, and incremental bridge patches.
+- Rejected invalid FPS limits without changing the active frame cap.
+- Prevented builds from emitting project entries absent from the output, contained
+  nested preview-backup links, and validated serialized configuration consistently
+  across development and production.
+- Kept property builder types fixed against malformed JavaScript options and
+  rejected conflicting explicit and generated scheme-color definitions.
+- Preserved ESM module boundaries so small helper and builder imports discard
+  unused color/image libraries; added built-output and packed-archive CI checks.
+- Handled native encoded-drive paths without double encoding, encoded raw
+  filesystem URL characters and UNC paths, rejected non-finite project
+  numbers, and isolated devtools watcher cleanup across Vite server instances.
+- Prevented stale artwork work from overwriting a remounted Media tab, rolled
+  back failed directory refreshes, and synchronized file-dependent visibility
+  conditions across the devtools bridge without exposing host-owned Blob URLs.
+- Isolated frontend tab storage between tests so native Node local storage does
+  not leak the selected tab into subsequent cases.
+
+## [1.4.0] - 2026-10-16
+
+### Added
+
 - Added direction-aware devtools tab transitions, with an immediate switch when
   reduced motion is enabled.
 - Added an isolated devtools frontend with right/bottom docking, separate-window
@@ -69,27 +107,6 @@ migration); tags are used where they exist.
 
 ### Fixed
 
-- Matched built-in defaults, labels, icons, and simulator property order to
-  callbacks captured from native Wallpaper Engine 2.8.42 previews.
-- Represented native divider/group callback descriptors in broad property types
-  and made hardware plugin globals optional until the plugins load.
-- Preserved wallpaper Pinia context during queued and remote callbacks, isolated
-  listener registration during delivery, and retained reserved property names
-  through simulator state, snapshots, and incremental bridge patches.
-- Rejected invalid FPS limits without changing the active frame cap.
-- Prevented builds from emitting project entries absent from the output, contained
-  nested preview-backup links, and validated serialized configuration consistently
-  across development and production.
-- Kept property builder types fixed against malformed JavaScript options and
-  rejected conflicting explicit and generated scheme-color definitions.
-- Preserved ESM module boundaries so small helper and builder imports discard
-  unused color/image libraries; added built-output and packed-archive CI checks.
-- Handled native encoded-drive paths without double encoding, encoded raw
-  filesystem URL characters and UNC paths, rejected non-finite project
-  numbers, and isolated devtools watcher cleanup across Vite server instances.
-- Prevented stale artwork work from overwriting a remounted Media tab, rolled
-  back failed directory refreshes, and synchronized file-dependent visibility
-  conditions across the devtools bridge without exposing host-owned Blob URLs.
 - Restored the current npm CLI for publication so Node's bundled npm does not
   prevent trusted-publisher authentication.
 - Corrected documentation table frames and cell padding while retaining horizontal
@@ -354,7 +371,8 @@ migration); tags are used where they exist.
   canvas encoding, and FPS-limited animation loops.
 - Added an example wallpaper, automated tests, build configuration, and CI.
 
-[1.4.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.2...HEAD
+[1.5.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.4.0...v1.5.0
+[1.4.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.1...v1.3.2
 [1.3.1]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.2.0...v1.3.0
