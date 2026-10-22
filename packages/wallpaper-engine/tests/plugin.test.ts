@@ -1126,6 +1126,17 @@ describe('wallpaperEnginePlugin', () => {
 
     expect(() => JSON.parse(source)).not.toThrow();
   });
+
+  it('rejects metadata that serializes the generated project as undefined', () => {
+    const metadata = {
+      toJSON: () => undefined,
+    } as unknown as WallpaperProjectMetadata;
+
+    expect(() => runGenerateBundle(wallpaperEnginePlugin({
+      title: 'Unserializable metadata',
+      metadata,
+    }))).toThrow('project.json could not be serialized');
+  });
 });
 
 describe('wallpaperEnginePlugin devtools hooks', () => {

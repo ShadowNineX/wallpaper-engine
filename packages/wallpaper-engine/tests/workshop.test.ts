@@ -245,6 +245,7 @@ describe('steam Workshop project preservation', () => {
   it.each([
     { name: 'missing source', file: 'pages/missing.html', input: undefined },
     { name: 'unmatched configured input', file: 'pages/wallpaper.html', input: 'index.html' },
+    { name: 'null configured input', file: 'pages/wallpaper.html', input: null as never },
   ])('rejects a write-disabled $name', async ({ file, input }) => {
     const root = await createWallpaperRoot();
     await mkdir(join(root, 'pages'), { recursive: true });

@@ -19,6 +19,20 @@ afterEach(() => {
 });
 
 describe('bridge protocol schemas', () => {
+  it('rejects inherited values in an editable draft without mutating its source', async () => {
+    vi.resetModules();
+    const [{ makeDraft }, { useDevtoolsStore }] = await Promise.all([
+      import('../../src/bridge/protocol'),
+      import('../../src/store'),
+    ]);
+    const store = useDevtoolsStore();
+    const currentValues = Object.assign(Object.create({ gain: { value: 0.9 } }), builtInValues);
+
+    expect(() => makeDraft({ ...store.$state, currentValues })).toThrow();
+    expect(Object.hasOwn(currentValues, 'gain')).toBe(false);
+    expect(currentValues.gain).toEqual({ value: 0.9 });
+  });
+
   it('accepts only finite, ranged audio settings and exact command discriminants', async () => {
     const { CommandValidator } = await import('../../src/bridge/protocol');
     const valid = {

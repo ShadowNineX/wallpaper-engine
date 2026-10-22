@@ -19,6 +19,32 @@ afterEach(() => {
 });
 
 describe('bridge backend', () => {
+  it('redacts private file URLs when display metadata is missing', async () => {
+    const { createBackend } = await import('../../src/bridge/backend');
+    const backend = createBackend(createPinia(), () => undefined);
+    try {
+      backend.store.setFileSelection('artwork', {
+        id: 'cover',
+        name: 'cover.png',
+        path: 'Gallery/cover.png',
+        relativePath: 'cover.png',
+        url: 'blob:private-cover',
+        size: 1,
+        mtimeMs: 1,
+      });
+      Reflect.deleteProperty(backend.store.propertyDisplayPaths, 'artwork');
+
+      const snapshot = backend.snapshot();
+
+      expect(snapshot.state.currentValues.artwork).toEqual({ value: '' });
+      expect(JSON.stringify(snapshot)).not.toContain('blob:private-cover');
+      expect(backend.store.currentValues.artwork).toEqual({ value: 'blob:private-cover' });
+    }
+    finally {
+      backend.dispose();
+    }
+  });
+
   it('patches only the TypeBox-validated editable draft projection', async () => {
     const [{ applyDraft }, { DraftValidator }, { useDevtoolsStore }] = await Promise.all([
       import('../../src/bridge/backend'),
