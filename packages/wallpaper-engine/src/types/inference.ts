@@ -42,6 +42,9 @@ export type WallpaperUserPropertiesOf<
  * A property listener whose `applyUserProperties` values are inferred from a
  * wallpaper's property record, including Wallpaper Engine's built-in properties.
  * Every update key is optional, and explicitly defined keys take precedence.
+ * This is a projection of known editable keys, not a runtime filter. For
+ * enumerating the complete host payload, use {@link WallpaperPropertyListener}
+ * and guard layout descriptors with `'value' in property`.
  *
  * @example
  * import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';

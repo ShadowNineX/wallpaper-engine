@@ -168,8 +168,6 @@ function createEntry(
       relativePath: picked.relativePath,
     };
   }
-  if (previous)
-    releaseAfterDelivery(previous.url);
   return {
     id: previous?.id ?? crypto.randomUUID(),
     name: picked.file.name,
@@ -213,28 +211,36 @@ export function acceptDevDirectory(picked: BrowserSelection, directoryId?: strin
   const previousByPath = new Map(
     previous?.files.map(file => [file.relativePath, file]) ?? [],
   );
-  const files = picked.files
-    .map(file =>
-      createEntry(
-        file,
-        picked.name,
-        previousByPath.get(file.relativePath),
-      ),
-    )
-    .sort((left, right) => left.relativePath.localeCompare(right.relativePath));
-  const nextPaths = new Set(files.map(file => file.relativePath));
-  for (const file of previous?.files ?? []) {
-    if (!nextPaths.has(file.relativePath))
-      releaseAfterDelivery(file.url);
-  }
+  const provisionalUrls: string[] = [];
+  try {
+    const files = picked.files
+      .map((file) => {
+        const previousFile = previousByPath.get(file.relativePath);
+        const entry = createEntry(file, picked.name, previousFile);
+        if (entry.url !== previousFile?.url)
+          provisionalUrls.push(entry.url);
+        return entry;
+      })
+      .sort((left, right) => left.relativePath.localeCompare(right.relativePath));
+    const selection: DevDirectorySelection = {
+      id,
+      path: picked.name,
+      files,
+    };
+    directoriesById.set(id, selection);
 
-  const selection: DevDirectorySelection = {
-    id,
-    path: picked.name,
-    files,
-  };
-  directoriesById.set(id, selection);
-  return selection;
+    const nextByPath = new Map(files.map(file => [file.relativePath, file]));
+    for (const file of previous?.files ?? []) {
+      if (nextByPath.get(file.relativePath)?.url !== file.url)
+        releaseAfterDelivery(file.url);
+    }
+    return selection;
+  }
+  catch (error) {
+    for (const url of provisionalUrls)
+      releaseDevFile(url);
+    throw error;
+  }
 }
 
 export function refreshDevDirectory(

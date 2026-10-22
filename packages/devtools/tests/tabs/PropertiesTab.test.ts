@@ -104,6 +104,27 @@ describe('propertiesTab', () => {
     expect(setPaused).toHaveBeenCalledWith(false);
   });
 
+  it('renders a negative native custom order after built-in controls', async () => {
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: {
+        nativeFirst: { type: 'bool', text: 'Native first', value: true, order: -50 },
+        nativeSecond: { type: 'bool', text: 'Native second', value: true, order: -49 },
+      },
+      localization: {},
+    };
+    const { default: PropertiesTab } = await import('../../src/tabs/PropertiesTab.vue');
+    const wrapper = mount(PropertiesTab);
+
+    expect(wrapper.findAll('article').map(card => card.text())).toEqual([
+      expect.stringContaining('Audio recording'),
+      expect.stringContaining('Scheme color'),
+      expect.stringContaining('Flip'),
+      expect.stringContaining('Show color options'),
+      expect.stringContaining('Native first'),
+      expect.stringContaining('Native second'),
+    ]);
+  });
+
   it('restores edited controls to their configured defaults', async () => {
     const [
       { default: PropertiesTab },

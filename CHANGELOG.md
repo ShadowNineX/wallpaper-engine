@@ -13,7 +13,7 @@ migration); tags are used where they exist.
 
 - Added `WallpaperDividerProperty` and `dividerProperty()` for optional-label
   separators, with simulator rendering and exclusion from inferred callbacks,
-  runtime property delivery, and editable bridge state (issue #21).
+  simulator value delivery, and editable bridge state (issue #21).
 - Added the optional Font Awesome `icon` field to every property definition and
   builder, preserving it in generated `project.json` (issue #22).
 - Added built-in Wallpaper Engine properties to `WallpaperPropertyListenerOf<T>`
@@ -69,6 +69,27 @@ migration); tags are used where they exist.
 
 ### Fixed
 
+- Matched built-in defaults, labels, icons, and simulator property order to
+  callbacks captured from native Wallpaper Engine 2.8.42 previews.
+- Represented native divider/group callback descriptors in broad property types
+  and made hardware plugin globals optional until the plugins load.
+- Preserved wallpaper Pinia context during queued and remote callbacks, isolated
+  listener registration during delivery, and retained reserved property names
+  through simulator state, snapshots, and incremental bridge patches.
+- Rejected invalid FPS limits without changing the active frame cap.
+- Prevented builds from emitting project entries absent from the output, contained
+  nested preview-backup links, and validated serialized configuration consistently
+  across development and production.
+- Kept property builder types fixed against malformed JavaScript options and
+  rejected conflicting explicit and generated scheme-color definitions.
+- Preserved ESM module boundaries so small helper and builder imports discard
+  unused color/image libraries; added built-output and packed-archive CI checks.
+- Handled native encoded-drive paths without double encoding, encoded raw
+  filesystem URL characters and UNC paths, rejected non-finite project
+  numbers, and isolated devtools watcher cleanup across Vite server instances.
+- Prevented stale artwork work from overwriting a remounted Media tab, rolled
+  back failed directory refreshes, and synchronized file-dependent visibility
+  conditions across the devtools bridge without exposing host-owned Blob URLs.
 - Restored the current npm CLI for publication so Node's bundled npm does not
   prevent trusted-publisher authentication.
 - Corrected documentation table frames and cell padding while retaining horizontal

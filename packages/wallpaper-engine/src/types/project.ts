@@ -138,8 +138,8 @@ export interface WallpaperDirectoryProperty extends WallpaperPropertyBase {
 /**
  * Collapsible section marker in Wallpaper Engine's property list.
  * Every following property belongs to this group until the next group marker.
- * Group markers are layout metadata and are not delivered to
- * `applyUserProperties`.
+ * Group markers are layout metadata. Native property callbacks may include
+ * their descriptors; inferred listeners exclude them from value keys.
  *
  * @example
  * {

@@ -24,6 +24,7 @@ type RuntimePropertyDefinition = Exclude<
   WallpaperPropertyDefinition,
   { type: 'group' | 'divider' }
 >;
+type RuntimePropertyValues = Record<string, WallpaperPropertyRuntimeValue>;
 
 interface DirectoryChangeSummary {
   addedOrChanged: string[];
@@ -47,6 +48,10 @@ export const listenerFns = {
   >,
   mediaTimeline: [] as Array<(e: WallpaperMediaTimelineEvent) => void>,
 };
+
+function createMutableRecord<T>(): Record<string, T> {
+  return Object.create(null) as Record<string, T>;
+}
 
 // ---------------------------------------------------------------------------
 // Value helpers (used to build initial property values)
@@ -78,8 +83,8 @@ function wrapValue(
   return { value: stringifyValue(raw) };
 }
 
-function createInitialValues(): WallpaperUserProperties {
-  const values: WallpaperUserProperties = {};
+function createInitialValues(): RuntimePropertyValues {
+  const values = createMutableRecord<WallpaperPropertyRuntimeValue>();
   for (const [key, def] of Object.entries(propDefs)) {
     if (def.type === 'group' || def.type === 'divider')
       continue;
@@ -89,7 +94,7 @@ function createInitialValues(): WallpaperUserProperties {
 }
 
 function createInitialDisplayPaths(): Record<string, string> {
-  const paths: Record<string, string> = {};
+  const paths = createMutableRecord<string>();
   for (const [key, def] of Object.entries(propDefs)) {
     if (def.type === 'file' || def.type === 'directory') {
       paths[key] = def.value;
@@ -109,13 +114,12 @@ function clonePropertyValue(
   return { ...value } as WallpaperPropertyRuntimeValue;
 }
 
-function collectDeliverableProperties(values: WallpaperUserProperties): WallpaperUserProperties {
-  const userProperties: WallpaperUserProperties = {};
-  for (const [key, value] of Object.entries(values)) {
-    if (!isFetchAllDirectory(key))
-      userProperties[key] = clonePropertyValue(value);
-  }
-  return userProperties;
+function collectDeliverableProperties(values: RuntimePropertyValues): WallpaperUserProperties {
+  return Object.fromEntries(
+    Object.entries(values)
+      .filter(([key]) => !isFetchAllDirectory(key))
+      .map(([key, value]) => [key, clonePropertyValue(value)]),
+  ) as WallpaperUserProperties;
 }
 
 function deliverSelectedDirectories(
@@ -148,7 +152,7 @@ function firePluginLoaded(name: 'led' | 'cue'): void {
 /** Silently deliver to a listener list (no toast on empty). */
 function deliver<T>(list: Array<(payload: T) => void>, payload: T): boolean {
   let succeeded = true;
-  for (const fn of list) {
+  for (const fn of [...list]) {
     try {
       fn(payload);
     }
@@ -195,16 +199,16 @@ export const useDevtoolsStore = defineStore('devtools', () => {
   });
 
   // --- wallpaper property state ---
-  const currentValues = reactive<WallpaperUserProperties>(
+  const currentValues = reactive<RuntimePropertyValues>(
     createInitialValues(),
   );
   const propertyDisplayPaths = reactive<Record<string, string>>(
     createInitialDisplayPaths(),
   );
   const general = reactive({ fps: 60, paused: false });
-  const directoryFiles = reactive<Record<string, string[]>>({});
+  const directoryFiles = reactive<Record<string, string[]>>(createMutableRecord());
   const directorySelections = reactive<Record<string, DevDirectorySelection>>(
-    {},
+    createMutableRecord(),
   );
 
   // --- media state ---
@@ -292,11 +296,11 @@ export const useDevtoolsStore = defineStore('devtools', () => {
     for (const key of Object.keys(directorySelections))
       delete directorySelections[key];
 
-    const userProperties: WallpaperUserProperties = {};
-    for (const [key, value] of Object.entries(defaults)) {
-      if (!isFetchAllDirectory(key))
-        userProperties[key] = clonePropertyValue(value);
-    }
+    const userProperties = Object.fromEntries(
+      Object.entries(defaults)
+        .filter(([key]) => !isFetchAllDirectory(key))
+        .map(([key, value]) => [key, clonePropertyValue(value)]),
+    ) as WallpaperUserProperties;
 
     try {
       listenerFns.property?.applyUserProperties?.(userProperties);

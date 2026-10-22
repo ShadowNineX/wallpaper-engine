@@ -19,6 +19,9 @@ import {
 | --- | --- |
 | `''` | `''` |
 | `C:/Images/background.png` | `file:///C:/Images/background.png` |
+| `C%3A/Images/native%20%23%20cover.jpg` | `file:///C:/Images/native%20%23%20cover.jpg` |
+| `C:\\Images\\cover #1.png` | `file:///C:/Images/cover%20%231.png` |
+| `//server/share/cover.png` or `\\\\server\\share\\cover.png` | `file://server/share/cover.png` |
 | `/assets/background.png` | Preserved |
 | `https://…`, `http://…`, `data:…`, `blob:…`, `file:…` | Preserved, case-insensitively by scheme |
 
@@ -26,7 +29,7 @@ import {
 image.src = toFileUrl(property.value);
 ```
 
-The function returns either the original string or one newly prefixed string. It performs no filesystem lookup or URL encoding. See [Files & Directories](../../guides/files-and-directories/) for host paths and simulator-owned object URLs.
+Raw filesystem paths normalize backslashes and encode filename characters such as spaces, `#`, and `%`. Wallpaper Engine's encoded-drive form (`C%3A/...`) is decoded exactly once before conversion; malformed escapes in that form throw `URIError`. Percent sequences in raw drive paths (`C:/...`) stay literal, so a filename containing `%20` remains distinct from a space. Browser-ready URLs and single-slash asset paths are preserved. The helper performs no filesystem lookup. See [Files & Directories](../../guides/files-and-directories/) for host paths and simulator-owned object URLs.
 
 ## LED canvas encoding
 
@@ -34,7 +37,7 @@ The function returns either the original string or one newly prefixed string. It
 
 ```ts
 const encoded = encodeCanvasForLed(canvas);
-window.wpPlugins.led.setAllDevicesByImageData(
+window.wpPlugins?.led?.setAllDevicesByImageData(
   encoded,
   canvas.width,
   canvas.height,
@@ -70,6 +73,8 @@ window.wallpaperPluginListener = {
 ```
 
 Use `window.wpPlugins.led.setAllDevicesByImageData()` for general RGB hardware. Use `window.cue.setLedColorsByImageData()` only after the `cue` plugin loads and direct Corsair iCUE access is required. The helper only encodes bytes; it does not check readiness or send data.
+
+The container and plugin APIs are optional in the type declarations. Guard `window.wpPlugins?.led` or `window.cue` when sending; the plugin-name callback alone does not narrow an unrelated global property for TypeScript.
 
 ## Frame limiting
 

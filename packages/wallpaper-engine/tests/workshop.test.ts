@@ -101,6 +101,8 @@ describe('steam Workshop project preservation', () => {
     }));
     await writeFile(join(outDir, 'previews', 'editor.jpg'), previewBytes);
     await writeFile(join(outDir, 'stale.txt'), 'remove me');
+    await mkdir(join(root, 'public'), { recursive: true });
+    await writeFile(join(root, 'public', 'wallpaper.html'), '<main>Wallpaper</main>');
 
     await buildWallpaper(root, {
       title: 'Generated title',
@@ -157,6 +159,100 @@ describe('steam Workshop project preservation', () => {
     });
   });
 
+  it('rejects a configured entry file that Vite does not emit', async () => {
+    const root = await createWallpaperRoot();
+
+    await expect(buildWallpaper(root, {
+      title: 'Missing entry',
+      file: 'wallpaper.html',
+    })).rejects.toThrow(/wallpaper\.html.*was not emitted/i);
+  });
+
+  it.each(['/wallpaper.html', '../wallpaper.html'])(
+    'rejects unsafe configured entry file %s',
+    async (file) => {
+      const root = await createWallpaperRoot();
+
+      await expect(buildWallpaper(root, {
+        title: 'Unsafe entry',
+        file,
+      })).rejects.toThrow(/Unsafe project file/);
+    },
+  );
+
+  it('accepts a configured public entry file and a write-disabled default entry', async () => {
+    const root = await createWallpaperRoot();
+    await mkdir(join(root, 'public', 'pages'), { recursive: true });
+    await writeFile(join(root, 'public', 'pages', 'wallpaper.html'), '<main>Wallpaper</main>');
+
+    await buildWallpaper(root, {
+      title: 'Public entry',
+      file: 'pages/wallpaper.html',
+    });
+    await expect(readFile(
+      join(root, 'dist', 'pages', 'wallpaper.html'),
+      'utf8',
+    ))
+      .resolves
+      .toContain('Wallpaper');
+
+    await expect(buildWallpaper(
+      root,
+      { title: 'Memory output', file: 'pages/wallpaper.html' },
+      { write: false },
+    ))
+      .resolves
+      .toBeDefined();
+  });
+
+  it('accepts a configured write-disabled multi-page HTML input', async () => {
+    const root = await createWallpaperRoot();
+    const index = join(root, 'index.html');
+    const wallpaper = join(root, 'pages', 'wallpaper.html');
+    await mkdir(join(root, 'pages'), { recursive: true });
+    await writeFile(wallpaper, '<main>Wallpaper</main>');
+
+    await expect(buildWallpaper(root, {
+      title: 'In-memory multi-page output',
+      file: 'pages/wallpaper.html',
+    }, {
+      rollupOptions: {
+        input: { main: index, wallpaper },
+      },
+      write: false,
+    })).resolves.toBeDefined();
+  });
+
+  it('rejects public entry files when written builds disable public copying', async () => {
+    const root = await createWallpaperRoot();
+    await mkdir(join(root, 'public'), { recursive: true });
+    await writeFile(join(root, 'public', 'wallpaper.html'), '<main>Wallpaper</main>');
+
+    await expect(buildWallpaper(root, {
+      title: 'Uncopied public entry',
+      file: 'wallpaper.html',
+    }, { copyPublicDir: false })).rejects.toThrow(/was not emitted/i);
+  });
+
+  it.each([
+    ['default entry', {}],
+    ['configured index entry', { file: 'index.html' }],
+  ])('rejects a library build with no HTML output for its $name', async (_name, options) => {
+    const root = await createWallpaperRoot();
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'src', 'main.js'), 'export const wallpaper = true;');
+
+    await expect(buildWallpaper(root, {
+      title: 'Library output',
+      ...options,
+    }, {
+      lib: {
+        entry: join(root, 'src', 'main.js'),
+        formats: ['es'],
+      },
+    })).rejects.toThrow(/index\.html.*was not emitted/i);
+  });
+
   it('round-trips editor state through a persistent project link', async () => {
     const root = await createWallpaperRoot();
     const outDir = join(root, 'dist');
@@ -193,6 +289,8 @@ describe('steam Workshop project preservation', () => {
       approved: false,
       futureField: { retained: true },
     }));
+    await mkdir(join(root, 'public'), { recursive: true });
+    await writeFile(join(root, 'public', 'wallpaper.html'), '<main>Wallpaper</main>');
     await buildWallpaper(root, {
       ...options,
       title: 'Second generated title',

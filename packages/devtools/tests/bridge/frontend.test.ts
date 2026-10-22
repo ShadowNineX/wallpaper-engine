@@ -439,6 +439,117 @@ describe('bridge frontend', () => {
     expect(checkpoints[1]).toMatchObject({ draft: [expect.objectContaining({ path: '/general/fps', value: 90 })] });
   });
 
+  it.each(['file', 'directory'] as const)('updates remote conditions when a %s selection is selected and cleared', async (type) => {
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: {
+        asset: type === 'file'
+          ? { type, value: '', text: 'Asset' }
+          : { type, value: '', text: 'Asset', mode: 'ondemand' },
+        dependent: { type: 'bool', value: true, text: 'Dependent setting', condition: 'asset.value != \'\'' },
+      },
+      localization: {},
+    };
+    const { host, frontendStore, makeHostPatch } = await boot();
+    const { createBackend } = await import('../../src/bridge/backend');
+    const backend = createBackend(createPinia(), () => undefined);
+    try {
+      const port = createPort();
+      dispatchConnection(host, port);
+      const initial = backend.snapshot();
+      port.receive({ kind: 'snapshot', revision: 1, snapshot: initial });
+      await flushPromises();
+      expect(root().textContent).not.toContain('Dependent setting');
+
+      if (type === 'file') {
+        backend.store.setFileSelection('asset', {
+          id: 'cover',
+          name: 'cover.png',
+          path: 'Gallery/cover.png',
+          relativePath: 'cover.png',
+          url: 'blob:private-cover',
+          size: 1,
+          mtimeMs: 1,
+        });
+      }
+      else {
+        backend.store.setDirectorySelection('asset', { id: 'gallery', path: 'Gallery', files: [] });
+      }
+      const selected = backend.snapshot();
+      expect(JSON.stringify(selected)).not.toContain('blob:private');
+      port.receive({ kind: 'patch', revision: 2, patch: makeHostPatch(initial, selected) });
+      await flushPromises();
+      expect(root().textContent).toContain('Dependent setting');
+      expect(frontendStore.currentValues.asset?.value).toBe(type === 'file' ? 'Gallery/cover.png' : 'Gallery');
+      expect(commandMessages(port)).toEqual([]);
+
+      if (type === 'file')
+        backend.store.clearFileSelection('asset');
+      else
+        backend.store.clearDirectorySelection('asset');
+      const cleared = backend.snapshot();
+      port.receive({ kind: 'patch', revision: 3, patch: makeHostPatch(selected, cleared) });
+      await flushPromises();
+      expect(root().textContent).not.toContain('Dependent setting');
+      expect(frontendStore.currentValues.asset?.value).toBe('');
+      expect(commandMessages(port)).toEqual([]);
+    }
+    finally {
+      backend.dispose();
+    }
+  });
+
+  it('hydrates reserved file and directory records through cleanup and Pinia patching', async () => {
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: Object.fromEntries([
+        ['__proto__', { type: 'file', value: '', text: 'Artwork' }],
+        ['constructor', { type: 'directory', value: '', mode: 'ondemand', text: 'Gallery' }],
+      ]),
+      localization: {},
+    };
+    const { host, frontendStore, makeHostPatch } = await boot();
+    const { createBackend } = await import('../../src/bridge/backend');
+    const backend = createBackend(createPinia(), () => undefined);
+    const protoKey = '__proto__';
+    try {
+      backend.store.setFileSelection(protoKey, {
+        id: 'cover',
+        name: 'cover.png',
+        path: 'Gallery/cover.png',
+        relativePath: 'cover.png',
+        url: 'blob:private-cover',
+        size: 1,
+        mtimeMs: 1,
+      });
+      backend.store.setDirectorySelection('constructor', {
+        id: 'gallery',
+        path: 'Gallery',
+        files: [],
+      });
+      const selected = backend.snapshot();
+      const port = createPort();
+      dispatchConnection(host, port);
+      port.receive({ kind: 'snapshot', revision: 1, snapshot: selected });
+      await flushPromises();
+
+      expect(Object.hasOwn(frontendStore.currentValues, protoKey)).toBe(true);
+      expect(frontendStore.currentValues[protoKey]).toEqual({ value: 'Gallery/cover.png' });
+      expect(Object.hasOwn(frontendStore.propertyDisplayPaths, protoKey)).toBe(true);
+      expect(Object.hasOwn(frontendStore.directorySelections, 'constructor')).toBe(true);
+
+      backend.store.clearDirectorySelection('constructor');
+      const cleared = backend.snapshot();
+      port.receive({ kind: 'patch', revision: 2, patch: makeHostPatch(selected, cleared) });
+      await flushPromises();
+
+      expect(Object.hasOwn(frontendStore.currentValues, protoKey)).toBe(true);
+      expect(Object.hasOwn(frontendStore.propertyDisplayPaths, protoKey)).toBe(true);
+      expect(Object.hasOwn(frontendStore.directorySelections, 'constructor')).toBe(false);
+    }
+    finally {
+      backend.dispose();
+    }
+  });
+
   it('removes directory metadata that disappears from a host patch', async () => {
     const { host, frontendStore, makeHostPatch, snapshot } = await boot();
     const port = createPort();

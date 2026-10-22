@@ -9,7 +9,7 @@ import UInputNumber from '@nuxt/ui/components/InputNumber.vue';
 import USelect from '@nuxt/ui/components/Select.vue';
 import USwitch from '@nuxt/ui/components/Switch.vue';
 import { storeToRefs } from 'pinia';
-import { ref, shallowRef } from 'vue';
+import { onUnmounted, ref, shallowRef } from 'vue';
 import Upload from '~icons/ph/upload-simple';
 import { createAverageColorExtractor } from '../../../wallpaper-engine/src/helpers';
 import CallbackStatus from '../components/CallbackStatus.vue';
@@ -29,6 +29,11 @@ const timeline = mediaTimeline;
 const thumb = mediaThumb;
 const thumbnailInput = shallowRef<HTMLInputElement | null>(null);
 const preparingArtwork = ref(false);
+let artworkGeneration = 0;
+
+onUnmounted(() => {
+  artworkGeneration++;
+});
 
 const playbackStates: Array<{
   state: WallpaperMediaPlaybackState;
@@ -91,6 +96,8 @@ async function onThumbnailFile(event: Event): Promise<void> {
   if (!file || preparingArtwork.value)
     return;
 
+  const generation = ++artworkGeneration;
+  const isCurrent = () => generation === artworkGeneration;
   preparingArtwork.value = true;
   let sourceUrl: string | undefined;
   try {
@@ -102,6 +109,9 @@ async function onThumbnailFile(event: Event): Promise<void> {
       image.onerror = () => reject(new Error('Unable to decode artwork'));
       image.src = imageUrl;
     });
+
+    if (!isCurrent())
+      return;
 
     if (image.naturalWidth < 1 || image.naturalHeight < 1)
       throw new Error('Artwork has no pixels');
@@ -142,6 +152,8 @@ async function onThumbnailFile(event: Event): Promise<void> {
           height: Math.max(1, Math.ceil(height / 2)),
         }),
       ]);
+      if (!isCurrent())
+        return;
       thumb.value.primaryColor = full.hex;
       thumb.value.secondaryColor = topLeft.hex;
       thumb.value.tertiaryColor = bottomRight.hex;
@@ -149,6 +161,8 @@ async function onThumbnailFile(event: Event): Promise<void> {
       thumb.value.highContrastColor = full.isDark ? '#ffffff' : '#000000';
     }
     catch (error) {
+      if (!isCurrent())
+        return;
       console.warn('[WE Dev] Unable to extract thumbnail colors', error);
       toast('Artwork converted to PNG, but its palette could not be extracted.');
     }
@@ -157,6 +171,8 @@ async function onThumbnailFile(event: Event): Promise<void> {
     }
   }
   catch (error) {
+    if (!isCurrent())
+      return;
     console.warn('[WE Dev] Unable to prepare thumbnail', error);
     toast(
       'Unable to decode or convert that image. Choose a format supported by this browser.',
@@ -165,8 +181,10 @@ async function onThumbnailFile(event: Event): Promise<void> {
   finally {
     if (sourceUrl)
       URL.revokeObjectURL(sourceUrl);
-    input.value = '';
-    preparingArtwork.value = false;
+    if (isCurrent()) {
+      input.value = '';
+      preparingArtwork.value = false;
+    }
   }
 }
 </script>

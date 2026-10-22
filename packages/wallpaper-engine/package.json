@@ -20,6 +20,7 @@
     "vite plugin",
     "typescript"
   ],
+  "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -53,6 +54,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest",
     "test:run": "vitest run",
+    "test:package": "vitest run --config vitest.package.config.ts",
     "test:coverage": "vitest run --coverage",
     "prepublishOnly": "bun run --cwd ../.. build && node -e \"for (const file of ['README.md', 'LICENSE']) require('fs').copyFileSync('../../' + file, file)\""
   },

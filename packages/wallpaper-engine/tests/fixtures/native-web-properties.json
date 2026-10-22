@@ -1,0 +1,73 @@
+{
+  "hostVersion": "2.8.42",
+  "scenario": "Fresh web project with audio support and no configured scheme color, captured through native CEF callbacks in an isolated preview window.",
+  "properties": {
+    "audioprocessing": {
+      "icon": "fa-microphone",
+      "order": -21,
+      "text": "ui_browse_properties_audio_recording",
+      "type": "bool",
+      "value": true
+    },
+    "schemecolor": {
+      "icon": "fa-palette",
+      "order": -20,
+      "text": "ui_browse_properties_scheme_color",
+      "type": "color",
+      "value": "0.5 0.5 0.5"
+    },
+    "alignmentfliph": {
+      "icon": "fa-exchange",
+      "order": -12,
+      "text": "ui_browse_properties_alignment_flip_horizontally",
+      "type": "bool",
+      "value": false
+    },
+    "wec_e": {
+      "order": -8,
+      "text": "ui_browse_properties_show_color_options",
+      "type": "bool",
+      "value": false
+    },
+    "wec_brs": {
+      "condition": "wec_e.value",
+      "icon": "fa-sun",
+      "max": 100,
+      "min": 0,
+      "order": -7,
+      "text": "ui_browse_properties_brightness",
+      "type": "slider",
+      "value": 50
+    },
+    "wec_con": {
+      "condition": "wec_e.value",
+      "icon": "fa-adjust",
+      "max": 100,
+      "min": 0,
+      "order": -6,
+      "text": "ui_browse_properties_contrast",
+      "type": "slider",
+      "value": 50
+    },
+    "wec_sa": {
+      "condition": "wec_e.value",
+      "icon": "fa-tint",
+      "max": 100,
+      "min": 0,
+      "order": -5,
+      "text": "ui_browse_properties_saturation",
+      "type": "slider",
+      "value": 50
+    },
+    "wec_hue": {
+      "condition": "wec_e.value",
+      "icon": "fa-palette",
+      "max": 100,
+      "min": 0,
+      "order": -4,
+      "text": "ui_browse_properties_hue_shift",
+      "type": "slider",
+      "value": 50
+    }
+  }
+}

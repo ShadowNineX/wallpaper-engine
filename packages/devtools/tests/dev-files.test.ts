@@ -204,6 +204,77 @@ describe('browser development file picker', () => {
     expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:local/1');
   });
 
+  it('keeps the previous directory usable and rolls back new URLs when refresh allocation fails', async () => {
+    vi.useFakeTimers();
+    const initialCover = directoryFile(
+      new Uint8Array([1]),
+      'cover.png',
+      'Gallery/cover.png',
+      10,
+    );
+    const initialBackdrop = directoryFile(
+      new Uint8Array([2]),
+      'backdrop.png',
+      'Gallery/backdrop.png',
+      20,
+    );
+    const changedCover = directoryFile(
+      new Uint8Array([3]),
+      'cover.png',
+      'Gallery/cover.png',
+      30,
+    );
+    const changedBackdrop = directoryFile(
+      new Uint8Array([4]),
+      'backdrop.png',
+      'Gallery/backdrop.png',
+      40,
+    );
+    const retryCover = directoryFile(
+      new Uint8Array([1]),
+      'cover.png',
+      'Gallery/cover.png',
+      10,
+    );
+    const retryBackdrop = directoryFile(
+      new Uint8Array([2]),
+      'backdrop.png',
+      'Gallery/backdrop.png',
+      20,
+    );
+    installPicker(
+      [initialCover, initialBackdrop],
+      [changedCover, changedBackdrop],
+      [retryCover, retryBackdrop],
+    );
+    createObjectURLMock.mockImplementationOnce(() => 'blob:local/1')
+      .mockImplementationOnce(() => 'blob:local/2')
+      .mockImplementationOnce(() => 'blob:local/3')
+      .mockImplementationOnce(() => {
+        throw new Error('Allocation failed');
+      });
+    const { pickDevDirectory, refreshDevDirectory } = await import(
+      '../src/dev-files',
+    );
+    const initial = await pickDevDirectory('image');
+    if (!initial)
+      throw new Error('Expected the directory picker to resolve.');
+
+    await expect(refreshDevDirectory(initial.id, 'image')).rejects.toThrow('Allocation failed');
+    vi.runAllTimers();
+
+    expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:local/3');
+    expect(revokeObjectURLMock).not.toHaveBeenCalledWith('blob:local/1');
+    expect(revokeObjectURLMock).not.toHaveBeenCalledWith('blob:local/2');
+
+    const retry = await refreshDevDirectory(initial.id, 'image');
+
+    expect(retry?.files.map(file => file.url)).toEqual(
+      initial.files.map(file => file.url),
+    );
+    expect(createObjectURLMock).toHaveBeenCalledTimes(4);
+  });
+
   it('returns an empty image directory when the folder has no matching media', async () => {
     const video = directoryFile(
       new Uint8Array([2]),

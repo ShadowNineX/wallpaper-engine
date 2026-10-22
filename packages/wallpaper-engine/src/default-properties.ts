@@ -13,18 +13,21 @@ import type { DefaultWEProps as DefaultWEPropertyDefinitions } from './types/def
 export const DefaultWEProps: Required<DefaultWEPropertyDefinitions> = {
   audioprocessing: {
     type: 'bool',
-    order: -30,
-    text: 'ui_browse_properties_audioprocessing',
+    order: -21,
+    text: 'ui_browse_properties_audio_recording',
+    icon: 'fa-microphone',
     value: true,
   },
   schemecolor: {
     type: 'color',
     order: -20,
+    icon: 'fa-palette',
     text: 'ui_browse_properties_scheme_color',
-    value: '0 0 0',
+    value: '0.5 0.5 0.5',
   },
   alignmentfliph: {
     type: 'bool',
+    icon: 'fa-exchange',
     order: -12,
     text: 'ui_browse_properties_alignment_flip_horizontally',
     value: false,
@@ -37,6 +40,7 @@ export const DefaultWEProps: Required<DefaultWEPropertyDefinitions> = {
   },
   wec_brs: {
     type: 'slider',
+    icon: 'fa-sun',
     condition: 'wec_e.value',
     min: 0,
     max: 100,
@@ -46,6 +50,7 @@ export const DefaultWEProps: Required<DefaultWEPropertyDefinitions> = {
   },
   wec_con: {
     type: 'slider',
+    icon: 'fa-adjust',
     condition: 'wec_e.value',
     min: 0,
     max: 100,
@@ -55,6 +60,7 @@ export const DefaultWEProps: Required<DefaultWEPropertyDefinitions> = {
   },
   wec_sa: {
     type: 'slider',
+    icon: 'fa-tint',
     condition: 'wec_e.value',
     min: 0,
     max: 100,
@@ -64,6 +70,7 @@ export const DefaultWEProps: Required<DefaultWEPropertyDefinitions> = {
   },
   wec_hue: {
     type: 'slider',
+    icon: 'fa-palette',
     condition: 'wec_e.value',
     min: 0,
     max: 100,

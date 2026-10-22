@@ -25,14 +25,26 @@ export const cfg: DevtoolsConfig = globalThis.window.__WE_DEVTOOLS_CONFIG__ ?? {
 };
 
 const { audioprocessing, ...defaultProperties } = DefaultWEProps;
+
+function normalizeRuntimeProperties(properties: DevtoolsConfig['properties']): DevtoolsConfig['properties'] {
+  return Object.fromEntries(
+    Object.entries(properties).map(([key, definition], index) => [
+      key,
+      Object.hasOwn(DefaultWEProps, key)
+        ? definition
+        : { ...definition, order: 100 + (definition.order ?? index) },
+    ]),
+  );
+}
+
 export const propDefs: Record<string, WallpaperPropertyDefinition> = {
   ...defaultProperties,
   ...(cfg.supportsAudioProcessing !== false ? { audioprocessing } : {}),
-  ...cfg.properties,
+  ...normalizeRuntimeProperties(cfg.properties),
 };
 
 const defaultLabels: Record<string, string> = {
-  ui_browse_properties_audioprocessing: 'Audio recording',
+  ui_browse_properties_audio_recording: 'Audio recording',
   ui_browse_properties_scheme_color: 'Scheme color',
   ui_browse_properties_alignment_flip_horizontally: 'Flip',
   ui_browse_properties_show_color_options: 'Show color options',

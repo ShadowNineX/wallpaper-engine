@@ -141,6 +141,60 @@ describe('sliderProperty', () => {
     });
     expect(prop.step).toBe(0.05);
   });
+
+  it.each(['value', 'min', 'max', 'step', 'precision'] as const)(
+    'rejects NaN and infinities for %s',
+    (field) => {
+      for (const invalidValue of [
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+        Number.NEGATIVE_INFINITY,
+      ]) {
+        expect(() => sliderProperty({
+          text: 'S',
+          value: 0.5,
+          min: 0,
+          max: 1,
+          [field]: invalidValue,
+        })).toThrow(TypeError);
+      }
+    },
+  );
+
+  it.each([
+    ['a negative precision', { precision: -1 }],
+    ['a fractional precision', { precision: 1.5 }],
+    ['a zero explicit step', { step: 0 }],
+    ['a negative explicit step', { step: -0.1 }],
+    ['a precision whose derived step underflows', { precision: 324 }],
+  ])('rejects %s', (_description, invalid) => {
+    expect(() => sliderProperty({
+      text: 'S',
+      value: 0.5,
+      min: 0,
+      max: 1,
+      ...invalid,
+    })).toThrow(RangeError);
+  });
+});
+
+describe('property builder runtime discriminants', () => {
+  it.each([
+    { type: 'bool', builder: boolProperty, options: { text: 'Bool', value: true, type: 'slider' } },
+    { type: 'combo', builder: comboProperty, options: { text: 'Combo', value: 'a', options: [], type: 'bool' } },
+    { type: 'textinput', builder: textInputProperty, options: { text: 'Text', value: 'a', type: 'bool' } },
+    { type: 'file', builder: fileProperty, options: { text: 'File', value: '', type: 'bool' } },
+    { type: 'directory', builder: directoryProperty, options: { text: 'Directory', value: '', type: 'bool' } },
+    { type: 'group', builder: groupProperty, options: { text: 'Group', type: 'bool' } },
+    { type: 'divider', builder: dividerProperty, options: { text: 'Divider', type: 'bool' } },
+  ] as const)('keeps the advertised $type type against JavaScript input', ({ builder, options, type }) => {
+    expect(builder(options as never).type).toBe(type);
+  });
+
+  it('keeps the color type while normalizing JavaScript input', () => {
+    expect(colorProperty({ text: 'Color', value: '#ff0000', type: 'bool' } as never))
+      .toMatchObject({ type: 'color', value: '1 0 0' });
+  });
 });
 
 describe('boolProperty', () => {
@@ -284,6 +338,12 @@ interface GenerateBundlePlugin {
   generateBundle?: unknown;
 }
 
+type GenerateBundleHook = (
+  this: { emitFile: (file: unknown) => void },
+  outputOptions: unknown,
+  bundle: TestOutputBundle,
+) => void;
+
 type TestOutputBundle = Record<
   string,
   | { type: 'chunk'; fileName: string; code: string }
@@ -294,6 +354,14 @@ function runGenerateBundle(
   plugin: GenerateBundlePlugin,
   bundle: TestOutputBundle = {},
 ) {
+  const outputBundle: TestOutputBundle = {
+    'index.html': {
+      type: 'asset',
+      fileName: 'index.html',
+      source: '<main>Wallpaper</main>',
+    },
+    ...bundle,
+  };
   const emitted: { fileName: string; source: string | Uint8Array }[] = [];
 
   (plugin.generateBundle as any).call(
@@ -303,7 +371,7 @@ function runGenerateBundle(
       },
     },
     {},
-    bundle,
+    outputBundle,
   );
   const projectFile = emitted.find(file => file.fileName === 'project.json');
   if (!projectFile || typeof projectFile.source !== 'string')
@@ -358,6 +426,13 @@ describe('wallpaperEnginePlugin', () => {
   it('respects a custom file option', () => {
     const { project } = runGenerateBundle(
       wallpaperEnginePlugin({ title: 'T', file: 'main.html' }),
+      {
+        'main.html': {
+          type: 'asset',
+          fileName: 'main.html',
+          source: '<main>Wallpaper</main>',
+        },
+      },
     );
     expect(project.file).toBe('main.html');
   });
@@ -467,7 +542,13 @@ describe('wallpaperEnginePlugin', () => {
       },
     } as never);
 
-    const { project } = runGenerateBundle(plugin);
+    const { project } = runGenerateBundle(plugin, {
+      'generated.html': {
+        type: 'asset',
+        fileName: 'generated.html',
+        source: '<main>Wallpaper</main>',
+      },
+    });
     expect(project).toEqual({
       description: 'option',
       visibility: 'previous-visibility',
@@ -833,6 +914,58 @@ describe('wallpaperEnginePlugin', () => {
     expect(project.general.properties.stepped.step).toBe(0.05);
   });
 
+  it.each([
+    ['slider value', { type: 'slider', text: 'Raw', value: Number.NaN, min: 0, max: 1 }, 'value'],
+    ['slider max', { type: 'slider', text: 'Raw', value: 0, min: 0, max: Number.POSITIVE_INFINITY }, 'max'],
+    ['slider precision', { type: 'slider', text: 'Raw', value: 0, min: 0, max: 1, precision: Number.NEGATIVE_INFINITY }, 'precision'],
+    ['boolean order', { type: 'bool', text: 'Raw', value: true, order: Number.NaN }, 'order'],
+  ])('rejects a non-finite raw %s before emitting project assets', (_description, rawProperty, field) => {
+    const plugin = wallpaperEnginePlugin({
+      title: 'T',
+      properties: { raw: rawProperty } as Record<string, WallpaperPropertyDefinition>,
+    });
+    const emitted: unknown[] = [];
+
+    const generateBundle = plugin.generateBundle as GenerateBundleHook;
+    expect(() => generateBundle.call(
+      { emitFile: (file: unknown) => emitted.push(file) },
+      {},
+      {
+        'index.html': {
+          type: 'asset',
+          fileName: 'index.html',
+          source: '<main>Wallpaper</main>',
+        },
+      },
+    )).toThrow(new TypeError(`project.json field "${field}" must be a finite number.`));
+    expect(emitted).toEqual([]);
+  });
+
+  it('emits raw finite zero values without changing them', () => {
+    const { project } = runGenerateBundle(wallpaperEnginePlugin({
+      title: 'T',
+      properties: {
+        raw: {
+          type: 'slider',
+          text: 'Raw',
+          value: 0,
+          min: 0,
+          max: 0,
+          precision: 0,
+          order: 0,
+        },
+      },
+    }));
+
+    expect(project.general.properties.raw).toMatchObject({
+      value: 0,
+      min: 0,
+      max: 0,
+      precision: 0,
+      order: 0,
+    });
+  });
+
   it('emits normalized Color.js values in project.json', () => {
     const { project } = runGenerateBundle(
       wallpaperEnginePlugin({
@@ -1195,13 +1328,13 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
 
     expect(first).toContain('window.__WE_DEVTOOLS_ROLE__ = \'runtime\';');
     expect(first).toContain('window.__WE_DEVTOOLS_FRONTEND_URL__ = "/__wallpaper-engine-devtools__/";');
-    expect(first).toContain('window.__WE_DEVTOOLS_CONFIG__ = {\"title\":\"Configured\"');
+    expect(first).toContain('window.__WE_DEVTOOLS_CONFIG__ = JSON.parse(');
     expect(first).not.toContain('__WE_DEV_FILES_TOKEN__');
-    expect(first).toContain('\"mode\":{\"index\":0,\"order\":0,\"type\":\"combo\"');
+    expect(first).toContain('\\\"mode\\\":{');
     expect(first).toContain('globalThis.__DEVTOOLS_CLIENT_LOADED__ = true;');
     expect(second).toBe(first);
     expect(frontend).toContain('window.__WE_DEVTOOLS_ROLE__ = \'frontend\';');
-    expect(frontend).toContain('window.__WE_DEVTOOLS_CONFIG__ = {\"title\":\"Configured\"');
+    expect(frontend).toContain('window.__WE_DEVTOOLS_CONFIG__ = JSON.parse(');
     expect(readFileMock).toHaveBeenCalledOnce();
   });
 
@@ -1265,8 +1398,70 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
       {} as never,
     );
 
-    expect(module).toContain('\\u003C/script>\\u003Cscript>broken()\\u003C/script>');
+    expect(module).toContain('JSON.parse(');
     expect(module).not.toContain('</script>');
+  });
+
+  it('rejects non-finite raw devtools configuration values', async () => {
+    const plugin = wallpaperEnginePlugin({
+      title: 'T',
+      properties: {
+        raw: { type: 'bool', text: 'Raw', value: true, order: Number.NaN },
+      } as Record<string, WallpaperPropertyDefinition>,
+    });
+    if (typeof plugin.configResolved !== 'function' || typeof plugin.load !== 'function')
+      throw new TypeError('plugin hooks are not callable');
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+
+    await expect(plugin.load.call(
+      {} as never,
+      '\0virtual:wallpaper-engine/devtools',
+      {} as never,
+    ))
+      .rejects
+      .toThrow('project.json field "order" must be a finite number.');
+  });
+
+  it('preserves a __proto__ property as devtools configuration data', async () => {
+    const properties = Object.create(null) as Record<string, WallpaperPropertyDefinition>;
+    Object.defineProperty(properties, '__proto__', {
+      configurable: true,
+      enumerable: true,
+      value: { type: 'bool', text: 'Prototype', value: true },
+    });
+    const plugin = wallpaperEnginePlugin({
+      title: 'T',
+      properties,
+    });
+    if (typeof plugin.configResolved !== 'function' || typeof plugin.load !== 'function')
+      throw new TypeError('plugin hooks are not callable');
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+    const code = await plugin.load.call({} as never, '\0virtual:wallpaper-engine/devtools', {} as never);
+    if (typeof code !== 'string')
+      throw new TypeError('Expected devtools JavaScript');
+    const window = {} as { __WE_DEVTOOLS_CONFIG__?: { properties: object } };
+    runInNewContext(code, { window, globalThis: {} });
+
+    expect(Object.hasOwn(window.__WE_DEVTOOLS_CONFIG__?.properties ?? {}, '__proto__')).toBe(true);
+  });
+
+  it('rejects a schemeColor that conflicts with an explicit schemecolor property', async () => {
+    const plugin = wallpaperEnginePlugin({
+      title: 'T',
+      schemeColor: '#ff0000',
+      properties: { schemecolor: boolProperty({ text: 'Conflict', value: true }) },
+    });
+    expect(() => runGenerateBundle(plugin)).toThrow(/schemeColor cannot be used/);
+    if (typeof plugin.configResolved !== 'function' || typeof plugin.load !== 'function')
+      throw new TypeError('plugin hooks are not callable');
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+    await expect(plugin.load.call(
+      {} as never,
+      '\0virtual:wallpaper-engine/devtools',
+      {} as never,
+    ))
+      .rejects
+      .toThrow(/schemeColor cannot be used/);
   });
 
   it('watches the bundled client, invalidates its module, and reloads the page', async () => {
@@ -1307,6 +1502,102 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     expect(send).toHaveBeenCalledWith({ type: 'full-reload' });
 
     onServerClose?.();
+    expect(unwatchFileMock).toHaveBeenCalledOnce();
+    expect(unwatchFileMock).toHaveBeenCalledWith(
+      expect.any(String),
+      onClientChange,
+    );
+  });
+
+  it('cleans middleware-mode client watchers from closeBundle', async () => {
+    let onClientChange: (() => void) | undefined;
+    watchFileMock.mockImplementation((_path, _options, callback) => {
+      onClientChange = callback;
+    });
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (
+      typeof plugin.configureServer !== 'function'
+      || typeof plugin.configResolved !== 'function'
+      || typeof plugin.closeBundle !== 'function'
+    ) {
+      throw new TypeError('plugin lifecycle hooks are not callable');
+    }
+
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+    await plugin.configureServer.call({} as never, {
+      moduleGraph: { getModuleById: vi.fn(), invalidateModule: vi.fn() },
+      ws: { send: vi.fn() },
+      middlewares: { use: vi.fn() },
+      httpServer: null,
+    } as never);
+
+    plugin.closeBundle.call({} as never);
+    expect(unwatchFileMock).toHaveBeenCalledWith(expect.any(String), onClientChange);
+  });
+
+  it('keeps another plugin instance watching the shared client after cleanup', async () => {
+    const callbacks: Array<() => void> = [];
+    watchFileMock.mockImplementation((_path, _options, callback) => {
+      callbacks.push(callback);
+    });
+    const first = wallpaperEnginePlugin({ title: 'First' });
+    const second = wallpaperEnginePlugin({ title: 'Second' });
+    if (
+      typeof first.configureServer !== 'function'
+      || typeof first.configResolved !== 'function'
+      || typeof first.closeBundle !== 'function'
+      || typeof second.configureServer !== 'function'
+      || typeof second.configResolved !== 'function'
+    ) {
+      throw new TypeError('plugin lifecycle hooks are not callable');
+    }
+    const firstInvalidate = vi.fn();
+    const secondInvalidate = vi.fn();
+    const firstSend = vi.fn();
+    const secondSend = vi.fn();
+    const createServer = (invalidateModule: ReturnType<typeof vi.fn>, send: ReturnType<typeof vi.fn>) => ({
+      moduleGraph: { getModuleById: vi.fn(() => ({ id: 'virtual' })), invalidateModule },
+      ws: { send },
+      middlewares: { use: vi.fn() },
+      httpServer: null,
+    });
+
+    first.configResolved.call({} as never, { command: 'serve' } as never);
+    second.configResolved.call({} as never, { command: 'serve' } as never);
+    await first.configureServer.call({} as never, createServer(firstInvalidate, firstSend) as never);
+    await second.configureServer.call({} as never, createServer(secondInvalidate, secondSend) as never);
+    expect(callbacks).toHaveLength(2);
+
+    first.closeBundle.call({} as never);
+    expect(unwatchFileMock).toHaveBeenCalledWith(expect.any(String), callbacks[0]);
+
+    callbacks[1]?.();
+    expect(secondInvalidate).toHaveBeenCalledTimes(2);
+    expect(secondSend).toHaveBeenCalledWith({ type: 'full-reload' });
+    expect(firstInvalidate).not.toHaveBeenCalled();
+    expect(firstSend).not.toHaveBeenCalled();
+  });
+
+  it('cleans a normal-server client watcher only once across close lifecycle hooks', async () => {
+    let onServerClose: (() => void) | undefined;
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (
+      typeof plugin.configureServer !== 'function'
+      || typeof plugin.configResolved !== 'function'
+      || typeof plugin.closeBundle !== 'function'
+    ) {
+      throw new TypeError('plugin lifecycle hooks are not callable');
+    }
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+    await plugin.configureServer.call({} as never, {
+      moduleGraph: { getModuleById: vi.fn(), invalidateModule: vi.fn() },
+      ws: { send: vi.fn() },
+      middlewares: { use: vi.fn() },
+      httpServer: { once: vi.fn((_event, callback) => { onServerClose = callback; }) },
+    } as never);
+
+    onServerClose?.();
+    plugin.closeBundle.call({} as never);
     expect(unwatchFileMock).toHaveBeenCalledOnce();
   });
 

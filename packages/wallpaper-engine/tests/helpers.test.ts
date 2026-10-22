@@ -271,10 +271,44 @@ describe('average color extraction', () => {
 // ---------------------------------------------------------------------------
 
 describe('toFileUrl', () => {
-  it('prepends file:///', () => {
-    expect(toFileUrl('C:/images/photo.jpg')).toBe(
-      'file:///C:/images/photo.jpg',
-    );
+  it('decodes native encoded-drive paths once before building file URLs', () => {
+    const url = new URL(toFileUrl('C%3A/Images/native%20%23%20caf%C3%A9%20%2520.jpg'));
+
+    expect(url.href).toBe('file:///C:/Images/native%20%23%20caf%C3%A9%20%2520.jpg');
+    expect(url.hash).toBe('');
+    expect(decodeURIComponent(url.pathname)).toBe('/C:/Images/native # café %20.jpg');
+    expect(toFileUrl('c%3a/Images/cover.png')).toBe('file:///c:/Images/cover.png');
+  });
+
+  it('preserves literal percent sequences in raw drive paths', () => {
+    const url = new URL(toFileUrl('C:/Images/literal%20%23.jpg'));
+
+    expect(url.href).toBe('file:///C:/Images/literal%2520%2523.jpg');
+    expect(decodeURIComponent(url.pathname)).toBe('/C:/Images/literal%20%23.jpg');
+  });
+
+  it('rejects malformed native encoded-drive paths', () => {
+    expect(() => toFileUrl('C%3A/Images/broken%file.jpg')).toThrow(URIError);
+  });
+
+  it('encodes raw Windows paths as file URLs without creating URL fragments', () => {
+    const url = new URL(toFileUrl('C:\\images\\space % # café.png'));
+
+    expect(url.pathname).toBe('/C:/images/space%20%25%20%23%20caf%C3%A9.png');
+    expect(url.hash).toBe('');
+    expect(decodeURIComponent(url.pathname)).toBe('/C:/images/space % # café.png');
+  });
+
+  it.each([
+    ['backslashes', String.raw`\\server\share\space %# café.png`],
+    ['forward slashes', '//server/share/space %# café.png'],
+  ])('converts UNC paths with %s to encoded file hosts', (_label, path) => {
+    const url = new URL(toFileUrl(path));
+
+    expect(url.href).toBe('file://server/share/space%20%25%23%20caf%C3%A9.png');
+    expect(url.host).toBe('server');
+    expect(url.hash).toBe('');
+    expect(decodeURIComponent(url.pathname)).toBe('/share/space %# café.png');
   });
 
   it('preserves URLs that are already browser-loadable', () => {
@@ -514,6 +548,26 @@ describe('createFpsLimiter', () => {
     const loop = createFpsLimiter(() => {});
     expect(() => loop.setLimit(60)).not.toThrow();
     expect(() => loop.setLimit(0)).not.toThrow();
+  });
+
+  it.each([
+    { label: 'NaN', value: Number.NaN, error: TypeError },
+    { label: 'positive infinity', value: Number.POSITIVE_INFINITY, error: TypeError },
+    { label: 'negative infinity', value: Number.NEGATIVE_INFINITY, error: TypeError },
+    { label: 'negative limit', value: -1, error: RangeError },
+  ])('rejects $label without changing the active frame cap', ({ value, error }) => {
+    const harness = createRafHarness();
+    const draw = vi.fn();
+    const limiter = createFpsLimiter(draw);
+    limiter.setLimit(10);
+    limiter.start();
+    harness.step(50);
+    expect(() => limiter.setLimit(value)).toThrow(error);
+    harness.step(60);
+    expect(draw).not.toHaveBeenCalled();
+    harness.step(100);
+    expect(draw).toHaveBeenCalledOnce();
+    expect(draw).toHaveBeenCalledWith(0.1);
   });
 
   it('draws each requested frame when unlimited and caps long frame deltas', () => {

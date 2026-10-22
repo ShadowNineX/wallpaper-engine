@@ -4,6 +4,7 @@ import { getActivePinia, setActivePinia } from 'pinia';
 import Value from 'typebox/value';
 import { watch } from 'vue';
 import { audioSettings, audioState, lastFrame, setAudioMode } from '../audio';
+import { withCallbackPinia } from '../callbacks';
 import { propDefs } from '../config';
 import { acceptDevDirectory, acceptDevFile, releaseDevDirectory, releaseDevFile } from '../dev-files';
 import { installGlobals } from '../globals';
@@ -22,6 +23,13 @@ export function applyDraftUpdate(store: SimulatorStore, patch: import('./protoco
   applyDraft(store, applyDraftPatch(makeDraft(store.$state), patch));
 }
 
+function cloneRecord<T>(record: Record<string, T>): Record<string, T> {
+  const clone = Object.create(null) as Record<string, T>;
+  for (const [key, value] of Object.entries(record))
+    clone[key] = Value.Clone(value);
+  return clone;
+}
+
 function executeAction(store: SimulatorStore, call: ActionCall): void {
   switch (call.name) {
     case 'deliverProperty':
@@ -31,7 +39,7 @@ function executeAction(store: SimulatorStore, call: ActionCall): void {
       return;
     case 'clearFileSelection': {
       const key = call.args[0];
-      if (propDefs[key]?.type !== 'file')
+      if (!Object.hasOwn(propDefs, key) || propDefs[key]?.type !== 'file')
         throw new TypeError('Unknown wallpaper property.');
       const previous = store.currentValues[key]?.value;
       store.clearFileSelection(key);
@@ -41,7 +49,7 @@ function executeAction(store: SimulatorStore, call: ActionCall): void {
     }
     case 'clearDirectorySelection': {
       const key = call.args[0];
-      if (propDefs[key]?.type !== 'directory')
+      if (!Object.hasOwn(propDefs, key) || propDefs[key]?.type !== 'directory')
         throw new TypeError('Unknown wallpaper property.');
       const previous = store.directorySelections[key]?.id;
       store.clearDirectorySelection(key);
@@ -82,7 +90,7 @@ function executeAction(store: SimulatorStore, call: ActionCall): void {
 }
 
 function executeFileSelection(store: SimulatorStore, command: Extract<Command, { type: 'select-file' }>): void {
-  if (propDefs[command.key]?.type !== 'file')
+  if (!Object.hasOwn(propDefs, command.key) || propDefs[command.key]?.type !== 'file')
     throw new TypeError('Unknown wallpaper property.');
   const previous = store.currentValues[command.key]?.value;
   const accepted = acceptDevFile(command.selection);
@@ -94,7 +102,7 @@ function executeFileSelection(store: SimulatorStore, command: Extract<Command, {
 }
 
 function executeDirectorySelection(store: SimulatorStore, command: Extract<Command, { type: 'select-directory' }>): void {
-  if (propDefs[command.key]?.type !== 'directory')
+  if (!Object.hasOwn(propDefs, command.key) || propDefs[command.key]?.type !== 'directory')
     throw new TypeError('Unknown wallpaper property.');
   const previousDirectoryId = store.directorySelections[command.key]?.id;
   store.setDirectorySelection(command.key, acceptDevDirectory(command.selection, previousDirectoryId));
@@ -127,18 +135,66 @@ export function executeCommand(store: SimulatorStore, command: Command): void {
 }
 
 export function createBackend(pinia: Pinia, shell: (command: Extract<Command, { type: 'shell' | 'shell-drag' }>) => void) {
-  const store = useDevtoolsStore(pinia);
-  const removeGlobals = installGlobals(pinia);
+  const previousPinia = getActivePinia();
+  const { store, removeGlobals } = (() => {
+    try {
+      return {
+        store: useDevtoolsStore(pinia),
+        removeGlobals: installGlobals(pinia),
+      };
+    }
+    finally {
+      if (getActivePinia() === pinia)
+        setActivePinia(previousPinia);
+    }
+  })();
   const ports = new Map<MessagePort, HostSnapshot>();
   let revision = 0;
   let placement: DockPlacement = 'right';
   let detached = false;
   let disposed = false;
   let scheduled = false;
-  const snapshot = (): HostSnapshot => HostSnapshotValidator.Parse(Value.Clean(
-    HostSnapshotSchema,
-    Value.Clone({ state: store.$state, audioMode: audioState.mode, audioSettings, placement, detached }),
-  ));
+  const snapshot = (): HostSnapshot => {
+    const currentValues = Object.create(null) as Record<string, unknown>;
+    for (const [key, value] of Object.entries(store.currentValues)) {
+      currentValues[key] = Value.Clone(
+        propDefs[key]?.type === 'file' || propDefs[key]?.type === 'directory'
+          ? { value: store.propertyDisplayPaths[key] ?? '' }
+          : value,
+      );
+    }
+    const directorySelections = Object.create(null) as Record<string, { id: string; path: string }>;
+    for (const [key, selection] of Object.entries(store.directorySelections))
+      directorySelections[key] = { id: selection.id, path: selection.path };
+    const cleaned = Value.Clean(HostSnapshotSchema, Value.Clone({
+      state: {
+        listenerCounts: Value.Clone(store.listenerCounts),
+        currentValues: {},
+        propertyDisplayPaths: {},
+        general: Value.Clone(store.general),
+        directorySelections: {},
+        mediaActive: store.mediaActive,
+        lastPlaybackState: store.lastPlaybackState,
+        mediaProps: Value.Clone(store.mediaProps),
+        mediaTimeline: Value.Clone(store.mediaTimeline),
+        mediaThumb: Value.Clone(store.mediaThumb),
+      },
+      audioMode: audioState.mode,
+      audioSettings: Value.Clone(audioSettings),
+      placement,
+      detached,
+    })) as {
+      state: {
+        currentValues: unknown;
+        propertyDisplayPaths: unknown;
+        directorySelections: unknown;
+      };
+    };
+    cleaned.state.currentValues = currentValues;
+    cleaned.state.propertyDisplayPaths = cloneRecord(store.propertyDisplayPaths);
+    cleaned.state.directorySelections = directorySelections;
+    return HostSnapshotValidator.Parse(cleaned);
+  };
   const broadcast = (message: HostMessage): void => {
     for (const port of ports.keys())
       port.postMessage(message);
@@ -197,10 +253,9 @@ export function createBackend(pinia: Pinia, shell: (command: Extract<Command, { 
         const message = ClientMessageValidator.Parse(event.data);
         if (message.kind !== 'command')
           return;
+        const callerPinia = getActivePinia();
         try {
-          const previousPinia = getActivePinia();
-          setActivePinia(pinia);
-          try {
+          withCallbackPinia(store, pinia, callerPinia, () => {
             if (message.command.type === 'shell-drag') {
               if (message.draft.length > 0)
                 throw new TypeError('Drag commands cannot change simulator state.');
@@ -213,10 +268,7 @@ export function createBackend(pinia: Pinia, shell: (command: Extract<Command, { 
               else
                 executeCommand(store, message.command);
             }
-          }
-          finally {
-            setActivePinia(previousPinia);
-          }
+          });
           port.postMessage({ kind: 'result', id: message.id } satisfies HostMessage);
         }
         catch (error) {

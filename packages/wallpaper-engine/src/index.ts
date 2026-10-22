@@ -27,6 +27,7 @@ export type {
   WallpaperMediaTimelineEvent,
   WallpaperPluginListener,
   WallpaperPropertyListener,
+  WallpaperPropertyRuntimeDescriptor,
   WallpaperPropertyRuntimeValue,
   WallpaperSliderValue,
   WallpaperTextValue,

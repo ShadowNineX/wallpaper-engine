@@ -174,7 +174,7 @@ function tick(): void {
   FRAME_WRITERS[mode](frame, deltaSeconds);
   applyOutput(frame);
   lastFrame.value = frame;
-  for (const listener of listenerFns.audio) {
+  for (const listener of [...listenerFns.audio]) {
     try {
       listener(frame);
     }

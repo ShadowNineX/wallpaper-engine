@@ -73,6 +73,68 @@ async function loadStore() {
 }
 
 describe('devtools property state', () => {
+  it('retains reserved property names through initial, partial, file, directory, and reset flows', async () => {
+    vi.resetModules();
+    setActivePinia(createPinia());
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: Object.fromEntries([
+        ['__proto__', { type: 'slider', value: 2, min: 0, max: 5, step: 1, text: 'Prototype' }],
+        ['constructor', { type: 'file', value: 'C:/cover.png', text: 'Cover' }],
+        ['toString', { type: 'directory', value: 'C:/gallery', mode: 'ondemand', text: 'Gallery' }],
+      ]),
+      localization: {},
+    };
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+
+    for (const key of ['__proto__', 'constructor', 'toString']) {
+      expect(Object.hasOwn(store.currentValues, key)).toBe(true);
+    }
+    expect(Object.hasOwn(store.propertyDisplayPaths, 'constructor')).toBe(true);
+    expect(Object.hasOwn(store.propertyDisplayPaths, 'toString')).toBe(true);
+
+    store.deliverAllProperties(false);
+    const initialPayload = (applyUserProperties.mock.calls.at(-1)?.[0] ?? {}) as Record<string, unknown>;
+    const protoKey = '__proto__';
+    expect(Object.hasOwn(initialPayload, '__proto__')).toBe(true);
+    expect(initialPayload).toMatchObject({
+      constructor: { value: 'C:/cover.png' },
+      toString: { value: 'C:/gallery' },
+    });
+    expect(initialPayload[protoKey]).toEqual({ value: 2 });
+    store.deliverProperty('__proto__');
+    expect(Object.hasOwn(applyUserProperties.mock.calls.at(-1)?.[0] ?? {}, '__proto__')).toBe(true);
+
+    store.setFileSelection('constructor', {
+      id: 'cover',
+      name: 'cover.png',
+      path: 'cover.png',
+      relativePath: 'cover.png',
+      url: 'blob:cover',
+      size: 1,
+      mtimeMs: 1,
+    });
+    store.setDirectorySelection('toString', {
+      id: 'gallery',
+      path: 'Gallery',
+      files: [],
+    });
+    expect(Object.hasOwn(store.directoryFiles, 'toString')).toBe(true);
+    expect(Object.hasOwn(store.directorySelections, 'toString')).toBe(true);
+
+    store.resetPropertiesToDefaults();
+
+    expect(store.currentValues[protoKey]).toEqual({ value: 2 });
+    expect(store.currentValues).toMatchObject({
+      constructor: { value: 'C:/cover.png' },
+      toString: { value: 'C:/gallery' },
+    });
+    expect(Object.hasOwn(store.propertyDisplayPaths, 'constructor')).toBe(true);
+    expect(Object.hasOwn(store.propertyDisplayPaths, 'toString')).toBe(true);
+  });
+
   it('continues startup delivery and reports callback failures without throwing', async () => {
     const { listenerFns, useDevtoolsStore } = await loadStore();
     const error = new Error('broken wallpaper');
@@ -105,7 +167,7 @@ describe('devtools property state', () => {
     expect(store.currentValues).not.toHaveProperty('separator');
     expect(store.currentValues).toEqual({
       audioprocessing: { value: true },
-      schemecolor: { value: '0 0 0' },
+      schemecolor: { value: '0.5 0.5 0.5' },
       alignmentfliph: { value: false },
       wec_e: { value: false },
       wec_brs: { value: 50 },
@@ -146,7 +208,7 @@ describe('devtools property state', () => {
     expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty('gallery');
     expect(applyUserProperties.mock.calls[0]?.[0]).toMatchObject({
       audioprocessing: { value: true },
-      schemecolor: { value: '0 0 0' },
+      schemecolor: { value: '0.5 0.5 0.5' },
       alignmentfliph: { value: false },
       wec_e: { value: false },
       wec_brs: { value: 50 },
@@ -206,7 +268,7 @@ describe('devtools property state', () => {
     store.deliverProperty('audioprocessing');
     expect(applyUserProperties).toHaveBeenCalledOnce();
     expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty('audioprocessing');
-    expect(applyUserProperties.mock.calls[0]?.[0]).toHaveProperty('schemecolor', { value: '0 0 0' });
+    expect(applyUserProperties.mock.calls[0]?.[0]).toHaveProperty('schemecolor', { value: '0.5 0.5 0.5' });
   });
 
   it('replays fetch-all directory files through their dedicated callback', async () => {
@@ -356,7 +418,7 @@ describe('devtools property state', () => {
 
     expect(store.currentValues).toEqual({
       audioprocessing: { value: true },
-      schemecolor: { value: '0 0 0' },
+      schemecolor: { value: '0.5 0.5 0.5' },
       alignmentfliph: { value: false },
       wec_e: { value: false },
       wec_brs: { value: 50 },
@@ -512,6 +574,31 @@ describe('devtools media state', () => {
     );
     expect(playback).toHaveBeenCalledWith({ state: 1 });
     expect(timeline).toHaveBeenCalledWith({ position: 45, duration: 180 });
+  });
+
+  it('defers media listeners registered during delivery to their queued startup callback', async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const { installGlobals } = await import('../src/globals');
+    const removeGlobals = installGlobals();
+    try {
+      const later = vi.fn();
+      listenerFns.mediaProps.push(() => {
+        window.wallpaperRegisterMediaPropertiesListener(later);
+      });
+      const store = useDevtoolsStore();
+      store.mediaActive = true;
+
+      store.deliverAllMedia();
+
+      expect(later).not.toHaveBeenCalled();
+      await Promise.resolve();
+      expect(later).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ title: 'Test Track' }),
+      );
+    }
+    finally {
+      removeGlobals();
+    }
   });
 
   it('isolates listener failures so remaining callbacks still run', async () => {

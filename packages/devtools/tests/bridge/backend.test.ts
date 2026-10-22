@@ -124,6 +124,52 @@ describe('bridge backend', () => {
     expect(createObjectURL).not.toHaveBeenCalled();
   });
 
+  it('rejects inherited property types before selecting or clearing files and directories', async () => {
+    const [{ executeCommand }, { CommandValidator }, { useDevtoolsStore }] = await Promise.all([
+      import('../../src/bridge/backend'),
+      import('../../src/bridge/protocol'),
+      import('../../src/store'),
+    ]);
+    const createObjectURL = vi.spyOn(URL, 'createObjectURL');
+    const file = new File(['pixels'], 'cover.png', { type: 'image/png' });
+    const originalType = Object.getOwnPropertyDescriptor(Object.prototype, 'type');
+    const store = useDevtoolsStore();
+    try {
+      // eslint-disable-next-line no-extend-native
+      Object.defineProperty(Object.prototype, 'type', { configurable: true, value: 'file' });
+      expect(() => executeCommand(store, CommandValidator.Parse({
+        type: 'select-file',
+        key: 'unknown',
+        selection: { name: 'cover.png', files: [{ file, relativePath: 'cover.png' }] },
+      }))).toThrow('Unknown wallpaper property.');
+      expect(() => executeCommand(store, CommandValidator.Parse({
+        type: 'action',
+        call: { name: 'clearFileSelection', args: ['unknown'] },
+      }))).toThrow('Unknown wallpaper property.');
+
+      // eslint-disable-next-line no-extend-native
+      Object.defineProperty(Object.prototype, 'type', { configurable: true, value: 'directory' });
+      expect(() => executeCommand(store, CommandValidator.Parse({
+        type: 'select-directory',
+        key: 'unknown',
+        selection: { name: 'covers', files: [{ file, relativePath: 'cover.png' }] },
+      }))).toThrow('Unknown wallpaper property.');
+      expect(() => executeCommand(store, CommandValidator.Parse({
+        type: 'action',
+        call: { name: 'clearDirectorySelection', args: ['unknown'] },
+      }))).toThrow('Unknown wallpaper property.');
+
+      expect(createObjectURL).not.toHaveBeenCalled();
+    }
+    finally {
+      if (originalType)
+        // eslint-disable-next-line no-extend-native
+        Object.defineProperty(Object.prototype, 'type', originalType);
+      else
+        delete (Object.prototype as { type?: unknown }).type;
+    }
+  });
+
   it('projects snapshots without Blob URLs or host-owned directory file lists', async () => {
     const [{ createBackend }, { HostSnapshotValidator }] = await Promise.all([
       import('../../src/bridge/backend'),
@@ -132,6 +178,9 @@ describe('bridge backend', () => {
     const pinia = createPinia();
     const backend = createBackend(pinia, () => undefined);
     backend.store.currentValues.artwork = { value: 'blob:private-artwork' };
+    backend.store.propertyDisplayPaths.artwork = 'cover.png';
+    backend.store.currentValues.library = { value: 'Library' };
+    backend.store.propertyDisplayPaths.library = 'Library';
     backend.store.directoryFiles.library = ['blob:private-directory-file'];
     backend.store.directorySelections.library = {
       id: 'library-id',
@@ -142,7 +191,8 @@ describe('bridge backend', () => {
     const snapshot = backend.snapshot();
 
     expect(HostSnapshotValidator.Check(snapshot)).toBe(true);
-    expect(snapshot.state.currentValues).not.toHaveProperty('artwork');
+    expect(snapshot.state.currentValues.artwork).toEqual({ value: 'cover.png' });
+    expect(snapshot.state.currentValues.library).toEqual({ value: 'Library' });
     expect(snapshot.state).not.toHaveProperty('directoryFiles');
     expect(snapshot.state.directorySelections.library).toEqual({ id: 'library-id', path: 'Library' });
     expect(JSON.stringify(snapshot)).not.toContain('blob:private');
@@ -191,6 +241,55 @@ describe('bridge backend', () => {
     expect(port.postMessage).toHaveBeenLastCalledWith({ kind: 'disconnect' });
     expect(shell).not.toHaveBeenCalled();
     expect(getActivePinia()).toBe(outsidePinia);
+    backend.dispose();
+  });
+
+  it('keeps the wallpaper Pinia active for command callbacks and after command errors', async () => {
+    const { createBackend } = await import('../../src/bridge/backend');
+    const wallpaperPinia = createPinia();
+    const shell = vi.fn(() => {
+      throw new Error('Shell failed');
+    });
+    setActivePinia(wallpaperPinia);
+    const backend = createBackend(createPinia(), shell);
+    const applyGeneralProperties = vi.fn(() => getActivePinia() === wallpaperPinia);
+    window.wallpaperPropertyListener = { applyGeneralProperties };
+    const port = {
+      onmessage: null as ((event: MessageEvent<unknown>) => void) | null,
+      postMessage: vi.fn(),
+      start: vi.fn(),
+      close: vi.fn(),
+    };
+    const disconnect = backend.connect(port as unknown as MessagePort);
+
+    port.onmessage?.({
+      data: {
+        kind: 'command',
+        id: 1,
+        command: { type: 'action', call: { name: 'applyFps', args: [] } },
+        draft: [],
+      },
+    } as MessageEvent<unknown>);
+
+    expect(applyGeneralProperties).toHaveReturnedWith(true);
+    expect(getActivePinia()).toBe(wallpaperPinia);
+
+    port.onmessage?.({
+      data: {
+        kind: 'command',
+        id: 2,
+        command: { type: 'shell', action: 'right' },
+        draft: [],
+      },
+    } as MessageEvent<unknown>);
+
+    expect(port.postMessage).toHaveBeenLastCalledWith({
+      kind: 'result',
+      id: 2,
+      error: 'Shell failed',
+    });
+    expect(getActivePinia()).toBe(wallpaperPinia);
+    disconnect();
     backend.dispose();
   });
 

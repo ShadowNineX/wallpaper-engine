@@ -73,6 +73,31 @@ afterEach(async () => {
 });
 
 describe('wallpaper plugin preservation boundaries', () => {
+  it('rejects a missing project entry before a watched build completes', async () => {
+    const root = await createWallpaperRoot();
+    const watcher = await watchWallpaper(root, {
+      title: 'Missing watched entry',
+      file: 'missing.html',
+    });
+    let completed = false;
+    let failure: { error?: Error } | undefined;
+    watcher.on('event', (event) => {
+      if (event.code === 'BUNDLE_END')
+        completed = true;
+      if (event.code === 'ERROR')
+        failure = event as { error?: Error };
+    });
+    try {
+      await vi.waitFor(() => expect(failure?.error?.message).toMatch(/missing\.html.*was not emitted/i), {
+        timeout: 2000,
+      });
+      expect(completed).toBe(false);
+    }
+    finally {
+      await watcher.close();
+    }
+  });
+
   it('emits public preview bytes when Vite public copying is disabled', async () => {
     const root = await createWallpaperRoot();
     const preview = new Uint8Array([0, 1, 2, 253, 254, 255]);
@@ -127,6 +152,56 @@ describe('wallpaper plugin preservation boundaries', () => {
     await expect(readFile(join(root, 'metadata.json'), 'utf8')).resolves.toBe(metadata);
     await expect(readFile(join(outDir, 'project.json'), 'utf8')).resolves.toBe(project);
     expect([...await readFile(join(outDir, 'preview.jpg'))]).toEqual([...preview]);
+  });
+
+  it('rejects a nested preview-backup link escape without overwriting external bytes', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const externalRoot = join(root, 'external-preview-store');
+    const source = new Uint8Array([10, 11, 12]);
+    const external = new Uint8Array([99, 98, 97]);
+    const project = JSON.stringify({ preview: 'nested/preview.jpg', description: 'keep output' });
+    const metadata = JSON.stringify({ preview: 'nested/preview.jpg', description: 'keep metadata' });
+    await mkdir(join(outDir, 'nested'), { recursive: true });
+    await mkdir(join(root, 'metadata.assets'), { recursive: true });
+    await mkdir(externalRoot, { recursive: true });
+    await writeFile(join(outDir, 'project.json'), project);
+    await writeFile(join(outDir, 'nested', 'preview.jpg'), source);
+    await writeFile(join(root, 'metadata.json'), metadata);
+    await writeFile(join(externalRoot, 'preview.jpg'), external);
+    await createDirectoryLink(externalRoot, join(root, 'metadata.assets', 'nested'));
+
+    await expect(buildWallpaper(root, {
+      title: 'Rejected nested backup escape',
+      metadataFile: 'metadata.json',
+    })).rejects.toThrow(/must remain inside metadata preview backup root/);
+
+    expect([...await readFile(join(externalRoot, 'preview.jpg'))]).toEqual([...external]);
+    await expect(readFile(join(outDir, 'project.json'), 'utf8')).resolves.toBe(project);
+  });
+
+  it('allows an explicitly linked preview-backup root outside the build output', async () => {
+    const root = await createWallpaperRoot();
+    const outDir = join(root, 'dist');
+    const externalRoot = join(root, 'external-preview-store');
+    const source = new Uint8Array([10, 11, 12]);
+    await mkdir(join(outDir, 'nested'), { recursive: true });
+    await mkdir(join(externalRoot, 'nested'), { recursive: true });
+    await writeFile(
+      join(outDir, 'project.json'),
+      JSON.stringify({ preview: 'nested/preview.jpg' }),
+    );
+    await writeFile(join(outDir, 'nested', 'preview.jpg'), source);
+    await writeFile(join(root, 'metadata.json'), JSON.stringify({ preview: 'nested/preview.jpg' }));
+    await createDirectoryLink(externalRoot, join(root, 'metadata.assets'));
+
+    await buildWallpaper(root, {
+      title: 'Linked preview backup root',
+      metadataFile: 'metadata.json',
+    });
+
+    expect([...await readFile(join(externalRoot, 'nested', 'preview.jpg'))])
+      .toEqual([...source]);
   });
 
   it('settles after a source edit when imported metadata and preview bytes are unchanged', async () => {

@@ -81,6 +81,10 @@ default values; the matching definition type is exported from `wallpaper-engine`
 Every callback key remains optional. Devtools includes the built-ins and omits
 `audioprocessing` when `supportsAudioProcessing: false` is configured.
 
+Hardware APIs are optional until their plugins load. Wait for
+`wallpaperPluginListener.onPluginLoaded`, then guard `window.wpPlugins?.led`
+or `window.cue` before using them.
+
 ## Development
 
 Run workspace commands from the repository root with [Bun](https://bun.sh/):

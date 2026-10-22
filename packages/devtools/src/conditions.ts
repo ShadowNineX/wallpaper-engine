@@ -111,6 +111,8 @@ function evaluate(expression: Expression, values: ConditionValues): Primitive {
     case 'literal':
       return expression.value;
     case 'reference': {
+      if (!Object.hasOwn(values, expression.key))
+        throw new Error(`Property "${expression.key}" is not available.`);
       const property = values[expression.key];
       if (!property)
         throw new Error(`Property "${expression.key}" is not available.`);

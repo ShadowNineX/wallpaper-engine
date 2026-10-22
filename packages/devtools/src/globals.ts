@@ -4,6 +4,7 @@ import type {
   WallpaperPropertyListener,
 } from '../../wallpaper-engine/src/types/listeners';
 import { getActivePinia, setActivePinia } from 'pinia';
+import { withCallbackPinia } from './callbacks';
 import { createVirtualRgbPlugins, resetVirtualRgbState } from './rgb';
 import { listenerFns, useDevtoolsStore } from './store';
 // Bring in the `declare global` Window augmentation so this file (excluded
@@ -56,7 +57,16 @@ function deliverOnRegistration(action: () => void): void {
  */
 export function installGlobals(pinia?: Pinia): () => void {
   const simulatorPinia = pinia ?? getActivePinia();
-  const store = useDevtoolsStore(pinia);
+  const callerPinia = getActivePinia();
+  const store = (() => {
+    try {
+      return useDevtoolsStore(pinia);
+    }
+    finally {
+      if (getActivePinia() === simulatorPinia)
+        setActivePinia(callerPinia);
+    }
+  })();
   const installation = Symbol('host globals');
   const previousInstallation = currentInstallation;
   currentInstallation = installation;
@@ -68,16 +78,11 @@ export function installGlobals(pinia?: Pinia): () => void {
     : previous.get(name)]));
   let propertyRegistration = 0;
   function onRegistration(action: () => void): void {
+    const registrationPinia = getActivePinia();
     deliverOnRegistration(() => {
-      const previousPinia = getActivePinia();
-      try {
-        if (currentInstallation === installation)
-          action();
-      }
-      finally {
-        if (getActivePinia() === simulatorPinia)
-          setActivePinia(previousPinia);
-      }
+      if (currentInstallation !== installation)
+        return;
+      withCallbackPinia(store, simulatorPinia, registrationPinia, action);
     });
   }
   function whenMediaActive(action: () => void): void {

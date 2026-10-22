@@ -199,4 +199,104 @@ describe('bridge protocol schemas', () => {
     expect(backend.store.currentValues).not.toHaveProperty('@gain%2Fname');
     backend.dispose();
   });
+
+  it.each(['__proto__', 'constructor', 'toString'] as const)('round-trips the reserved property key %s through drafts, snapshots, and patches', async (key) => {
+    vi.resetModules();
+    setActivePinia(createPinia());
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: Object.fromEntries([
+        [key, { type: 'slider', value: 0.5, min: 0, max: 1, step: 0.1, text: 'Reserved' }],
+      ]),
+      localization: {},
+    };
+    const [{ applyDraftPatch, applyHostPatch, makeDraft, makeDraftPatch, makeHostPatch }, { createBackend }] = await Promise.all([
+      import('../../src/bridge/protocol'),
+      import('../../src/bridge/backend'),
+    ]);
+    const backend = createBackend(createPinia(), () => undefined);
+    try {
+      expect(Object.hasOwn(backend.store.currentValues, key)).toBe(true);
+      const draftBefore = makeDraft(backend.store.$state);
+      const hostBefore = backend.snapshot();
+      expect(Object.hasOwn(draftBefore.currentValues, key)).toBe(true);
+      expect(Object.hasOwn(hostBefore.state.currentValues, key)).toBe(true);
+
+      backend.store.currentValues[key] = { value: 0.75 };
+      const draftAfter = makeDraft(backend.store.$state);
+      const hostAfter = backend.snapshot();
+      const draftPatch = makeDraftPatch(draftBefore, draftAfter);
+      const hostPatch = makeHostPatch(hostBefore, hostAfter);
+
+      expect(applyDraftPatch(draftBefore, draftPatch)).toEqual(draftAfter);
+      expect(applyHostPatch(hostBefore, hostPatch)).toEqual(hostAfter);
+      expect(hostAfter.state.currentValues[key]).toEqual({ value: 0.75 });
+    }
+    finally {
+      backend.dispose();
+    }
+  });
+
+  it('round-trips reserved file and directory records through host patches', async () => {
+    vi.resetModules();
+    setActivePinia(createPinia());
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: Object.fromEntries([
+        ['__proto__', { type: 'file', value: 'C:/cover.png', text: 'Cover' }],
+        ['constructor', { type: 'directory', value: 'C:/gallery', mode: 'ondemand', text: 'Gallery' }],
+        ['toString', { type: 'slider', value: 0.5, min: 0, max: 1, step: 0.1, text: 'Reserved' }],
+      ]),
+      localization: {},
+    };
+    const [{ applyHostPatch, makeDraft, makeHostPatch }, { createBackend }] = await Promise.all([
+      import('../../src/bridge/protocol'),
+      import('../../src/bridge/backend'),
+    ]);
+    const backend = createBackend(createPinia(), () => undefined);
+    try {
+      const protoKey = '__proto__';
+      backend.store.setFileSelection('__proto__', {
+        id: 'cover',
+        name: 'cover.png',
+        path: 'Cover',
+        relativePath: 'cover.png',
+        url: 'blob:cover',
+        size: 1,
+        mtimeMs: 1,
+      });
+      backend.store.setDirectorySelection('constructor', {
+        id: 'gallery',
+        path: 'Gallery',
+        files: [],
+      });
+      const before = backend.snapshot();
+      const draft = makeDraft(backend.store.$state);
+      expect(Object.hasOwn(before.state.currentValues, '__proto__')).toBe(true);
+      expect(Object.hasOwn(before.state.propertyDisplayPaths, '__proto__')).toBe(true);
+      expect(Object.hasOwn(before.state.directorySelections, 'constructor')).toBe(true);
+      expect(Object.hasOwn(draft.currentValues, 'toString')).toBe(true);
+      expect(Object.hasOwn(draft.currentValues, '__proto__')).toBe(false);
+
+      backend.store.setFileSelection('__proto__', {
+        id: 'next-cover',
+        name: 'next-cover.png',
+        path: 'Next cover',
+        relativePath: 'next-cover.png',
+        url: 'blob:next-cover',
+        size: 1,
+        mtimeMs: 1,
+      });
+      backend.store.setDirectorySelection('constructor', {
+        id: 'next-gallery',
+        path: 'Next gallery',
+        files: [],
+      });
+      const after = backend.snapshot();
+      expect(applyHostPatch(before, makeHostPatch(before, after))).toEqual(after);
+      expect(after.state.currentValues[protoKey]).toEqual({ value: 'Next cover' });
+      expect(after.state.directorySelections.constructor).toEqual({ id: 'next-gallery', path: 'Next gallery' });
+    }
+    finally {
+      backend.dispose();
+    }
+  });
 });

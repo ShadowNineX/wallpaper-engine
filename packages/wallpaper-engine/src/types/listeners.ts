@@ -1,3 +1,5 @@
+import type { WallpaperDividerProperty, WallpaperGroupProperty } from './project';
+
 // ---------------------------------------------------------------------------
 // Runtime property values (received inside applyUserProperties)
 // ---------------------------------------------------------------------------
@@ -65,7 +67,7 @@ export interface WallpaperDirectoryValue {
   value: string;
 }
 
-/** Union of all possible runtime property values delivered by `applyUserProperties`. */
+/** Union of editable runtime property values delivered by `applyUserProperties`. */
 export type WallpaperPropertyRuntimeValue
   = | WallpaperColorValue
     | WallpaperSliderValue
@@ -76,14 +78,28 @@ export type WallpaperPropertyRuntimeValue
     | WallpaperDirectoryValue;
 
 /**
- * Map of property key → current runtime value passed to
+ * Layout metadata that the native host may include in property callbacks.
+ * Dividers have no `value`; groups carry the empty layout placeholder `''`.
+ * Inferred listeners expose only value-bearing property keys.
+ *
+ * @example
+ * function readProperty(property: WallpaperPropertyRuntimeValue | WallpaperPropertyRuntimeDescriptor) {
+ *   if ('value' in property)
+ *     console.log(property.value);
+ * }
+ */
+export type WallpaperPropertyRuntimeDescriptor = WallpaperDividerProperty | WallpaperGroupProperty;
+
+/**
+ * Map of property key → current runtime value or layout metadata passed to
  * `wallpaperPropertyListener.applyUserProperties`.
  * On first load all properties are present; on subsequent calls only the
  * changed ones are included — always guard with `if (properties.key)`.
+ * Before reading `.value` on this broad map, check `'value' in property`.
  */
 export type WallpaperUserProperties = Record<
   string,
-  WallpaperPropertyRuntimeValue
+  WallpaperPropertyRuntimeValue | WallpaperPropertyRuntimeDescriptor
 >;
 
 /** App-level settings delivered by `wallpaperPropertyListener.applyGeneralProperties`. */

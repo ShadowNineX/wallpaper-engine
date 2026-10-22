@@ -2,12 +2,73 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../../../wallpaper-engine/src/helpers', () => ({
-  createAverageColorExtractor: () => ({
-    getColorAsync: () => Promise.resolve({ hex: '#000000' }),
-    destroy: () => undefined,
-  }),
+const averageColor = vi.hoisted(() => ({
+  create: vi.fn(),
 }));
+
+vi.mock('../../../wallpaper-engine/src/helpers', () => ({
+  createAverageColorExtractor: averageColor.create,
+}));
+
+interface Deferred<T> {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+  reject: (reason?: unknown) => void;
+}
+
+function deferred<T>(): Deferred<T> {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+function installDelayedImages(): Array<() => void> {
+  const loads: Array<() => void> = [];
+  vi.stubGlobal(
+    'Image',
+    class {
+      naturalWidth = 1280;
+      naturalHeight = 720;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+
+      get src(): string {
+        return '';
+      }
+
+      set src(_value: string) {
+        loads.push(() => this.onload?.());
+      }
+    },
+  );
+  return loads;
+}
+
+function setArtworkFile(
+  wrapper: ReturnType<typeof mount>,
+  name: string,
+): Promise<void> {
+  const input = wrapper.get<HTMLInputElement>('input[type="file"]');
+  Object.defineProperty(input.element, 'files', {
+    configurable: true,
+    value: [new File(['image'], name, { type: 'image/png' })],
+  });
+  return input.trigger('change');
+}
+
+function defaultAverageColorExtractor(): {
+  getColorAsync: () => Promise<{ hex: string; isDark: boolean }>;
+  destroy: () => undefined;
+} {
+  return {
+    getColorAsync: () => Promise.resolve({ hex: '#000000', isDark: true }),
+    destroy: () => undefined,
+  };
+}
 
 let messages: string[] = [];
 let releaseNotifications: (() => void) | undefined;
@@ -15,6 +76,7 @@ let releaseNotifications: (() => void) | undefined;
 beforeEach(async () => {
   vi.resetModules();
   setActivePinia(createPinia());
+  averageColor.create.mockReset().mockImplementation(defaultAverageColorExtractor);
   messages = [];
   const { setNotificationHandler } = await import('../../src/notifications');
   releaseNotifications = setNotificationHandler(message => messages.push(message));
@@ -223,6 +285,110 @@ describe('mediaTab', () => {
     );
     expect(createObjectURL).toHaveBeenCalledWith(jpeg);
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:artwork-source');
+  });
+
+  it('ignores a delayed artwork decode after unmount and preserves newer artwork', async () => {
+    const [{ default: MediaTab }, { useDevtoolsStore }] = await Promise.all([
+      import('../../src/tabs/MediaTab.vue'),
+      import('../../src/store'),
+    ]);
+    const loads = installDelayedImages();
+    const createObjectURL = vi.fn()
+      .mockReturnValueOnce('blob:old')
+      .mockReturnValueOnce('blob:new');
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL, revokeObjectURL });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL')
+      .mockReturnValueOnce('data:image/png;base64,new')
+      .mockReturnValueOnce('data:image/png;base64,old');
+
+    const oldWrapper = mount(MediaTab);
+    await setArtworkFile(oldWrapper, 'old.png');
+    oldWrapper.unmount();
+
+    const currentWrapper = mount(MediaTab);
+    await setArtworkFile(currentWrapper, 'new.png');
+    loads[1]?.();
+    await flushPromises();
+
+    expect(useDevtoolsStore().mediaThumb.thumbnail).toBe('data:image/png;base64,new');
+
+    loads[0]?.();
+    await flushPromises();
+
+    expect(useDevtoolsStore().mediaThumb.thumbnail).toBe('data:image/png;base64,new');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:old');
+    expect(revokeObjectURL).toHaveBeenCalledWith('blob:new');
+    currentWrapper.unmount();
+  });
+
+  it('ignores a delayed palette after unmount and preserves newer artwork', async () => {
+    const [{ default: MediaTab }, { useDevtoolsStore }] = await Promise.all([
+      import('../../src/tabs/MediaTab.vue'),
+      import('../../src/store'),
+    ]);
+    const oldPalette = [deferred<{ hex: string; isDark: boolean }>(), deferred<{ hex: string; isDark: boolean }>(), deferred<{ hex: string; isDark: boolean }>()];
+    const newPalette = [deferred<{ hex: string; isDark: boolean }>(), deferred<{ hex: string; isDark: boolean }>(), deferred<{ hex: string; isDark: boolean }>()];
+    const destroyOld = vi.fn();
+    const destroyNew = vi.fn();
+    let extractorIndex = 0;
+    averageColor.create.mockImplementation(() => {
+      const palette = [...[oldPalette, newPalette][extractorIndex++]!];
+      return {
+        getColorAsync: vi.fn(() => palette.shift()!.promise),
+        destroy: extractorIndex === 1 ? destroyOld : destroyNew,
+      };
+    });
+    const loads = installDelayedImages();
+    vi.stubGlobal('URL', {
+      createObjectURL: vi.fn()
+        .mockReturnValueOnce('blob:old')
+        .mockReturnValueOnce('blob:new'),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL')
+      .mockReturnValueOnce('data:image/png;base64,old')
+      .mockReturnValueOnce('data:image/png;base64,new');
+
+    const oldWrapper = mount(MediaTab);
+    await setArtworkFile(oldWrapper, 'old.png');
+    loads[0]?.();
+    await flushPromises();
+    oldWrapper.unmount();
+
+    const currentWrapper = mount(MediaTab);
+    await setArtworkFile(currentWrapper, 'new.png');
+    loads[1]?.();
+    await flushPromises();
+
+    for (const color of oldPalette)
+      color.resolve({ hex: '#111111', isDark: true });
+    await flushPromises();
+
+    expect(useDevtoolsStore().mediaThumb).toMatchObject({
+      thumbnail: 'data:image/png;base64,new',
+      primaryColor: '#202020',
+    });
+    expect(destroyOld).toHaveBeenCalledOnce();
+
+    newPalette[0]?.resolve({ hex: '#222222', isDark: false });
+    newPalette[1]?.resolve({ hex: '#333333', isDark: false });
+    newPalette[2]?.resolve({ hex: '#444444', isDark: false });
+    await flushPromises();
+
+    expect(useDevtoolsStore().mediaThumb).toMatchObject({
+      primaryColor: '#222222',
+      secondaryColor: '#333333',
+      tertiaryColor: '#444444',
+    });
+    expect(destroyNew).toHaveBeenCalledOnce();
+    currentWrapper.unmount();
   });
 
   it('delivers status, playback, timeline, artwork, and disabled transitions', async () => {

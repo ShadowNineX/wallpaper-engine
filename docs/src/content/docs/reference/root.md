@@ -53,7 +53,8 @@ Source: [`src/types/project.ts`](https://github.com/ShadowNineX/wallpaper-engine
 | `WallpaperFileValue` | `{ value: string }` native/file-picker path |
 | `WallpaperDirectoryValue` | `{ value: string }` selected directory path |
 | `WallpaperPropertyRuntimeValue` | Union of the seven wrappers above |
-| `WallpaperUserProperties` | `Record<string, WallpaperPropertyRuntimeValue>` |
+| `WallpaperPropertyRuntimeDescriptor` | Divider or group layout metadata that native callbacks may include |
+| `WallpaperUserProperties` | `Record<string, WallpaperPropertyRuntimeValue \| WallpaperPropertyRuntimeDescriptor>`; guard `'value' in property` before reading |
 | `WallpaperGeneralProperties` | `{ fps?: number }`; `0` means unlimited |
 | `WallpaperPropertyListener` | Optional user/general/pause/directory callback object |
 | `WallpaperPropertyListenerOf<T>` | Listener inferred from custom and built-in properties; updates are partial and group/divider keys are omitted |
@@ -171,8 +172,8 @@ Importing the root entry adds each name to `Window` and declares the matching ba
 | `wallpaperPluginListener` | Optional `WallpaperPluginListener` singleton |
 | `wallpaperRegisterAudioListener` | `(callback: (audioArray: number[]) => void) => void` |
 | `wallpaperRequestRandomFileForProperty` | `(propertyName: string, callback: (propertyName: string, filePath: string) => void) => void` |
-| `wpPlugins` | `{ led: WallpaperLedPlugin }` |
-| `cue` | `WallpaperCuePlugin` |
+| `wpPlugins` | Optional `{ led?: WallpaperLedPlugin }`; guard the container and plugin after readiness |
+| `cue` | Optional `WallpaperCuePlugin`; guard after readiness |
 | `wallpaperRegisterMediaStatusListener` | Callback receives `WallpaperMediaStatusEvent` |
 | `wallpaperRegisterMediaPropertiesListener` | Callback receives `WallpaperMediaPropertiesEvent` |
 | `wallpaperRegisterMediaThumbnailListener` | Callback receives `WallpaperMediaThumbnailEvent` |

@@ -23,6 +23,7 @@
     "typecheck": "bun run --filter=@wallpaper-engine/devtools typecheck && bun run --filter=wallpaper-engine typecheck && bun run --filter=demo typecheck && bun run --filter=docs typecheck",
     "test": "bun run --filter='*' test",
     "test:run": "bun run --filter=@wallpaper-engine/devtools test:run && bun run --filter=wallpaper-engine test:run",
+    "test:package": "bun run --filter=wallpaper-engine test:package",
     "test:coverage": "bun run --filter=@wallpaper-engine/devtools test:coverage && bun run --filter=wallpaper-engine test:coverage"
   },
   "devDependencies": {

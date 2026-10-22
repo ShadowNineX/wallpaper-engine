@@ -67,8 +67,8 @@ export function colorProperty(
   opts: Without<WallpaperColorProperty, 'type'>,
 ): WallpaperColorProperty {
   return {
-    type: 'color',
     ...opts,
+    type: 'color',
     value: colorToWallpaperColor(opts.value),
   };
 }
@@ -81,6 +81,10 @@ export function colorProperty(
  * `step: 0.1`, so finer custom steps must include a matching precision. When
  * only `precision` is supplied, this builder derives `step` as
  * `10 ** -precision`; an explicit `step` is emitted unchanged.
+ *
+ * @throws {TypeError} If a numeric option is not finite.
+ * @throws {RangeError} If `step` is not positive, `precision` is not a
+ * non-negative integer, or the derived step underflows.
  *
  * @example
  * sliderProperty({
@@ -95,9 +99,29 @@ export function colorProperty(
 export function sliderProperty(
   opts: Without<WallpaperSliderProperty, 'type'>,
 ): WallpaperSliderProperty {
-  const property: WallpaperSliderProperty = { type: 'slider', ...opts };
+  for (const [name, value] of [
+    ['value', opts.value],
+    ['min', opts.min],
+    ['max', opts.max],
+    ['step', opts.step],
+    ['precision', opts.precision],
+  ] as const) {
+    if (value !== undefined && !Number.isFinite(value))
+      throw new TypeError(`Slider ${name} must be a finite number.`);
+  }
+  if (opts.step !== undefined && opts.step <= 0)
+    throw new RangeError('Slider step must be greater than zero.');
+  if (
+    opts.precision !== undefined
+    && (!Number.isInteger(opts.precision) || opts.precision < 0)
+  ) {
+    throw new RangeError('Slider precision must be a non-negative integer.');
+  }
+  const property: WallpaperSliderProperty = { ...opts, type: 'slider' };
   if (property.step === undefined && property.precision !== undefined) {
     property.step = 10 ** -property.precision;
+    if (property.step <= 0)
+      throw new RangeError('Slider precision produces an invalid step.');
   }
   return property;
 }
@@ -106,35 +130,35 @@ export function sliderProperty(
 export function boolProperty(
   opts: Without<WallpaperBoolProperty, 'type'>,
 ): WallpaperBoolProperty {
-  return { type: 'bool', ...opts };
+  return { ...opts, type: 'bool' };
 }
 
 /** Define a dropdown (combo) property */
 export function comboProperty(
   opts: Without<WallpaperComboProperty, 'type'>,
 ): WallpaperComboProperty {
-  return { type: 'combo', ...opts };
+  return { ...opts, type: 'combo' };
 }
 
 /** Define a text input property */
 export function textInputProperty(
   opts: Without<WallpaperTextInputProperty, 'type'>,
 ): WallpaperTextInputProperty {
-  return { type: 'textinput', ...opts };
+  return { ...opts, type: 'textinput' };
 }
 
 /** Define a file picker property */
 export function fileProperty(
   opts: Without<WallpaperFileProperty, 'type'>,
 ): WallpaperFileProperty {
-  return { type: 'file', ...opts };
+  return { ...opts, type: 'file' };
 }
 
 /** Define a directory picker property */
 export function directoryProperty(
   opts: Without<WallpaperDirectoryProperty, 'type'>,
 ): WallpaperDirectoryProperty {
-  return { type: 'directory', ...opts };
+  return { ...opts, type: 'directory' };
 }
 
 /**
@@ -157,7 +181,8 @@ export function groupProperty(
 
 /**
  * Define a horizontal property separator with optional label and visibility
- * condition. Dividers do not appear in runtime property callbacks.
+ * condition. Native callbacks include divider descriptors without a runtime
+ * value; divider keys remain excluded from inferred editable value records.
  *
  * @example
  * const properties = {
@@ -374,6 +399,10 @@ export function wallpaperEnginePlugin(
   let preservationState: PreservationState | undefined;
   let resolvedConfig: ResolvedConfig | undefined;
   let watchCapture = Promise.resolve();
+  let cleanupClientWatch: (() => void) | undefined;
+  let configuredProjectEntryAvailable = false;
+  let emittedProjectEntry = false;
+  let projectGenerated = false;
   const loadClientCode = (): Promise<string> => {
     cachedClientCode ??= (async () => {
       // Reads the bundled Vue UI asynchronously. Dynamic imports keep this
@@ -401,6 +430,11 @@ export function wallpaperEnginePlugin(
       }
       resolvedConfig = config;
       return (async () => {
+        const projectFile = normalizeProjectEntryFile(options.file ?? 'index.html');
+        configuredProjectEntryAvailable = await hasConfiguredProjectEntry(
+          config,
+          projectFile,
+        );
         const state = await capturePreservationState(
           config,
           options.metadata,
@@ -473,7 +507,8 @@ export function wallpaperEnginePlugin(
       // Use stat-polling watchFile instead of chokidar: avoids Windows
       // path-normalisation mismatches (forward vs back slashes) and works
       // correctly across Bun workspace symlinks.
-      fs.watchFile(clientPath, { interval: 500 }, () => {
+      cleanupClientWatch?.();
+      const onClientChange = (): void => {
         cachedClientCode = undefined;
         for (const id of [RESOLVED_ID, RESOLVED_FRONTEND_ID]) {
           const mod = server.moduleGraph.getModuleById(id);
@@ -481,10 +516,39 @@ export function wallpaperEnginePlugin(
             server.moduleGraph.invalidateModule(mod);
         }
         server.ws.send({ type: 'full-reload' });
-      });
-      server.httpServer?.once('close', () => {
-        fs.unwatchFile(clientPath);
-      });
+      };
+      fs.watchFile(clientPath, { interval: 500 }, onClientChange);
+      let watching = true;
+      const cleanup = (): void => {
+        if (!watching)
+          return;
+        watching = false;
+        fs.unwatchFile(clientPath, onClientChange);
+        if (cleanupClientWatch === cleanup)
+          cleanupClientWatch = undefined;
+      };
+      cleanupClientWatch = cleanup;
+      server.httpServer?.once('close', cleanup);
+    },
+
+    async closeBundle() {
+      cleanupClientWatch?.();
+      const config = resolvedConfig;
+      if (config === undefined || config.build.write || !projectGenerated)
+        return;
+      const projectFile = normalizeProjectEntryFile(options.file ?? 'index.html');
+      if (!configuredProjectEntryAvailable && !emittedProjectEntry)
+        throw missingProjectEntryError(projectFile);
+    },
+
+    async writeBundle() {
+      const config = resolvedConfig;
+      if (config === undefined || !config.build.write || !projectGenerated)
+        return;
+      await assertWrittenProjectEntry(
+        config,
+        normalizeProjectEntryFile(options.file ?? 'index.html'),
+      );
     },
 
     resolveId(id) {
@@ -510,8 +574,11 @@ export function wallpaperEnginePlugin(
       const properties = options.properties
         ? assignIndices(options.properties)
         : {};
-      if (options.schemeColor !== undefined)
+      if (options.schemeColor !== undefined) {
+        if (options.properties?.schemecolor !== undefined)
+          throw new Error('schemeColor cannot be used with an explicit schemecolor property.');
         properties.schemecolor = createSchemeColorProperty(options.schemeColor);
+      }
       const cfg = {
         title: options.title,
         properties,
@@ -520,7 +587,7 @@ export function wallpaperEnginePlugin(
       };
       const config = safeJsonForScript(cfg);
       const frontendUrl = `${devtoolsBase}${FRONTEND_ROUTE}`;
-      return `window.__WE_DEVTOOLS_ROLE__ = '${role}';\nwindow.__WE_DEVTOOLS_FRONTEND_URL__ = ${safeJsonForScript(frontendUrl)};\nwindow.__WE_DEVTOOLS_CONFIG__ = ${config};\n${await loadClientCode()}`;
+      return `window.__WE_DEVTOOLS_ROLE__ = '${role}';\nwindow.__WE_DEVTOOLS_FRONTEND_URL__ = ${safeJsonForScript(frontendUrl)};\nwindow.__WE_DEVTOOLS_CONFIG__ = JSON.parse(${safeJsonForScript(config)});\n${await loadClientCode()}`;
     },
 
     transformIndexHtml() {
@@ -536,10 +603,16 @@ export function wallpaperEnginePlugin(
     },
 
     generateBundle(_outputOptions, bundle) {
+      const projectFile = normalizeProjectEntryFile(options.file ?? 'index.html');
+      emittedProjectEntry = Object.values(bundle).some(
+        output => output.fileName === projectFile,
+      );
       let properties = options.properties
         ? assignIndices(options.properties)
         : {};
       if (options.schemeColor !== undefined) {
+        if (options.properties?.schemecolor !== undefined)
+          throw new Error('schemeColor cannot be used with an explicit schemecolor property.');
         properties = {
           ...properties,
           schemecolor: createSchemeColorProperty(options.schemeColor),
@@ -564,11 +637,16 @@ export function wallpaperEnginePlugin(
       const project: JsonObject = {
         ...(preservationState?.project
           ?? mergePreservationSources(undefined, undefined, options.metadata)),
-        file: options.file ?? 'index.html',
+        file: projectFile,
         title: options.title,
         type: 'web',
       };
       project.general = general;
+
+      const projectSource = stringifyProject(
+        project,
+        (options.minify ?? !isServe) ? undefined : '\t',
+      );
 
       const restoredPreview = preservationState === undefined
         ? undefined
@@ -584,11 +662,9 @@ export function wallpaperEnginePlugin(
       this.emitFile({
         type: 'asset',
         fileName: 'project.json',
-        source:
-          (options.minify ?? !isServe)
-            ? JSON.stringify(project)
-            : JSON.stringify(project, null, '\t'),
+        source: projectSource,
       });
+      projectGenerated = true;
     },
   };
 }
@@ -606,10 +682,30 @@ function normalizeDevtoolsBase(base: string | undefined): string {
 }
 
 function safeJsonForScript(value: unknown): string {
-  return JSON.stringify(value)
+  return stringifyFiniteJson(value)
     .replaceAll('<', String.raw`\u003C`)
     .replaceAll('\u2028', String.raw`\u2028`)
     .replaceAll('\u2029', String.raw`\u2029`);
+}
+
+function stringifyProject(project: JsonObject, space?: string): string {
+  const source = stringifyFiniteJson(project, space);
+  return source;
+}
+
+function stringifyFiniteJson(value: unknown, space?: string): string {
+  const source = JSON.stringify(
+    value,
+    (field, value): unknown => {
+      if (typeof value === 'number' && !Number.isFinite(value))
+        throw new TypeError(`project.json field "${field}" must be a finite number.`);
+      return value;
+    },
+    space,
+  );
+  if (source === undefined)
+    throw new TypeError('project.json could not be serialized.');
+  return source;
 }
 
 function devtoolsFrontendHtml(moduleUrl: string): string {
@@ -742,9 +838,17 @@ async function capturePreservationState(
       fs,
       path,
       outDir,
+      previewBackup.rootPath,
+      'metadata preview backup root',
+    );
+    await assertPreservationPathOutsideOutput(
+      fs,
+      path,
+      outDir,
       previewBackup.absolutePath,
       'metadata preview backup',
     );
+    await assertMetadataPreviewBackupContained(fs, path, previewBackup);
   }
   const previousPreviewMatches = previousPreview !== undefined
     && previousPreview.fileName === finalPreviewFileName;
@@ -910,6 +1014,23 @@ async function capturePreviousPreview(
 interface ResolvedPreviewBackup {
   absolutePath: string;
   fileName: string;
+  rootPath: string;
+}
+
+async function assertMetadataPreviewBackupContained(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  backup: ResolvedPreviewBackup,
+): Promise<void> {
+  const [canonicalRoot, canonicalDestination] = await Promise.all([
+    canonicalizePath(fs, path, backup.rootPath),
+    canonicalizePath(fs, path, backup.absolutePath),
+  ]);
+  if (!isPathInside(path, canonicalRoot, canonicalDestination)) {
+    throw new RangeError(
+      `Wallpaper Engine metadata preview backup "${backup.absolutePath}" must remain inside metadata preview backup root "${backup.rootPath}".`,
+    );
+  }
 }
 
 async function assertPreservationPathOutsideOutput(
@@ -923,18 +1044,21 @@ async function assertPreservationPathOutsideOutput(
     canonicalizePath(fs, path, outDir),
     canonicalizePath(fs, path, preservationPath),
   ]);
-  const relative = path.relative(canonicalOutDir, canonicalPreservationPath);
-  const isInsideOutput = relative === ''
+  if (isPathInside(path, canonicalOutDir, canonicalPreservationPath)) {
+    throw new RangeError(
+      `Wallpaper Engine ${description} "${preservationPath}" must be outside Vite build.outDir "${outDir}" so output cleanup cannot delete preserved state.`,
+    );
+  }
+}
+
+function isPathInside(path: typeof NodePath, root: string, target: string): boolean {
+  const relative = path.relative(root, target);
+  return relative === ''
     || (
       relative !== '..'
       && !relative.startsWith(`..${path.sep}`)
       && !path.isAbsolute(relative)
     );
-  if (isInsideOutput) {
-    throw new RangeError(
-      `Wallpaper Engine ${description} "${preservationPath}" must be outside Vite build.outDir "${outDir}" so output cleanup cannot delete preserved state.`,
-    );
-  }
 }
 
 async function canonicalizePath(
@@ -975,7 +1099,7 @@ function resolveMetadataPreviewBackup(
 ): ResolvedPreviewBackup {
   const parsed = path.parse(metadataPath);
   const root = path.join(parsed.dir, `${parsed.name}.assets`);
-  return resolveProjectFile(path, root, previewFileName, metadataPath);
+  return { ...resolveProjectFile(path, root, previewFileName, metadataPath), rootPath: root };
 }
 
 async function captureMetadataPreviewBackup(
@@ -1238,6 +1362,153 @@ function resolveProjectFile(
   return { absolutePath, fileName: normalizedFileName };
 }
 
+function normalizeProjectEntryFile(projectPath: string): string {
+  const fileName = projectPath.replaceAll('\\', '/');
+  if (
+    fileName.startsWith('/')
+    || /^[A-Z]:/i.test(fileName)
+    || fileName.startsWith('//')
+  ) {
+    throw new RangeError(
+      `Unsafe project file "${projectPath}": expected a project-relative file.`,
+    );
+  }
+  const segments: string[] = [];
+  for (const segment of fileName.split('/')) {
+    if (segment === '' || segment === '.')
+      continue;
+    if (segment === '..') {
+      if (segments.length === 0) {
+        throw new RangeError(
+          `Unsafe project file "${projectPath}": expected a project-relative file.`,
+        );
+      }
+      segments.pop();
+      continue;
+    }
+    segments.push(segment);
+  }
+  if (segments.length === 0) {
+    throw new RangeError(
+      `Unsafe project file "${projectPath}": expected a project-relative file.`,
+    );
+  }
+  return segments.join('/');
+}
+
+async function hasConfiguredProjectEntry(
+  config: ResolvedConfig,
+  projectFile: string,
+): Promise<boolean> {
+  const [fs, path] = await Promise.all([
+    import(/* @vite-ignore */ 'node:fs/promises'),
+    import(/* @vite-ignore */ 'node:path'),
+  ]);
+  if (
+    config.publicDir !== ''
+    && (!config.build.write || config.build.copyPublicDir !== false)
+  ) {
+    const publicRoot = path.resolve(config.root, config.publicDir);
+    const publicCandidate = path.resolve(publicRoot, ...projectFile.split('/'));
+    const canonicalPublicRoot = await canonicalizePath(fs, path, publicRoot);
+    const canonicalPublicCandidate = await canonicalizePath(fs, path, publicCandidate);
+    if (
+      isPathInside(path, canonicalPublicRoot, canonicalPublicCandidate)
+      && await isRegularFile(fs, publicCandidate)
+    ) {
+      return true;
+    }
+  }
+
+  // Vite 8's Rolldown hook does not surface normal HTML inputs in this
+  // plugin's write:false bundle. The source entry remains loadable to callers
+  // that deliberately inspect an in-memory normal-app build. Library builds
+  // have no equivalent HTML entry and must still provide an emitted or public
+  // file.
+  if (config.build.write === false && !config.build.lib) {
+    const root = path.resolve(config.root);
+    const candidate = path.resolve(root, projectFile);
+    const canonicalRoot = await canonicalizePath(fs, path, root);
+    const canonicalCandidate = await canonicalizePath(fs, path, candidate);
+    if (
+      !isPathInside(path, canonicalRoot, canonicalCandidate)
+      || !await isRegularFile(fs, candidate)
+    ) {
+      return false;
+    }
+    return (projectFile === 'index.html' && config.build.rollupOptions.input === undefined)
+      || await configuredInputMatches(
+        fs,
+        path,
+        config.root,
+        config.build.rollupOptions.input,
+        canonicalCandidate,
+      );
+  }
+
+  return false;
+}
+
+async function configuredInputMatches(
+  fs: typeof NodeFsPromises,
+  path: typeof NodePath,
+  root: string,
+  input: unknown,
+  candidate: string,
+): Promise<boolean> {
+  const inputs = typeof input === 'string'
+    ? [input]
+    : Array.isArray(input)
+      ? input.filter((item): item is string => typeof item === 'string')
+      : input !== null && typeof input === 'object'
+        ? Object.values(input).filter((item): item is string => typeof item === 'string')
+        : [];
+  for (const item of inputs) {
+    const configured = await canonicalizePath(fs, path, path.resolve(root, item));
+    if (configured === candidate)
+      return true;
+  }
+  return false;
+}
+
+async function assertWrittenProjectEntry(
+  config: ResolvedConfig,
+  projectFile: string,
+): Promise<void> {
+  const [fs, path] = await Promise.all([
+    import(/* @vite-ignore */ 'node:fs/promises'),
+    import(/* @vite-ignore */ 'node:path'),
+  ]);
+  const outputFile = path.resolve(
+    config.root,
+    config.build.outDir,
+    ...projectFile.split('/'),
+  );
+  if (await isRegularFile(fs, outputFile))
+    return;
+  throw missingProjectEntryError(projectFile);
+}
+
+function missingProjectEntryError(projectFile: string): Error {
+  return new Error(
+    `Wallpaper Engine project file "${projectFile}" was not emitted by Vite. Add it as an HTML build entry or publicDir asset.`,
+  );
+}
+
+async function isRegularFile(
+  fs: typeof NodeFsPromises,
+  filePath: string,
+): Promise<boolean> {
+  try {
+    return (await fs.stat(filePath)).isFile();
+  }
+  catch (error) {
+    if (isFileNotFound(error))
+      return false;
+    throw error;
+  }
+}
+
 function isFileNotFound(error: unknown): error is NodeJS.ErrnoException {
   return (
     typeof error === 'object'
@@ -1277,7 +1548,7 @@ function bundleOutputRegistersAudioListener(output: BundleOutput): boolean {
 function assignIndices(
   properties: Record<string, WallpaperPropertyDefinition>,
 ): Record<string, WallpaperPropertyDefinition> {
-  const result: Record<string, WallpaperPropertyDefinition> = {};
+  const result: Record<string, WallpaperPropertyDefinition> = Object.create(null) as Record<string, WallpaperPropertyDefinition>;
   let i = 0;
 
   for (const [key, prop] of Object.entries(properties)) {

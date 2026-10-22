@@ -81,9 +81,24 @@ function editableProperty(type: string) {
   return Type.Object({ value: Type.String() }, { additionalProperties: false });
 }
 
-const editableProperties = Object.fromEntries(
+function propertySchemas(entries: Iterable<readonly [string, ReturnType<typeof editableProperty>]>) {
+  const properties = Object.create(null) as Record<string, ReturnType<typeof editableProperty>>;
+  for (const [key, value] of entries)
+    properties[key] = value;
+  return properties;
+}
+
+const editableProperties = propertySchemas(
   Object.entries(propDefs)
     .filter(([, definition]) => definition.type !== 'group' && definition.type !== 'divider' && definition.type !== 'file' && definition.type !== 'directory')
+    .map(([key, definition]) => [key, editableProperty(definition.type)]),
+);
+
+// File selections are read-only in the frontend. Host snapshots expose their
+// display paths for conditions; object URLs and directory entries stay local.
+const snapshotProperties = propertySchemas(
+  Object.entries(propDefs)
+    .filter(([, definition]) => definition.type !== 'group' && definition.type !== 'divider')
     .map(([key, definition]) => [key, editableProperty(definition.type)]),
 );
 
@@ -164,7 +179,7 @@ export const ClientMessageValidator = Schema.Compile(ClientMessageSchema);
 
 const state = Type.Object({
   listenerCounts: Type.Object({ property: Type.Boolean(), plugin: Type.Boolean(), audio: Type.Integer({ minimum: 0 }), mediaStatus: Type.Integer({ minimum: 0 }), mediaProps: Type.Integer({ minimum: 0 }), mediaThumb: Type.Integer({ minimum: 0 }), mediaPlayback: Type.Integer({ minimum: 0 }), mediaTimeline: Type.Integer({ minimum: 0 }) }, { additionalProperties: false }),
-  currentValues: Type.Object(editableProperties, { additionalProperties: false }),
+  currentValues: Type.Object(snapshotProperties, { additionalProperties: false }),
   propertyDisplayPaths: Type.Record(Type.String(), Type.String()),
   general: DraftSchema.properties.general,
   directorySelections: Type.Record(Type.String(), Type.Object({ id: Type.String(), path: Type.String() }, { additionalProperties: false })),
@@ -212,17 +227,51 @@ export const HostMessageValidator = Schema.Compile(HostMessageSchema);
 export type HostSnapshot = Type.Static<typeof HostSnapshotSchema>;
 export type HostMessage = Type.Static<typeof HostMessageSchema>;
 
+function encodeRecord<T>(record: Record<string, T>): Record<string, T> {
+  const encoded = Object.create(null) as Record<string, T>;
+  for (const [key, value] of Object.entries(record))
+    encoded[encodePatchKey(key)] = value;
+  return encoded;
+}
+
+function decodeRecord<T>(record: Record<string, T>): Record<string, T> {
+  const decoded = Object.create(null) as Record<string, T>;
+  for (const [key, value] of Object.entries(record))
+    decoded[decodePatchKey(key)] = value;
+  return decoded;
+}
+
+function cloneKnownRecord<T>(record: Record<string, T>, keys: Record<string, unknown>): Record<string, T> {
+  const clone = Object.create(null) as Record<string, T>;
+  for (const key of Object.keys(keys)) {
+    if (Object.hasOwn(record, key))
+      clone[key] = Value.Clone(record[key]!);
+  }
+  return clone;
+}
+
 /** Cleans a clone, then parses it through the compiled editable draft contract. */
 export function makeDraft(state: SimulatorState): Draft {
-  return DraftValidator.Parse(Value.Clean(DraftSchema, Value.Clone(state)));
+  const currentValues = cloneKnownRecord(state.currentValues, editableProperties);
+  const cleaned = Value.Clean(DraftSchema, Value.Clone({
+    currentValues: {},
+    general: state.general,
+    mediaActive: state.mediaActive,
+    lastPlaybackState: state.lastPlaybackState,
+    mediaProps: state.mediaProps,
+    mediaTimeline: state.mediaTimeline,
+    mediaThumb: state.mediaThumb,
+  })) as { currentValues: unknown };
+  cleaned.currentValues = currentValues;
+  return DraftValidator.Parse(cleaned);
 }
 
 /** Removes fields absent from a validated record without replacing its reactive owner. */
 export function cleanRecord(target: object, source: object): void {
-  const properties = Object.fromEntries(
-    Object.keys(source).map(key => [key, Type.Unknown()]),
-  );
-  Value.Clean(Type.Object(properties, { additionalProperties: false }), target);
+  for (const key of Object.keys(target)) {
+    if (!Object.hasOwn(source, key))
+      Reflect.deleteProperty(target, key);
+  }
 }
 
 /**
@@ -241,18 +290,15 @@ function decodePatchKey(key: string): string {
 type PatchDraft = Type.Static<typeof PatchDraftSchema>;
 
 function toPatchDraft(draft: Draft): PatchDraft {
-  const clone = Value.Clone(draft);
-  const currentValues = Object.fromEntries(
-    Object.entries(clone.currentValues).map(([key, value]) => [encodePatchKey(key), value]),
-  );
-  return { ...clone, currentValues } as PatchDraft;
+  return Value.Clone({
+    ...draft,
+    currentValues: encodeRecord(draft.currentValues),
+  }) as PatchDraft;
 }
 
 function fromPatchDraft(draft: unknown): Draft {
   const candidate = PatchDraftValidator.Parse(draft);
-  const currentValues = Object.fromEntries(
-    Object.entries(candidate.currentValues).map(([key, value]) => [decodePatchKey(key), value]),
-  );
+  const currentValues = decodeRecord(candidate.currentValues);
   return DraftValidator.Parse({ ...candidate, currentValues });
 }
 
@@ -269,25 +315,16 @@ export type HostPatch = Type.Static<typeof HostPatchSchema>;
 
 type PatchHostSnapshot = Type.Static<typeof PatchHostSnapshotSchema>;
 
-function encodePatchRecord<T>(record: Record<string, T>): Record<string, T> {
-  return Object.fromEntries(Object.entries(record).map(([key, value]) => [encodePatchKey(key), value]));
-}
-
-function decodePatchRecord<T>(record: Record<string, T>): Record<string, T> {
-  return Object.fromEntries(Object.entries(record).map(([key, value]) => [decodePatchKey(key), value]));
-}
-
 function toPatchHost(snapshot: HostSnapshot): PatchHostSnapshot {
-  const clone = Value.Clone(snapshot);
-  return {
-    ...clone,
+  return Value.Clone({
+    ...snapshot,
     state: {
-      ...clone.state,
-      currentValues: encodePatchRecord(clone.state.currentValues),
-      propertyDisplayPaths: encodePatchRecord(clone.state.propertyDisplayPaths),
-      directorySelections: encodePatchRecord(clone.state.directorySelections),
+      ...snapshot.state,
+      currentValues: encodeRecord(snapshot.state.currentValues),
+      propertyDisplayPaths: encodeRecord(snapshot.state.propertyDisplayPaths),
+      directorySelections: encodeRecord(snapshot.state.directorySelections),
     },
-  };
+  }) as PatchHostSnapshot;
 }
 
 function fromPatchHost(snapshot: unknown): HostSnapshot {
@@ -296,9 +333,9 @@ function fromPatchHost(snapshot: unknown): HostSnapshot {
     ...candidate,
     state: {
       ...candidate.state,
-      currentValues: decodePatchRecord(candidate.state.currentValues),
-      propertyDisplayPaths: decodePatchRecord(candidate.state.propertyDisplayPaths),
-      directorySelections: decodePatchRecord(candidate.state.directorySelections),
+      currentValues: decodeRecord(candidate.state.currentValues),
+      propertyDisplayPaths: decodeRecord(candidate.state.propertyDisplayPaths),
+      directorySelections: decodeRecord(candidate.state.directorySelections),
     },
   });
 }

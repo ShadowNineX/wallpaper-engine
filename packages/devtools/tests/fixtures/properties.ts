@@ -1,6 +1,6 @@
 export const builtInValues = {
   audioprocessing: { value: true },
-  schemecolor: { value: '0 0 0' },
+  schemecolor: { value: '0.5 0.5 0.5' },
   alignmentfliph: { value: false },
   wec_e: { value: false },
   wec_brs: { value: 50 },

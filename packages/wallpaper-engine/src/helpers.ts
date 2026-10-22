@@ -94,6 +94,10 @@ export function wallpaperColorToHex(value: string): string {
  * Paths from Wallpaper Engine are prefixed with `file:///`. URLs already
  * usable by a browser — including the local `blob:` URLs emitted by the Vite
  * devtools — are returned unchanged.
+ * Native encoded-drive paths (`C%3A/...`) are decoded once before conversion;
+ * percent sequences in raw drive paths (`C:/...`) remain literal filenames.
+ *
+ * @throws {URIError} If a native encoded-drive path contains malformed escapes.
  *
  * @example
  * img.src = toFileUrl(props.myimage.value);
@@ -103,9 +107,24 @@ export function wallpaperColorToHex(value: string): string {
 export function toFileUrl(path: string): string {
   if (!path)
     return '';
-  if (/^(?:\/|https?:|data:|blob:|file:)/i.test(path))
+  if (/^(?:\/(?!\/)|https?:|data:|blob:|file:)/i.test(path))
     return path;
-  return `file:///${path}`;
+  const filesystemPath = /^[a-z]%3a\//i.test(path) ? decodeURIComponent(path) : path;
+  const normalizedPath = filesystemPath.replaceAll('\\', '/');
+  if (normalizedPath.startsWith('//')) {
+    const segments = normalizedPath.slice(2).split('/');
+    const host = segments.shift() ?? '';
+    return `file://${encodeURIComponent(host)}/${segments.map(encodeURIComponent).join('/')}`;
+  }
+  const encodedPath = normalizedPath
+    .split('/')
+    .map((segment, index) =>
+      index === 0 && /^[a-z]:$/i.test(segment)
+        ? segment
+        : encodeURIComponent(segment),
+    )
+    .join('/');
+  return `file:///${encodedPath}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -234,6 +253,8 @@ export function createFpsLimiter(draw: (dt: number) => void): {
   /**
    * Set the FPS cap. Pass `0` for unlimited.
    * Safe to call at any time — takes effect on the next frame.
+   * @throws {TypeError} If the cap is not finite.
+   * @throws {RangeError} If the cap is negative.
    */
   setLimit: (fps: number) => void;
 } {
@@ -281,6 +302,10 @@ export function createFpsLimiter(draw: (dt: number) => void): {
       }
     },
     setLimit(fps: number) {
+      if (!Number.isFinite(fps))
+        throw new TypeError('FPS limit must be a finite number.');
+      if (fps < 0)
+        throw new RangeError('FPS limit must be non-negative.');
       if (limit !== fps)
         threshold = 0;
       limit = fps;

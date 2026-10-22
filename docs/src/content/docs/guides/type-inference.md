@@ -36,7 +36,12 @@ window.wallpaperPropertyListener = {
 ```
 
 Here `properties` contains `accent`, `intensity`, and `showTitle`. Unknown property keys and incorrect value types are
-compile-time errors. Group and divider markers are excluded from the callback values.
+compile-time errors. Group and divider markers are excluded from the inferred value keys. The native host may still include their layout metadata in the raw callback object.
+
+The inferred listener describes known editable keys for direct access; it does
+not filter the host's callback object. To enumerate the complete payload with
+`Object.values()` or `Object.entries()`, use the broad `WallpaperPropertyListener`
+type and check `'value' in property` before reading a value.
 
 The schema reference remains necessary: the ambient browser global cannot know
 which properties a project defines. `import type` connects the schema without
@@ -59,7 +64,7 @@ when they are absent from your property record:
 
 | Keys | Value type | Fallback default |
 | --- | --- | --- |
-| `schemecolor` | `string` | `'0 0 0'` |
+| `schemecolor` | `string` | `'0.5 0.5 0.5'` when no scheme color is configured |
 | `audioprocessing` | `boolean` | `true` for audio-capable wallpapers |
 | `alignmentfliph`, `wec_e` | `boolean` | `false` |
 | `wec_brs`, `wec_con`, `wec_sa`, `wec_hue` | `number` | `50` |
@@ -111,7 +116,7 @@ Definitions include editor metadata; callbacks contain host-shaped wrappers:
 | `textinput` | `{ value: string }` |
 | `file` | `{ value: string }` |
 | `directory` | `{ value: string }` |
-| `group`, `divider` | No callback key |
+| `group`, `divider` | No inferred value key |
 
 Combo values remain `string`; validate a host value before narrowing it to an
 application-specific literal union. Definitions describe possible editor choices,

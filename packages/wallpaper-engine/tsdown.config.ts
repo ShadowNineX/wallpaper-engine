@@ -6,14 +6,40 @@ const DEVTOOLS_CLIENT = fileURLToPath(
   new URL('../devtools/dist/client.js', import.meta.url),
 );
 
+// npm excludes nested node_modules from tarballs, even below an included dist.
+// Keep bundled dependency modules inside the published package's vendor tree.
+const esmOutput = {
+  sanitizeFileName: (name: string) => name.replaceAll('\\', '/')
+    .replaceAll('\0', '_')
+    .replaceAll(':', '_')
+    .replaceAll(/node_modules\/\.bun\/[^/]+\/node_modules\//g, 'vendor/')
+    .replaceAll('node_modules/', 'vendor/'),
+};
+
 export default defineConfig([
-  // Browser-consumable entries get both ESM + CJS.
+  // Keep ESM module boundaries so a helper import can drop unrelated libraries.
   {
     entry: ['src/index.ts', 'src/helpers.ts'],
-    format: ['esm', 'cjs'],
+    format: ['esm'],
+    unbundle: true,
+    root: 'src',
+    outputOptions: esmOutput,
     fixedExtension: false,
     dts: true,
     clean: true,
+    sourcemap: true,
+    deps: {
+      alwaysBundle: ['colorjs.io', 'fast-average-color'],
+      onlyBundle: false,
+    },
+  },
+  // CommonJS consumers retain a self-contained bundle.
+  {
+    entry: ['src/index.ts', 'src/helpers.ts'],
+    format: ['cjs'],
+    fixedExtension: false,
+    dts: true,
+    clean: false,
     sourcemap: true,
     deps: {
       alwaysBundle: ['colorjs.io', 'fast-average-color'],
@@ -25,6 +51,9 @@ export default defineConfig([
   {
     entry: { 'plugin/index': 'src/plugin/index.ts' },
     format: ['esm'],
+    unbundle: true,
+    root: 'src',
+    outputOptions: esmOutput,
     fixedExtension: false,
     dts: true,
     clean: false,

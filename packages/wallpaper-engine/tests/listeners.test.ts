@@ -8,6 +8,7 @@ import type {
   WallpaperGeneralProperties,
   WallpaperPropertyListener,
   WallpaperPropertyListenerOf,
+  WallpaperPropertyRuntimeDescriptor,
   WallpaperPropertyRuntimeValue,
   WallpaperSliderValue,
   WallpaperTextValue,
@@ -50,7 +51,7 @@ type Update = Parameters<NonNullable<
 it('keeps arbitrary callback keys optional in the broad listener type', () => {
   type BroadUpdate = Parameters<NonNullable<WallpaperPropertyListener['applyUserProperties']>>[0];
 
-  expectTypeOf<BroadUpdate[string]>().toEqualTypeOf<WallpaperPropertyRuntimeValue | undefined>();
+  expectTypeOf<BroadUpdate[string]>().toEqualTypeOf<WallpaperPropertyRuntimeValue | WallpaperPropertyRuntimeDescriptor | undefined>();
   expectTypeOf<BroadUpdate>().toEqualTypeOf<Partial<WallpaperUserProperties>>();
 });
 
@@ -97,9 +98,9 @@ it('contextually types the recommended schema-aware listener assignment', () => 
         if (values[key])
           expectTypeOf(values[key].value).toEqualTypeOf<number>();
       }
-      // @ts-expect-error Group markers and unknown keys are never delivered.
+      // @ts-expect-error Group markers are excluded from inferred value keys.
       void values.appearance;
-      // @ts-expect-error Dividers are layout metadata with no callback key.
+      // @ts-expect-error Dividers are excluded from inferred value keys.
       void values.separator;
       // @ts-expect-error Unknown properties are never delivered.
       void values.unknown;

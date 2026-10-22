@@ -271,4 +271,22 @@ describe('audio simulator', () => {
       expect.any(Error),
     );
   });
+
+  it('defers listeners registered during a frame until the following frame', () => {
+    const later = vi.fn();
+    const first = vi.fn(() => {
+      listenerFns.audio.push(later);
+    });
+    listenerFns.audio.push(first);
+
+    setAudioMode('silence');
+    vi.advanceTimersByTime(34);
+
+    expect(first).toHaveBeenCalledOnce();
+    expect(later).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(34);
+
+    expect(later).toHaveBeenCalledOnce();
+  });
 });

@@ -85,9 +85,13 @@ declare global {
     /**
      * Provides access to LED and iCUE plugin APIs after the respective plugin
      * has loaded (see `wallpaperPluginListener`).
+     * Guard the container and plugin before accessing the API.
+     *
+     * @example
+     * window.wpPlugins?.led?.setAllDevicesByImageData(encoded, width, height);
      */
-    wpPlugins: {
-      led: WallpaperLedPlugin;
+    wpPlugins?: {
+      led?: WallpaperLedPlugin;
     };
 
     // -------------------------------------------------------------------------
@@ -147,21 +151,24 @@ declare global {
     /**
      * Direct Corsair iCUE SDK access. Only available when the `"cue"` plugin
      * has loaded (check via `wallpaperPluginListener.onPluginLoaded`).
+     *
+     * @example
+     * window.cue?.getDeviceCount(count => console.log(count));
      */
-    cue: WallpaperCuePlugin;
+    cue?: WallpaperCuePlugin;
   }
 
   // Expose the same properties on globalThis so `globalThis.xxx` works
   // without needing the `window` identifier (preferred by some linters).
   var wallpaperPropertyListener: WallpaperPropertyListener | undefined;
   var wallpaperPluginListener: WallpaperPluginListener | undefined;
-  var wpPlugins: { led: WallpaperLedPlugin };
+  var wpPlugins: { led?: WallpaperLedPlugin } | undefined;
   var wallpaperMediaIntegration: {
     PLAYBACK_PLAYING: WallpaperMediaPlaybackState;
     PLAYBACK_PAUSED: WallpaperMediaPlaybackState;
     PLAYBACK_STOPPED: WallpaperMediaPlaybackState;
   };
-  var cue: WallpaperCuePlugin;
+  var cue: WallpaperCuePlugin | undefined;
   function wallpaperRegisterAudioListener(
     callback: (audioArray: number[]) => void,
   ): void;

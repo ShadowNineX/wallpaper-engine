@@ -39,4 +39,21 @@ describe('property display conditions', () => {
       expect.objectContaining({ condition: 'enabled.value &&' }),
     );
   });
+
+  it('treats inherited reserved names as missing while evaluating configured own names', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const missing = { enabled: { value: true } };
+    const configured = Object.fromEntries([
+      ['__proto__', { value: true }],
+      ['constructor', { value: true }],
+      ['toString', { value: true }],
+    ]);
+
+    for (const key of ['__proto__', 'constructor', 'toString']) {
+      expect(isConditionVisible(`${key}.value === true`, missing)).toBe(true);
+      expect(isConditionVisible(`${key}.value === true`, configured)).toBe(true);
+    }
+
+    expect(warn).toHaveBeenCalledTimes(3);
+  });
 });

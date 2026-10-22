@@ -1,4 +1,4 @@
-import { createPinia, setActivePinia } from 'pinia';
+import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 beforeEach(() => {
@@ -35,7 +35,7 @@ async function installFreshGlobals() {
 
 const defaultProperties = {
   audioprocessing: { value: true },
-  schemecolor: { value: '0 0 0' },
+  schemecolor: { value: '0.5 0.5 0.5' },
   alignmentfliph: { value: false },
   wec_e: { value: false },
   wec_brs: { value: 50 },
@@ -179,6 +179,41 @@ describe('wallpaper Engine host globals', () => {
     expect(simulator.listenerCounts).toMatchObject({ property: true, audio: 1 });
     expect(applyUserProperties).toHaveBeenCalledExactlyOnceWith({ ...defaultProperties, speed: { value: 4 } });
     expect(useDevtoolsStore(wallpaperPinia).listenerCounts).toMatchObject({ property: false, audio: 0 });
+  });
+
+  it('keeps startup and reinstalled property and media callbacks bound to the wallpaper Pinia', async () => {
+    const simulatorPinia = createPinia();
+    setActivePinia(simulatorPinia);
+    const [{ installGlobals }, { useDevtoolsStore }] = await Promise.all([
+      import('../src/globals'),
+      import('../src/store'),
+    ]);
+    const removeFirst = installGlobals(simulatorPinia);
+    const store = useDevtoolsStore(simulatorPinia);
+    store.mediaActive = true;
+    const wallpaperPinia = createPinia();
+    const seenPinia = vi.fn(() => getActivePinia() === wallpaperPinia);
+    setActivePinia(wallpaperPinia);
+    window.wallpaperPropertyListener = {
+      applyUserProperties: seenPinia,
+      applyGeneralProperties: seenPinia,
+      setPaused: seenPinia,
+    };
+    window.wallpaperRegisterMediaPropertiesListener(seenPinia);
+    await Promise.resolve();
+
+    expect(seenPinia).toHaveBeenCalledTimes(4);
+    expect(seenPinia).toHaveReturnedWith(true);
+
+    setActivePinia(wallpaperPinia);
+    const removeLatest = installGlobals(simulatorPinia);
+    await Promise.resolve();
+
+    expect(seenPinia).toHaveBeenCalledTimes(8);
+    expect(seenPinia).toHaveReturnedWith(true);
+    expect(getActivePinia()).toBe(wallpaperPinia);
+    removeLatest();
+    removeFirst();
   });
 
   it('coalesces pending property delivery across global reinstallation', async () => {
@@ -368,12 +403,16 @@ describe('wallpaper Engine host globals', () => {
       PLAYBACK_STOPPED: 2,
     });
     const image = String.fromCharCode(7, 8, 9);
-    window.wpPlugins.led.setAllDevicesByImageData(image, 1, 1);
-    window.cue.getProtocolDetails(protocol);
-    window.cue.getDeviceCount(count);
-    window.cue.getDeviceInfo(0, info);
-    window.cue.getLedPositionsByDeviceIndex(positions);
-    window.cue.setLedsColorsAsync([{ ledId: 1, r: 255, g: 128, b: 0 }]);
+    const led = window.wpPlugins?.led;
+    const cue = window.cue;
+    if (!led || !cue)
+      throw new Error('Expected the virtual RGB plugins to be installed.');
+    led.setAllDevicesByImageData(image, 1, 1);
+    cue.getProtocolDetails(protocol);
+    cue.getDeviceCount(count);
+    cue.getDeviceInfo(0, info);
+    cue.getLedPositionsByDeviceIndex(positions);
+    cue.setLedsColorsAsync([{ ledId: 1, r: 255, g: 128, b: 0 }]);
 
     expect(protocol).toHaveBeenCalledWith(
       expect.objectContaining({ sdkVersion: '0.0.0-dev', breakingChanges: false }),
@@ -398,7 +437,10 @@ describe('wallpaper Engine host globals', () => {
       import('../src/rgb'),
     ]);
     const remove = installGlobals();
-    window.cue.setLedsColorsAsync([{ ledId: 1, r: 1, g: 2, b: 3 }]);
+    const cue = window.cue;
+    if (!cue)
+      throw new Error('Expected the virtual iCUE plugin to be installed.');
+    cue.setLedsColorsAsync([{ ledId: 1, r: 1, g: 2, b: 3 }]);
 
     remove();
 

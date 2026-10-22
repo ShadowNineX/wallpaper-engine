@@ -70,8 +70,8 @@ binds `property.icon` on the property-label icon element. Its
 | `textInputProperty()` | `value: string` | `string` |
 | `fileProperty()` | `value: string`; optional `fileType: 'image' \| 'video'` | Native path or simulator `blob:` URL |
 | `directoryProperty()` | `value: string`, `mode: 'ondemand' \| 'fetchall'`; optional `fileType` | Directory path; files arrive through mode-specific callbacks |
-| `groupProperty()` | No caller-supplied `value` | Omitted from runtime callbacks |
-| `dividerProperty()` | Optional `text`, `icon`, `order`, `index`, `condition`; no `value` | Omitted from runtime callbacks |
+| `groupProperty()` | No caller-supplied `value` | No inferred value key; native callbacks may include layout metadata |
+| `dividerProperty()` | Optional `text`, `icon`, `order`, `index`, `condition`; no `value` | No inferred value key; native callbacks may include layout metadata |
 
 ## Colors
 
@@ -143,7 +143,7 @@ const properties = {
 };
 ```
 
-A group is a collapsible layout marker. Every following property belongs to it until the next group marker. The builder injects `type: 'group'` and `value: ''`; group keys are omitted from `WallpaperPropertyListenerOf` callback parameters and are not delivered by the host.
+A group is a collapsible layout marker. Every following property belongs to it until the next group marker. The builder injects `type: 'group'` and `value: ''`; group keys are omitted from `WallpaperPropertyListenerOf` callback parameters. Native callbacks may include the group descriptor with its empty placeholder value.
 
 ## Dividers
 
@@ -167,6 +167,11 @@ The builder emits `{ type: 'divider', ...metadata }` without inventing `text` or
 excluded from both property inference utilities, simulator callback values, and
 editable bridge state. In the simulator they respect display conditions and
 stay inside the current group; a divider does not start a new group.
+
+Native `applyUserProperties` callbacks may include divider descriptors without
+`value`. When using the broad `WallpaperPropertyListener` type, guard a property
+with `'value' in property` before reading it. `WallpaperPropertyListenerOf<T>`
+projects only editable value keys, so its existing value guards remain sufficient.
 
 Native behavior was checked against Wallpaper Engine **2.8.42**. The
 `views/includes/browseruserproperties.html` template in

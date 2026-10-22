@@ -11,7 +11,7 @@ import { toFileUrl } from 'wallpaper-engine/helpers';
 image.src = toFileUrl(properties.background.value);
 ```
 
-`toFileUrl()` prefixes a native path such as `C:/Wallpapers/image.png` with `file:///`. It preserves empty strings, root-relative paths, and existing `http:`, `https:`, `data:`, `blob:`, or `file:` URLs.
+`toFileUrl()` converts raw native paths such as `C:/Wallpapers/image.png` and the host's encoded file-property form such as `C%3A/Wallpapers/cover%20%23.jpg` to browser file URLs. It preserves empty strings, root-relative paths, and existing `http:`, `https:`, `data:`, `blob:`, or `file:` URLs. Raw directory callbacks can include literal percent text in filenames, so pass the original host value to the helper without decoding it first.
 
 ## File properties
 

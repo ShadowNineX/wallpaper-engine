@@ -101,6 +101,8 @@ function sliderProperty(
 
 Returns a new object. When `step` is `undefined` and `precision` is defined, adds `step = 10 ** -precision`. An explicit step wins. The builder does not validate min/max/default relationships.
 
+Numeric slider fields must be finite (`TypeError` otherwise). A supplied step must be positive, precision must be a non-negative integer, and a derived step must remain representable above zero (`RangeError` otherwise). Project generation also rejects non-finite numeric fields in raw definitions, including property order, before emitting any assets.
+
 ### `boolProperty()`
 
 ```ts
@@ -174,7 +176,7 @@ optional and no runtime `value` is added. Dividers are layout metadata and are
 excluded from inferred callback keys. See [Dividers](../../guides/property-schemas/#dividers)
 for native verification and simulator behavior.
 
-Except `colorProperty()` parsing and ordinary JavaScript allocation failures, the pass-through builders do not intentionally throw. They allocate one new definition and do not mutate `opts`; `sliderProperty()` mutates only its newly created return object.
+`colorProperty()` can throw on invalid colors, and `sliderProperty()` validates numeric inputs as described above. Builders allocate one new definition and do not mutate `opts`; `sliderProperty()` mutates only its newly created return object.
 
 ## Type inference
 
