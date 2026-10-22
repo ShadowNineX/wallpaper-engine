@@ -7,7 +7,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
 import { build } from 'vite';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 function packArchive(packager: 'Bun' | 'npm', directory: string): string {
   const cwd = fileURLToPath(new URL('../../', import.meta.url));
@@ -63,6 +63,25 @@ async function consumer(entry: 'wallpaper-engine/helpers' | 'wallpaper-engine/pl
 }
 
 describe('published package consumers', () => {
+  let archiveDirectory: string | undefined;
+  const archives = { Bun: '', npm: '' };
+
+  beforeAll(async () => {
+    archiveDirectory = await mkdtemp(join(tmpdir(), 'wallpaper-engine-archives-'));
+    archives.Bun = packArchive('Bun', archiveDirectory);
+  });
+
+  beforeAll(() => {
+    if (!archiveDirectory)
+      throw new Error('The archive fixture directory is unavailable.');
+    archives.npm = packArchive('npm', archiveDirectory);
+  });
+
+  afterAll(async () => {
+    if (archiveDirectory)
+      await rm(archiveDirectory, { recursive: true, force: true });
+  });
+
   it.each([
     ['DefaultWEProps', 'DefaultWEProps.wec_brs.value', 50],
     ['parseWallpaperColor', 'parseWallpaperColor("1 0.5 0")', { r: 255, g: 128, b: 0 }],
@@ -108,24 +127,18 @@ describe('published package consumers', () => {
     expect(helpers.colorToWallpaperColor('red')).toBe('1 0 0');
   });
 
-  it('packs the same published files with Bun and npm', async () => {
-    const directory = await mkdtemp(join(tmpdir(), 'wallpaper-engine-packlist-'));
-    try {
-      const files = (archive: string) => execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' })
-        .split(/\r?\n/)
-        .filter(name => name && !name.endsWith('/'))
-        .sort();
-      expect(files(packArchive('npm', directory))).toEqual(files(packArchive('Bun', directory)));
-    }
-    finally {
-      await rm(directory, { recursive: true, force: true });
-    }
+  it('packs the same published files with Bun and npm', () => {
+    const files = (archive: string) => execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' })
+      .split(/\r?\n/)
+      .filter(name => name && !name.endsWith('/'))
+      .sort();
+    expect(files(archives.npm)).toEqual(files(archives.Bun));
   });
 
   it.each(['Bun', 'npm'] as const)('runs ESM, CommonJS, and project generation from the %s archive without installed dependencies', async (packager) => {
     const directory = await mkdtemp(join(tmpdir(), 'wallpaper-engine-package-'));
     try {
-      execFileSync('tar', ['-xzf', packArchive(packager, directory), '-C', directory]);
+      execFileSync('tar', ['-xzf', archives[packager], '-C', directory]);
       const packageRoot = join(directory, 'package');
       const require = createRequire(import.meta.url);
       for (const extension of ['mts', 'cts']) {
