@@ -66,6 +66,8 @@ The Properties tab renders controls from the same property definitions passed to
 - **Replay all** sends every current non-group, non-`fetchall` user property, replays selected `fetchall` files through `userDirectoryFilesAddedOrChanged`, and sends the current FPS and pause state.
 - **Reset defaults** restores every user property to its configured default, clears selected local files and directories, sends one complete non-`fetchall` default payload, and removes previously delivered `fetchall` files. Runtime FPS and pause state are left unchanged.
 - Group markers become collapsible sections; they are never sent as runtime property values.
+- Dividers render horizontal separators with optional labels, preserve group
+  membership and display conditions, and are excluded from runtime property values.
 - Display conditions react to property comparisons and boolean expressions. They
   hide editor controls without removing values from runtime callbacks; unsupported
   expressions remain visible with a warning.

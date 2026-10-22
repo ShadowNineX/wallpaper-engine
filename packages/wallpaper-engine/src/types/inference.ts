@@ -29,11 +29,11 @@ export type PropertyDefinitionToValue<T extends WallpaperPropertyDefinition>
                 ? WallpaperDirectoryValue
                 : never;
 
-/** Infers non-group Wallpaper Engine property values from a property record. */
+/** Infers runtime property values, excluding group and divider layout markers. */
 export type WallpaperUserPropertiesOf<
   T extends Record<string, WallpaperPropertyDefinition>,
 > = {
-  readonly [K in keyof T as T[K] extends { type: 'group' }
+  readonly [K in keyof T as T[K] extends { type: 'group' | 'divider' }
     ? never
     : K]: PropertyDefinitionToValue<T[K]>;
 };

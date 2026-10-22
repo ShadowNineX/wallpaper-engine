@@ -11,6 +11,9 @@ migration); tags are used where they exist.
 
 ### Added
 
+- Added `WallpaperDividerProperty` and `dividerProperty()` for optional-label
+  separators, with simulator rendering and exclusion from inferred callbacks,
+  runtime property delivery, and editable bridge state (issue #21).
 - Added the optional Font Awesome `icon` field to every property definition and
   builder, preserving it in generated `project.json` (issue #22).
 - Added built-in Wallpaper Engine properties to `WallpaperPropertyListenerOf<T>`

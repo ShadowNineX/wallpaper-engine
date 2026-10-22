@@ -19,6 +19,7 @@ import {
   colorProperty,
   comboProperty,
   directoryProperty,
+  dividerProperty,
   fileProperty,
   groupProperty,
   sliderProperty,
@@ -27,6 +28,7 @@ import {
 
 const properties = {
   appearance: groupProperty({ text: 'Appearance' }),
+  separator: dividerProperty(),
   enabled: boolProperty({ text: 'Enabled', value: true }),
   speed: sliderProperty({ text: 'Speed', value: 2, min: 0, max: 5 }),
   accent: colorProperty({ text: 'Accent', value: '#5b86ed' }),
@@ -97,6 +99,8 @@ it('contextually types the recommended schema-aware listener assignment', () => 
       }
       // @ts-expect-error Group markers and unknown keys are never delivered.
       void values.appearance;
+      // @ts-expect-error Dividers are layout metadata with no callback key.
+      void values.separator;
       // @ts-expect-error Unknown properties are never delivered.
       void values.unknown;
     },

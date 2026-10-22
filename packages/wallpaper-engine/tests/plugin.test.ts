@@ -1,5 +1,6 @@
 import type {
   DefaultWEProps,
+  WallpaperDividerProperty as RootWallpaperDividerProperty,
   WallpaperProjectMetadata as RootWallpaperProjectMetadata,
   WallpaperPropertyDefinition,
   WallpaperPropertyListener,
@@ -7,6 +8,8 @@ import type {
   WallpaperUserProperties,
 } from '../src/index';
 import type {
+  PropertyDefinitionToValue,
+  WallpaperDividerProperty,
   WallpaperProjectMetadata,
   WallpaperUserPropertiesOf,
 } from '../src/plugin/index';
@@ -19,6 +22,7 @@ import {
   colorProperty,
   comboProperty,
   directoryProperty,
+  dividerProperty,
   fileProperty,
   groupProperty,
   sliderProperty,
@@ -231,6 +235,33 @@ describe('groupProperty', () => {
     >>[0];
 
     expectTypeOf<keyof Update>().toEqualTypeOf<'enabled' | keyof DefaultWEProps>();
+  });
+});
+
+describe('dividerProperty', () => {
+  it('creates a minimal divider without a label or value', () => {
+    const divider = dividerProperty();
+    expect(divider).toEqual({ type: 'divider' });
+    expectTypeOf(divider).toEqualTypeOf<RootWallpaperDividerProperty>();
+    expectTypeOf<WallpaperDividerProperty>().toEqualTypeOf<RootWallpaperDividerProperty>();
+    expectTypeOf<PropertyDefinitionToValue<WallpaperDividerProperty>>().toBeNever();
+    // @ts-expect-error A divider has no editable value.
+    const _invalid: Parameters<typeof dividerProperty>[0] = { value: '' };
+  });
+
+  it('preserves optional divider metadata without mutating options', () => {
+    const options = { text: 'ui_separator', icon: 'fa-minus', order: 3, index: 5, condition: 'enabled.value' };
+    const divider = dividerProperty(options);
+    expect(divider).toEqual({ ...options, type: 'divider' });
+    expect(options).not.toHaveProperty('type');
+    expect(divider).not.toHaveProperty('value');
+  });
+
+  it('omits divider keys from both property inference utilities', () => {
+    const _definitions = { separator: dividerProperty(), enabled: boolProperty({ text: 'Enabled', value: true }) };
+    expectTypeOf<keyof WallpaperUserPropertiesOf<typeof _definitions>>().toEqualTypeOf<'enabled'>();
+    type Update = Parameters<NonNullable<WallpaperPropertyListenerOf<typeof _definitions>['applyUserProperties']>>[0];
+    expectTypeOf<'separator'>().not.toExtend<keyof Update>();
   });
 });
 
@@ -853,6 +884,27 @@ describe('wallpaperEnginePlugin', () => {
     expect(project.general.properties.enabled.order).toBe(1);
   });
 
+  it('emits divider definitions without inventing labels or runtime values', () => {
+    const { project } = runGenerateBundle(wallpaperEnginePlugin({
+      title: 'Dividers',
+      properties: {
+        plain: dividerProperty(),
+        labeled: dividerProperty({ text: 'ui_separator', icon: 'fa-minus', order: 5, condition: 'enabled.value' }),
+        enabled: boolProperty({ text: 'Enabled', value: true }),
+      },
+    }));
+    expect(project.general.properties.plain).toEqual({ type: 'divider', index: 0, order: 0 });
+    expect(project.general.properties.labeled).toEqual({
+      type: 'divider',
+      text: 'ui_separator',
+      icon: 'fa-minus',
+      order: 5,
+      index: 1,
+      condition: 'enabled.value',
+    });
+    expect(project.general.properties.enabled.index).toBe(2);
+  });
+
   it('auto-assigns index and order to properties', () => {
     const { project } = runGenerateBundle(
       wallpaperEnginePlugin({
@@ -884,6 +936,7 @@ describe('wallpaperEnginePlugin', () => {
       text: textInputProperty({ ...common, value: 'Hello' }),
       file: fileProperty({ ...common, value: '' }),
       directory: directoryProperty({ ...common, value: '', mode: 'ondemand' }),
+      divider: dividerProperty(common),
       group: groupProperty(common),
     };
     expectTypeOf<WallpaperPropertyDefinition['icon']>().toEqualTypeOf<string | undefined>();

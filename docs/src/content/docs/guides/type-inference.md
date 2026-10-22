@@ -36,7 +36,7 @@ window.wallpaperPropertyListener = {
 ```
 
 Here `properties` contains `accent`, `intensity`, and `showTitle`. Unknown property keys and incorrect value types are
-compile-time errors. Group markers are excluded from the callback values.
+compile-time errors. Group and divider markers are excluded from the callback values.
 
 The schema reference remains necessary: the ambient browser global cannot know
 which properties a project defines. `import type` connects the schema without
@@ -111,7 +111,7 @@ Definitions include editor metadata; callbacks contain host-shaped wrappers:
 | `textinput` | `{ value: string }` |
 | `file` | `{ value: string }` |
 | `directory` | `{ value: string }` |
-| `group` | No callback key |
+| `group`, `divider` | No callback key |
 
 Combo values remain `string`; validate a host value before narrowing it to an
 application-specific literal union. Definitions describe possible editor choices,

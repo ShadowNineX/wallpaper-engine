@@ -161,6 +161,19 @@ function groupProperty(
 
 Returns `{ ...opts, type: 'group', value: '' }`. The generated discriminant/value override no caller fields because their omission is part of the signature.
 
+### `dividerProperty()`
+
+```ts
+function dividerProperty(
+  opts?: Omit<WallpaperDividerProperty, 'type'>,
+): WallpaperDividerProperty;
+```
+
+Returns `{ ...opts, type: 'divider' }`; `opts` defaults to `{}`. The label is
+optional and no runtime `value` is added. Dividers are layout metadata and are
+excluded from inferred callback keys. See [Dividers](../../guides/property-schemas/#dividers)
+for native verification and simulator behavior.
+
 Except `colorProperty()` parsing and ordinary JavaScript allocation failures, the pass-through builders do not intentionally throw. They allocate one new definition and do not mutate `opts`; `sliderProperty()` mutates only its newly created return object.
 
 ## Type inference
@@ -187,7 +200,7 @@ type PropertyDefinitionToValue<
               : never;
 ```
 
-Groups and unmatched definitions map to `never`.
+Groups, dividers, and unmatched definitions map to `never`.
 
 ### `WallpaperUserPropertiesOf<T>`
 
@@ -209,7 +222,7 @@ interface WallpaperProjectLinkOptions {
 
 `name` is one destination directory segment. When `projectsDirectory` is supplied, the plugin validates that it is an existing absolute directory; the caller must ensure it is the intended Wallpaper Engine `projects/myprojects` directory. See [Project Links](../../build/project-links/) for platform link types and safety errors.
 
-## Re-exported project-schema types (15)
+## Re-exported project-schema types (16)
 
 The plugin re-exports these exact root-owned types so a Vite config can remain on one public entry:
 
@@ -224,6 +237,7 @@ The plugin re-exports these exact root-owned types so a Vite config can remain o
 - `WallpaperFileProperty`
 - `WallpaperDirectoryProperty`
 - `WallpaperGroupProperty`
+- `WallpaperDividerProperty`
 - `WallpaperPropertyDefinition`
 - `WallpaperProjectGeneral`
 - `WallpaperProjectMetadata`

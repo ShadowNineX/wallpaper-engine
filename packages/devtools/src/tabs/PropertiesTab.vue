@@ -15,11 +15,11 @@ import { isConditionVisible } from '../conditions';
 import { propDefs, tr } from '../config';
 import { useDevtoolsStore } from '../store';
 
-type RuntimePropertyDefinition = Exclude<
+type PropertyRowDefinition = Exclude<
   WallpaperPropertyDefinition,
   WallpaperGroupProperty
 >;
-type PropertyEntry = [string, RuntimePropertyDefinition];
+type PropertyEntry = [string, PropertyRowDefinition];
 
 interface PropertyGroup {
   key: string;

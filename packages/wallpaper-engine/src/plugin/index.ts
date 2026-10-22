@@ -10,6 +10,7 @@ import type {
   WallpaperColorProperty,
   WallpaperComboProperty,
   WallpaperDirectoryProperty,
+  WallpaperDividerProperty,
   WallpaperFileProperty,
   WallpaperGroupProperty,
   WallpaperLocalization,
@@ -28,6 +29,7 @@ export type {
   WallpaperColorProperty,
   WallpaperComboProperty,
   WallpaperDirectoryProperty,
+  WallpaperDividerProperty,
   WallpaperFileProperty,
   WallpaperGroupProperty,
   WallpaperLocalization,
@@ -151,6 +153,23 @@ export function groupProperty(
   opts: Without<WallpaperGroupProperty, 'type' | 'value'>,
 ): WallpaperGroupProperty {
   return { ...opts, type: 'group', value: '' };
+}
+
+/**
+ * Define a horizontal property separator with optional label and visibility
+ * condition. Dividers do not appear in runtime property callbacks.
+ *
+ * @example
+ * const properties = {
+ *   enabled: boolProperty({ text: 'Enabled', value: true }),
+ *   separator: dividerProperty({ order: 1 }),
+ *   accent: colorProperty({ text: 'Accent', value: '#5b86ed' }),
+ * };
+ */
+export function dividerProperty(
+  opts: Without<WallpaperDividerProperty, 'type'> = {},
+): WallpaperDividerProperty {
+  return { ...opts, type: 'divider' };
 }
 
 // ---------------------------------------------------------------------------

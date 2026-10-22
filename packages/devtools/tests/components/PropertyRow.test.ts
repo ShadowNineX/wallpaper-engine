@@ -89,6 +89,27 @@ async function loadPropertyRow() {
 }
 
 describe('propertyRow', () => {
+  it('renders an unlabeled divider without an editable control', async () => {
+    const { PropertyRow } = await loadPropertyRow();
+    const wrapper = mount(PropertyRow, { props: { propKey: 'separator', def: { type: 'divider' } } });
+    expect(wrapper.get('hr').attributes('aria-label')).toBeUndefined();
+    expect(wrapper.text()).toBe('');
+    expect(wrapper.find('article, input, button, label, [role="slider"]').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
+  it('translates an optional divider label and names its separator', async () => {
+    window.__WE_DEVTOOLS_CONFIG__!.localization = { 'en-us': { ui_separator: 'More options' } };
+    const { PropertyRow } = await loadPropertyRow();
+    const wrapper = mount(PropertyRow, {
+      props: { propKey: 'separator', def: { type: 'divider', text: 'ui_separator' } },
+    });
+    expect(wrapper.text()).toBe('More options');
+    expect(wrapper.get('hr').attributes('aria-label')).toBe('More options');
+    expect(wrapper.find('input, button').exists()).toBe(false);
+    wrapper.unmount();
+  });
+
   it('renders every Wallpaper Engine property with an appropriate control', async () => {
     const { PropertyRow } = await loadPropertyRow();
 

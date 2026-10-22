@@ -14,7 +14,7 @@ import type {
 import 'wallpaper-engine';
 ```
 
-## Project schema types (15)
+## Project schema types (16)
 
 | Type | Shape and purpose |
 | --- | --- |
@@ -29,12 +29,15 @@ import 'wallpaper-engine';
 | `WallpaperFileProperty` | Base fields + `type: 'file'`, path `value`, optional `fileType` |
 | `WallpaperDirectoryProperty` | Base fields + `type: 'directory'`, path `value`, optional `fileType`, required `mode: 'ondemand' \| 'fetchall'` |
 | `WallpaperGroupProperty` | Base fields + `type: 'group'`, `value: ''`; editor layout only |
-| `WallpaperPropertyDefinition` | Union of the eight property-definition interfaces |
+| `WallpaperDividerProperty` | `type: 'divider'`, optional `text`, `icon`, `order`, `index`, `condition`; no runtime value |
+| `WallpaperPropertyDefinition` | Union of the nine property-definition interfaces |
 | `WallpaperProjectGeneral` | Optional `properties`, `localization`, and `supportsaudioprocessing` |
 | `WallpaperProjectMetadata` | Optional `description`, `preview`, `tags`, `contentrating`, `ratingsex`, `ratingviolence`, `visibility` |
 | `WallpaperProject` | Metadata + required `file`, `title`, `type: 'web'`, optional `general` |
 
-All property definitions share `text: string` and optional `order`, `index`, and `condition`. See [Property Schemas](../../guides/property-schemas/) for normalization and editor behavior.
+All property definitions accept optional `icon`, `order`, `index`, and `condition`.
+`text` is required except on dividers, where it is optional. See
+[Property Schemas](../../guides/property-schemas/) for normalization and editor behavior.
 
 Source: [`src/types/project.ts`](https://github.com/ShadowNineX/wallpaper-engine/blob/main/packages/wallpaper-engine/src/types/project.ts), symbols listed above.
 
@@ -53,7 +56,7 @@ Source: [`src/types/project.ts`](https://github.com/ShadowNineX/wallpaper-engine
 | `WallpaperUserProperties` | `Record<string, WallpaperPropertyRuntimeValue>` |
 | `WallpaperGeneralProperties` | `{ fps?: number }`; `0` means unlimited |
 | `WallpaperPropertyListener` | Optional user/general/pause/directory callback object |
-| `WallpaperPropertyListenerOf<T>` | Listener inferred from custom and built-in properties; updates are partial and group keys are omitted |
+| `WallpaperPropertyListenerOf<T>` | Listener inferred from custom and built-in properties; updates are partial and group/divider keys are omitted |
 | `DefaultWEProps` | Built-in property definitions; `audioprocessing` is optional because audio support is conditional. Runtime defaults are exported from `/helpers`. |
 | `WallpaperPluginListener` | Optional `onPluginLoaded(name, version)` callback object |
 

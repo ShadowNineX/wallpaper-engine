@@ -11,6 +11,7 @@ import {
   colorProperty,
   comboProperty,
   directoryProperty,
+  dividerProperty,
   fileProperty,
   groupProperty,
   sliderProperty,
@@ -26,9 +27,9 @@ Every property accepts these editor-facing fields:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `text` | `string` | Required display label, or a `ui_` localization token |
+| `text` | `string` | Display label or `ui_` localization token; optional for dividers, required for other kinds |
 | `icon` | `string` | Optional Font Awesome CSS class or class list for the native property label, such as `fa-palette` |
-| `value` | Kind-specific | Required default value; `groupProperty()` injects `''` |
+| `value` | Kind-specific | Required for value properties; `groupProperty()` injects `''`; dividers have no value |
 | `order` | `number` | Optional sort order in the property panel |
 | `index` | `number` | Optional internal editor index |
 | `condition` | `string` | JavaScript visibility expression referencing another property, such as `showclock.value == true` |
@@ -70,6 +71,7 @@ binds `property.icon` on the property-label icon element. Its
 | `fileProperty()` | `value: string`; optional `fileType: 'image' \| 'video'` | Native path or simulator `blob:` URL |
 | `directoryProperty()` | `value: string`, `mode: 'ondemand' \| 'fetchall'`; optional `fileType` | Directory path; files arrive through mode-specific callbacks |
 | `groupProperty()` | No caller-supplied `value` | Omitted from runtime callbacks |
+| `dividerProperty()` | Optional `text`, `icon`, `order`, `index`, `condition`; no `value` | Omitted from runtime callbacks |
 
 ## Colors
 
@@ -142,6 +144,37 @@ const properties = {
 ```
 
 A group is a collapsible layout marker. Every following property belongs to it until the next group marker. The builder injects `type: 'group'` and `value: ''`; group keys are omitted from `WallpaperPropertyListenerOf` callback parameters and are not delivered by the host.
+
+## Dividers
+
+Use a divider to insert a horizontal separator. Both its label and builder
+options are optional:
+
+```ts
+const properties = {
+  accent: colorProperty({ text: 'Accent', value: '#5b86ed' }),
+  separator: dividerProperty(),
+  advanced: boolProperty({ text: 'Advanced options', value: false }),
+  advancedSeparator: dividerProperty({
+    text: 'Advanced settings',
+    condition: 'advanced.value',
+  }),
+};
+```
+
+The builder emits `{ type: 'divider', ...metadata }` without inventing `text` or
+`value`. The plugin assigns missing `index` and `order` as usual. Dividers are
+excluded from both property inference utilities, simulator callback values, and
+editable bridge state. In the simulator they respect display conditions and
+stay inside the current group; a divider does not start a new group.
+
+Native behavior was checked against Wallpaper Engine **2.8.42**. The
+`views/includes/browseruserproperties.html` template in
+`ui/dist/scripts/scripts.js` renders a divider as `<hr class="fullWidth">`
+under the common display-condition check and supports an optional label.
+Read-only inspection of `wallpaper64.exe` also found the `_d0` default
+divider construction: the block at virtual address `0x14010CE32` sets `type`
+to `divider` and sets `order`, without initializing a label or value.
 
 ## Localization
 

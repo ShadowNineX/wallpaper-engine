@@ -40,6 +40,7 @@ export type {
   WallpaperComboOption,
   WallpaperComboProperty,
   WallpaperDirectoryProperty,
+  WallpaperDividerProperty,
   WallpaperFileProperty,
   WallpaperFileType,
   WallpaperGroupProperty,

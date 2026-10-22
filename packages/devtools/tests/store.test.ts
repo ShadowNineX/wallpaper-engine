@@ -17,6 +17,7 @@ vi.mock('../src/dev-files', () => ({
 }));
 const properties = {
   appearance: { type: 'group', text: 'Appearance', value: '' },
+  separator: { type: 'divider' },
   color: { type: 'color', text: 'Color', value: '0.1 0.2 0.3' },
   speed: { type: 'slider', text: 'Speed', value: 2, min: 0, max: 5 },
   enabled: { type: 'bool', text: 'Enabled', value: true },
@@ -101,6 +102,7 @@ describe('devtools property state', () => {
     const store = useDevtoolsStore();
 
     expect(store.currentValues).not.toHaveProperty('appearance');
+    expect(store.currentValues).not.toHaveProperty('separator');
     expect(store.currentValues).toEqual({
       audioprocessing: { value: true },
       schemecolor: { value: '0 0 0' },
@@ -175,6 +177,23 @@ describe('devtools property state', () => {
       audioprocessing: { value: true },
       wec_brs: { value: 50 },
     }));
+  });
+
+  it('never delivers divider values during replay changes or reset', async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+    store.deliverAllProperties(false);
+    expect(applyUserProperties).toHaveBeenCalledOnce();
+    expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty('separator');
+    applyUserProperties.mockClear();
+    store.deliverProperty('separator');
+    expect(applyUserProperties).not.toHaveBeenCalled();
+    store.resetPropertiesToDefaults();
+    expect(applyUserProperties).toHaveBeenCalledOnce();
+    expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty('separator');
+    expect(store.currentValues).not.toHaveProperty('separator');
   });
 
   it('does not deliver audio recording when audio support is disabled', async () => {

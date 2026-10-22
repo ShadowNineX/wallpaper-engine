@@ -153,6 +153,19 @@ export interface WallpaperGroupProperty extends WallpaperPropertyBase {
   value: '';
 }
 
+/**
+ * Horizontal separator in Wallpaper Engine's property list. The optional text
+ * labels the separator. Dividers have no runtime value.
+ *
+ * @example
+ * { type: 'divider', order: 3 }
+ */
+export interface WallpaperDividerProperty extends Omit<WallpaperPropertyBase, 'text'> {
+  type: 'divider';
+  /** Optional display label, or a `ui_` localization token. */
+  text?: string;
+}
+
 /** Union of all property definition types stored in `project.json`. */
 export type WallpaperPropertyDefinition
   = | WallpaperColorProperty
@@ -161,6 +174,7 @@ export type WallpaperPropertyDefinition
     | WallpaperComboProperty
     | WallpaperTextInputProperty
     | WallpaperFileProperty
+    | WallpaperDividerProperty
     | WallpaperGroupProperty
     | WallpaperDirectoryProperty;
 

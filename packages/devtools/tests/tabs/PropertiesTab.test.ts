@@ -21,6 +21,52 @@ afterEach(() => {
 });
 
 describe('propertiesTab', () => {
+  it('sorts conditional dividers without breaking group boundaries', async () => {
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: {
+        after: { type: 'textinput', text: 'After', value: '', order: 3 },
+        outside: { type: 'divider', order: 2 },
+        before: { type: 'textinput', text: 'Before', value: '', order: 1 },
+        enabled: { type: 'bool', text: 'Enabled', value: false, order: 0 },
+        appearance: { type: 'group', text: 'Appearance', value: '', order: 4 },
+        first: { type: 'textinput', text: 'First in group', value: '', order: 5 },
+        conditional: { type: 'divider', text: 'Advanced options', condition: 'enabled.value', order: 6 },
+        last: { type: 'textinput', text: 'Last in group', value: '', order: 7 },
+      },
+      localization: {},
+    };
+    const [{ default: PropertiesTab }, { useDevtoolsStore, listenerFns }] = await Promise.all([
+      import('../../src/tabs/PropertiesTab.vue'),
+      import('../../src/store'),
+    ]);
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+    const wrapper = mount(PropertiesTab);
+    const outside = wrapper.get('[data-ungrouped-properties] [data-property-divider="outside"]');
+    expect(outside.element.previousElementSibling?.getAttribute('title')).toBe('before · textinput');
+    expect(outside.element.nextElementSibling?.getAttribute('title')).toBe('after · textinput');
+    const group = wrapper.get('[data-property-group="appearance"]');
+    expect(group.find('[data-property-divider="conditional"]').exists()).toBe(false);
+    expect(group.text()).toContain('Last in group');
+
+    store.currentValues.enabled = { value: true };
+    await nextTick();
+    const divider = group.get('[data-property-divider="conditional"]');
+    expect(divider.get('hr').element.tagName).toBe('HR');
+    expect(divider.element.previousElementSibling?.getAttribute('title')).toBe('first · textinput');
+    expect(divider.element.nextElementSibling?.getAttribute('title')).toBe('last · textinput');
+    store.deliverAllProperties(false);
+    expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty('outside');
+    expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty('conditional');
+
+    store.currentValues.enabled = { value: false };
+    await nextTick();
+    expect(group.find('[data-property-divider="conditional"]').exists()).toBe(false);
+    expect(group.text()).toContain('Last in group');
+    wrapper.unmount();
+  });
+
   it('sorts properties by order and replays complete startup state', async () => {
     const [{ default: PropertiesTab }, { listenerFns }] = await Promise.all([
       import('../../src/tabs/PropertiesTab.vue'),
@@ -263,6 +309,7 @@ describe('propertiesTab', () => {
           condition: 'enabled.value == true',
           order: 2,
         },
+        separator: { type: 'divider', order: 2.5 },
         secret: { type: 'textinput', text: 'Secret', value: 'value', order: 3 },
         following: { type: 'group', text: 'Following', value: '', order: 4 },
         visible: { type: 'textinput', text: 'Visible', value: 'yes', order: 5 },
@@ -277,6 +324,7 @@ describe('propertiesTab', () => {
     const wrapper = mount(PropertiesTab);
 
     expect(wrapper.find('[data-property-group="optional"]').exists()).toBe(false);
+    expect(wrapper.find('[data-property-divider="separator"]').exists()).toBe(false);
     expect(wrapper.text()).not.toContain('Secret');
     expect(wrapper.get('[data-property-group="following"]').text()).toContain('Visible');
 
@@ -284,5 +332,6 @@ describe('propertiesTab', () => {
     await nextTick();
 
     expect(wrapper.get('[data-property-group="optional"]').text()).toContain('Secret');
+    expect(wrapper.get('[data-property-group="optional"] [data-property-divider="separator"] hr').element.tagName).toBe('HR');
   });
 });

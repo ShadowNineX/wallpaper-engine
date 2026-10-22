@@ -22,7 +22,7 @@ import { notify } from './notifications';
 
 type RuntimePropertyDefinition = Exclude<
   WallpaperPropertyDefinition,
-  { type: 'group' }
+  { type: 'group' | 'divider' }
 >;
 
 interface DirectoryChangeSummary {
@@ -81,7 +81,7 @@ function wrapValue(
 function createInitialValues(): WallpaperUserProperties {
   const values: WallpaperUserProperties = {};
   for (const [key, def] of Object.entries(propDefs)) {
-    if (def.type === 'group')
+    if (def.type === 'group' || def.type === 'divider')
       continue;
     values[key] = wrapValue(def, def.value);
   }

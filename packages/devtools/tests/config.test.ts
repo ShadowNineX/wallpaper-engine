@@ -12,9 +12,9 @@ describe('devtools config', () => {
     const { cfg, propDefs, tr } = await import('../src/config');
 
     expect(cfg).toEqual({ properties: {}, localization: {} });
-    expect(propDefs.schemecolor?.value).toBe('0 0 0');
-    expect(propDefs.audioprocessing?.value).toBe(true);
-    expect(propDefs.wec_brs?.value).toBe(50);
+    expect(propDefs.schemecolor).toHaveProperty('value', '0 0 0');
+    expect(propDefs.audioprocessing).toHaveProperty('value', true);
+    expect(propDefs.wec_brs).toHaveProperty('value', 50);
     expect(tr('ui_browse_properties_brightness')).toBe('Brightness');
     expect(tr('ui_missing')).toBe('ui_missing');
   });
@@ -27,7 +27,7 @@ describe('devtools config', () => {
     };
     const { propDefs } = await import('../src/config');
     expect(propDefs).not.toHaveProperty('audioprocessing');
-    expect(propDefs.schemecolor?.value).toBe('0 0 0');
+    expect(propDefs.schemecolor).toHaveProperty('value', '0 0 0');
   });
 
   it('preserves explicit built-in definitions and label translations', async () => {

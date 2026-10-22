@@ -29,6 +29,7 @@
 
 - **Typed host APIs** for user properties, audio, media, files, and RGB integrations.
 - **Shared property schemas** that generate `project.json`, infer callback values, and support native Font Awesome property icons through the optional `icon` field.
+- **Property layout** with group markers and horizontal separators from `dividerProperty()`.
 - **Browser devtools** with property controls, audio and media simulation, and performance diagnostics. Float, dock, or open the panel in a separate window.
 - **Runtime helpers** for colors, audio analysis and tempo estimation, media, files, and frame pacing.
 - **Build integration** for project metadata, previews, and links to local Wallpaper Engine projects.

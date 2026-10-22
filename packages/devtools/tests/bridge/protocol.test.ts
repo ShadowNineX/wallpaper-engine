@@ -8,6 +8,7 @@ beforeEach(() => {
     properties: {
       gain: { type: 'slider', value: 0.5, min: 0, max: 1, step: 0.1, text: 'Gain' },
       artwork: { type: 'file', value: '', text: 'Artwork' },
+      separator: { type: 'divider' },
     },
     localization: {},
   };
@@ -67,6 +68,25 @@ describe('bridge protocol schemas', () => {
 
     expect(CommandValidator.Check(selection)).toBe(true);
     expect(CommandValidator.Check({ ...selection, selection: { ...selection.selection, files: [{ file: { name: 'cover.png' }, relativePath: 'cover.png' }] } })).toBe(false);
+  });
+
+  it('excludes dividers from snapshots and rejects editable divider values', async () => {
+    const [{ DraftValidator, makeDraft, applyDraftPatch }, { createBackend }] = await Promise.all([
+      import('../../src/bridge/protocol'),
+      import('../../src/bridge/backend'),
+    ]);
+    const backend = createBackend(createPinia(), () => undefined);
+    try {
+      const snapshot = backend.snapshot();
+      const draft = makeDraft(backend.store.$state);
+      expect(snapshot.state.currentValues).not.toHaveProperty('separator');
+      expect(draft.currentValues).not.toHaveProperty('separator');
+      expect(DraftValidator.Check({ ...draft, currentValues: { ...draft.currentValues, separator: { value: '' } } })).toBe(false);
+      expect(() => applyDraftPatch(draft, [{ type: 'insert', path: '/currentValues/@separator', value: { value: '' } }])).toThrow();
+    }
+    finally {
+      backend.dispose();
+    }
   });
 
   it('rejects host-owned state fields in frontend command drafts', async () => {

@@ -83,7 +83,7 @@ function editableProperty(type: string) {
 
 const editableProperties = Object.fromEntries(
   Object.entries(propDefs)
-    .filter(([, definition]) => definition.type !== 'group' && definition.type !== 'file' && definition.type !== 'directory')
+    .filter(([, definition]) => definition.type !== 'group' && definition.type !== 'divider' && definition.type !== 'file' && definition.type !== 'directory')
     .map(([key, definition]) => [key, editableProperty(definition.type)]),
 );
 
