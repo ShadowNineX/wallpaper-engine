@@ -1,3 +1,4 @@
+import { fileURLToPath, URL } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
@@ -9,6 +10,7 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: ['tests/**/*.test.ts'],
+      reporter: ['text', 'html', 'clover', 'json', ['lcovonly', { projectRoot: fileURLToPath(new URL('../../', import.meta.url)) }]],
       thresholds: {
         statements: 85,
         branches: 80,

@@ -223,6 +223,69 @@ describe('steam Workshop project preservation', () => {
     })).resolves.toBeDefined();
   });
 
+  it.each([
+    { name: 'string input', makeInput: (index: string, wallpaper: string) => wallpaper },
+    { name: 'array input', makeInput: (index: string, wallpaper: string) => [index, wallpaper] },
+  ])('accepts a write-disabled multi-page $name', async ({ makeInput }) => {
+    const root = await createWallpaperRoot();
+    const index = join(root, 'index.html');
+    const wallpaper = join(root, 'pages', 'wallpaper.html');
+    await mkdir(join(root, 'pages'), { recursive: true });
+    await writeFile(wallpaper, '<main>Wallpaper</main>');
+
+    await expect(buildWallpaper(root, {
+      title: 'In-memory multi-page output',
+      file: 'pages/wallpaper.html',
+    }, {
+      rollupOptions: { input: makeInput(index, wallpaper) },
+      write: false,
+    })).resolves.toBeDefined();
+  });
+
+  it.each([
+    { name: 'missing source', file: 'pages/missing.html', input: undefined },
+    { name: 'unmatched configured input', file: 'pages/wallpaper.html', input: 'index.html' },
+  ])('rejects a write-disabled $name', async ({ file, input }) => {
+    const root = await createWallpaperRoot();
+    await mkdir(join(root, 'pages'), { recursive: true });
+    await writeFile(join(root, 'pages', 'wallpaper.html'), '<main>Wallpaper</main>');
+
+    await expect(buildWallpaper(root, {
+      title: 'Invalid in-memory entry',
+      file,
+    }, {
+      rollupOptions: { input },
+      write: false,
+    })).rejects.toThrow(/was not emitted/i);
+  });
+
+  it.each([
+    { name: 'empty and dot segments', file: 'pages//./wallpaper.html' },
+    { name: 'parent segment', file: 'pages/nested/../wallpaper.html' },
+  ])('normalizes a write-disabled project file with $name', async ({ file }) => {
+    const root = await createWallpaperRoot();
+    const wallpaper = join(root, 'pages', 'wallpaper.html');
+    await mkdir(join(root, 'pages'), { recursive: true });
+    await writeFile(wallpaper, '<main>Wallpaper</main>');
+
+    await expect(buildWallpaper(root, {
+      title: 'Normalized in-memory entry',
+      file,
+    }, {
+      rollupOptions: { input: wallpaper },
+      write: false,
+    })).resolves.toBeDefined();
+  });
+
+  it.each(['', '.', './'])('rejects an empty normalized project file %j', async (file) => {
+    const root = await createWallpaperRoot();
+
+    await expect(buildWallpaper(root, {
+      title: 'Empty entry',
+      file,
+    })).rejects.toThrow(/Unsafe project file/);
+  });
+
   it('rejects public entry files when written builds disable public copying', async () => {
     const root = await createWallpaperRoot();
     await mkdir(join(root, 'public'), { recursive: true });
@@ -250,6 +313,19 @@ describe('steam Workshop project preservation', () => {
         entry: join(root, 'src', 'main.js'),
         formats: ['es'],
       },
+    })).rejects.toThrow(/index\.html.*was not emitted/i);
+  });
+
+  it('rejects a write-disabled library build with no HTML output', async () => {
+    const root = await createWallpaperRoot();
+    await mkdir(join(root, 'src'), { recursive: true });
+    await writeFile(join(root, 'src', 'main.js'), 'export const wallpaper = true;');
+
+    await expect(buildWallpaper(root, {
+      title: 'In-memory library output',
+    }, {
+      lib: { entry: join(root, 'src', 'main.js'), formats: ['es'] },
+      write: false,
     })).rejects.toThrow(/index\.html.*was not emitted/i);
   });
 

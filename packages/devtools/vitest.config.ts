@@ -23,7 +23,7 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.{ts,vue}'],
       exclude: ['src/main.ts'],
-      reporter: ['text', 'json-summary'],
+      reporter: ['text', 'json-summary', ['lcovonly', { projectRoot: fileURLToPath(new URL('../../', import.meta.url)) }]],
       thresholds: {
         statements: 80,
         branches: 70,

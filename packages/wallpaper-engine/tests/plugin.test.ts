@@ -1597,8 +1597,45 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     } as never);
 
     onServerClose?.();
+    onServerClose?.();
     plugin.closeBundle.call({} as never);
     expect(unwatchFileMock).toHaveBeenCalledOnce();
+  });
+
+  it('does not inspect build output when writeBundle runs without a build config', async () => {
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (typeof plugin.writeBundle !== 'function')
+      throw new TypeError('writeBundle hook is not callable');
+
+    await plugin.writeBundle.call({} as never, {} as never, {} as never);
+
+    expect(statMock).not.toHaveBeenCalled();
+  });
+
+  it('propagates an unreadable written project entry from writeBundle', async () => {
+    readFileMock.mockRejectedValueOnce(
+      Object.assign(new Error('missing'), { code: 'ENOENT' }),
+    );
+    const plugin = wallpaperEnginePlugin({ title: 'T' });
+    if (
+      typeof plugin.configResolved !== 'function'
+      || typeof plugin.writeBundle !== 'function'
+    ) {
+      throw new TypeError('build hooks are not callable');
+    }
+    await plugin.configResolved.call({} as never, {
+      command: 'build',
+      root: '/wallpaper',
+      publicDir: '',
+      build: { outDir: 'dist', rollupOptions: {}, write: true },
+    } as never);
+    runGenerateBundle(plugin);
+    const denied = Object.assign(new Error('access denied'), { code: 'EACCES' });
+    statMock.mockRejectedValueOnce(denied);
+
+    await expect(plugin.writeBundle.call({} as never, {} as never, {} as never))
+      .rejects
+      .toBe(denied);
   });
 
   it('does not install a client watcher when devtools are disabled', () => {

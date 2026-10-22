@@ -26,7 +26,7 @@ function deferred<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
-function installDelayedImages(): Array<() => void> {
+function installDelayedImages(errors: Array<() => void> = []): Array<() => void> {
   const loads: Array<() => void> = [];
   vi.stubGlobal(
     'Image',
@@ -42,6 +42,7 @@ function installDelayedImages(): Array<() => void> {
 
       set src(_value: string) {
         loads.push(() => this.onload?.());
+        errors.push(() => this.onerror?.());
       }
     },
   );
@@ -287,12 +288,17 @@ describe('mediaTab', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:artwork-source');
   });
 
-  it('ignores a delayed artwork decode after unmount and preserves newer artwork', async () => {
+  it.each([
+    { completion: 'decode', fails: false },
+    { completion: 'decode failure', fails: true },
+  ])('ignores a delayed artwork $completion after unmount and preserves newer artwork', async ({ fails }) => {
     const [{ default: MediaTab }, { useDevtoolsStore }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
       import('../../src/store'),
     ]);
-    const loads = installDelayedImages();
+    const errors: Array<() => void> = [];
+    const loads = installDelayedImages(errors);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const createObjectURL = vi.fn()
       .mockReturnValueOnce('blob:old')
       .mockReturnValueOnce('blob:new');
@@ -316,16 +322,24 @@ describe('mediaTab', () => {
 
     expect(useDevtoolsStore().mediaThumb.thumbnail).toBe('data:image/png;base64,new');
 
-    loads[0]?.();
+    if (fails)
+      errors[0]?.();
+    else
+      loads[0]?.();
     await flushPromises();
 
     expect(useDevtoolsStore().mediaThumb.thumbnail).toBe('data:image/png;base64,new');
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:old');
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:new');
+    expect(messages).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
     currentWrapper.unmount();
   });
 
-  it('ignores a delayed palette after unmount and preserves newer artwork', async () => {
+  it.each([
+    { completion: 'palette', fails: false },
+    { completion: 'palette failure', fails: true },
+  ])('ignores a delayed $completion after unmount and preserves newer artwork', async ({ fails }) => {
     const [{ default: MediaTab }, { useDevtoolsStore }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
       import('../../src/store'),
@@ -334,6 +348,7 @@ describe('mediaTab', () => {
     const newPalette = [deferred<{ hex: string; isDark: boolean }>(), deferred<{ hex: string; isDark: boolean }>(), deferred<{ hex: string; isDark: boolean }>()];
     const destroyOld = vi.fn();
     const destroyNew = vi.fn();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     let extractorIndex = 0;
     averageColor.create.mockImplementation(() => {
       const palette = [...[oldPalette, newPalette][extractorIndex++]!];
@@ -367,8 +382,12 @@ describe('mediaTab', () => {
     loads[1]?.();
     await flushPromises();
 
-    for (const color of oldPalette)
-      color.resolve({ hex: '#111111', isDark: true });
+    for (const color of oldPalette) {
+      if (fails)
+        color.reject(new Error('Old artwork palette failed'));
+      else
+        color.resolve({ hex: '#111111', isDark: true });
+    }
     await flushPromises();
 
     expect(useDevtoolsStore().mediaThumb).toMatchObject({
@@ -376,6 +395,8 @@ describe('mediaTab', () => {
       primaryColor: '#202020',
     });
     expect(destroyOld).toHaveBeenCalledOnce();
+    expect(messages).toEqual([]);
+    expect(warn).not.toHaveBeenCalled();
 
     newPalette[0]?.resolve({ hex: '#222222', isDark: false });
     newPalette[1]?.resolve({ hex: '#333333', isDark: false });
@@ -389,6 +410,53 @@ describe('mediaTab', () => {
     });
     expect(destroyNew).toHaveBeenCalledOnce();
     currentWrapper.unmount();
+  });
+
+  it('keeps converted artwork usable when the current palette extraction fails', async () => {
+    const [{ default: MediaTab }, { useDevtoolsStore, listenerFns }] = await Promise.all([
+      import('../../src/tabs/MediaTab.vue'),
+      import('../../src/store'),
+    ]);
+    const error = new Error('Palette extraction failed');
+    const destroy = vi.fn();
+    averageColor.create.mockReturnValue({
+      getColorAsync: vi.fn().mockRejectedValue(error),
+      destroy,
+    });
+    const loads = installDelayedImages();
+    const revokeObjectURL = vi.fn();
+    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:current'), revokeObjectURL });
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue('data:image/png;base64,current');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const thumbnail = vi.fn();
+    listenerFns.mediaThumb.push(thumbnail);
+    const wrapper = mount(MediaTab);
+    await wrapper.get('[data-media-enabled]').trigger('click');
+    thumbnail.mockClear();
+    messages.length = 0;
+
+    await setArtworkFile(wrapper, 'current.png');
+    loads[0]?.();
+    await flushPromises();
+
+    expect(useDevtoolsStore().mediaThumb).toMatchObject({
+      thumbnail: 'data:image/png;base64,current',
+      primaryColor: '#202020',
+    });
+    expect(destroy).toHaveBeenCalledOnce();
+    expect(revokeObjectURL).toHaveBeenCalledExactlyOnceWith('blob:current');
+    expect(warn).toHaveBeenCalledExactlyOnceWith('[WE Dev] Unable to extract thumbnail colors', error);
+    expect(messages).toEqual(['Artwork converted to PNG, but its palette could not be extracted.']);
+    expect(wrapper.get('[aria-busy]').attributes('aria-busy')).toBe('false');
+    await wrapper.findAll('button').find(button => button.text().includes('Send artwork'))?.trigger('click');
+    expect(thumbnail).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      thumbnail: 'data:image/png;base64,current',
+      primaryColor: '#202020',
+    }));
+    wrapper.unmount();
   });
 
   it('delivers status, playback, timeline, artwork, and disabled transitions', async () => {
