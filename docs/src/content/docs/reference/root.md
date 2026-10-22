@@ -1,6 +1,6 @@
 ---
 title: Root Types & Host Globals
-description: Exhaustive reference for the 40 type exports and 12 ambient Wallpaper Engine browser globals in the package root.
+description: Reference for the public type exports and ambient Wallpaper Engine browser globals in the package root.
 ---
 
 The root entry has no runtime API. It exports types and imports the global augmentation declarations.
@@ -53,7 +53,8 @@ Source: [`src/types/project.ts`](https://github.com/ShadowNineX/wallpaper-engine
 | `WallpaperUserProperties` | `Record<string, WallpaperPropertyRuntimeValue>` |
 | `WallpaperGeneralProperties` | `{ fps?: number }`; `0` means unlimited |
 | `WallpaperPropertyListener` | Optional user/general/pause/directory callback object |
-| `WallpaperPropertyListenerOf<T>` | Listener inferred from a property-definition record; user updates are automatically partial and group keys are omitted |
+| `WallpaperPropertyListenerOf<T>` | Listener inferred from custom and built-in properties; updates are partial and group keys are omitted |
+| `DefaultWEProps` | Built-in property definitions; `audioprocessing` is optional because audio support is conditional. Runtime defaults are exported from `/helpers`. |
 | `WallpaperPluginListener` | Optional `onPluginLoaded(name, version)` callback object |
 
 The base host contract is open-ended; its exact callback signatures are defined

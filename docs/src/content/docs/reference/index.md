@@ -7,9 +7,9 @@ The package publishes three independent entry points. Import from the owner show
 
 | Entry point | Exports | Runtime and module formats | Dependency boundary |
 | --- | --- | --- | --- |
-| `wallpaper-engine` | 40 project, listener, media, RGB, and iCUE types; ambient host globals | Type-oriented root; ESM and CommonJS | No runtime API or Vite import |
+| `wallpaper-engine` | Project, built-in property, listener, media, RGB, and iCUE types; ambient host globals | Type-oriented root; ESM and CommonJS | No runtime API or Vite import |
 | `wallpaper-engine/plugin` | Vite plugin, eight property builders, inference/options types, and 15 re-exported project-schema types | ESM only | The only public entry allowed to import Vite |
-| `wallpaper-engine/helpers` | 13 side-effect-free functions and four average-color types | ESM and CommonJS | Individually tree-shakeable browser utilities |
+| `wallpaper-engine/helpers` | Side-effect-free browser functions, audio and average-color types, and `DefaultWEProps` defaults | ESM and CommonJS | Individually tree-shakeable browser utilities |
 
 ## Boundary examples
 
@@ -27,7 +27,7 @@ import 'wallpaper-engine';
 
 ## Reference pages
 
-- [Root Types & Host Globals](./root/): all 40 exported types and 12 ambient host names.
+- [Root Types & Host Globals](./root/): exported types and ambient host names.
 - [Plugin API](./plugin/): generation, links, builders, inference, and re-exported schemas.
 - [Helpers API](./helpers/): exact signatures, allocation, errors, and lifecycle.
 

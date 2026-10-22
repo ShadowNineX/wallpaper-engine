@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { builtInValues } from '../fixtures/properties';
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -54,7 +55,7 @@ describe('bridge protocol schemas', () => {
 
     const draft = makeDraft(store.$state);
 
-    expect(draft.currentValues).toEqual({ gain: { value: 0.75 } });
+    expect(draft.currentValues).toEqual({ ...builtInValues, gain: { value: 0.75 } });
     expect(draft).not.toHaveProperty('listenerCounts');
     expect(draft).not.toHaveProperty('directorySelections');
   });
@@ -71,7 +72,7 @@ describe('bridge protocol schemas', () => {
   it('rejects host-owned state fields in frontend command drafts', async () => {
     const { applyDraftPatch, ClientMessageValidator, DraftPatchValidator, DraftValidator } = await import('../../src/bridge/protocol');
     const draft = {
-      currentValues: { gain: { value: 0.5 } },
+      currentValues: { ...builtInValues, gain: { value: 0.5 } },
       general: { fps: 60, paused: false },
       mediaActive: false,
       lastPlaybackState: 0,
@@ -95,7 +96,7 @@ describe('bridge protocol schemas', () => {
     const { DraftValidator, makeDraftPatch } = await import('../../src/bridge/protocol');
     const artwork = `data:image/png;base64,${'a'.repeat(20_000)}`;
     const before = DraftValidator.Parse({
-      currentValues: { gain: { value: 0.5 } },
+      currentValues: { ...builtInValues, gain: { value: 0.5 } },
       general: { fps: 60, paused: false },
       mediaActive: false,
       lastPlaybackState: 0,
@@ -131,7 +132,7 @@ describe('bridge protocol schemas', () => {
       Value.Clone({ state: hostStore.$state, audioMode: audioState.mode, audioSettings, placement: 'bottom', detached: false }),
     ));
 
-    expect(snapshot.state.currentValues).toEqual({ speed: { value: 2 } });
+    expect(snapshot.state.currentValues).toEqual({ ...builtInValues, speed: { value: 2 } });
     expect(snapshot.state.currentValues).not.toHaveProperty('@speed');
   });
 
@@ -147,7 +148,7 @@ describe('bridge protocol schemas', () => {
       import('../../src/bridge/backend'),
     ]);
     const before = DraftValidator.Parse({
-      currentValues: { 'gain/name': { value: 0.5 } },
+      currentValues: { ...builtInValues, 'gain/name': { value: 0.5 } },
       general: { fps: 60, paused: false },
       mediaActive: false,
       lastPlaybackState: 0,
@@ -155,13 +156,13 @@ describe('bridge protocol schemas', () => {
       mediaTimeline: { position: 0, duration: 0 },
       mediaThumb: { thumbnail: '', primaryColor: '', secondaryColor: '', tertiaryColor: '', textColor: '', highContrastColor: '' },
     });
-    const next = DraftValidator.Parse({ ...before, currentValues: { 'gain/name': { value: 0.75 } } });
+    const next = DraftValidator.Parse({ ...before, currentValues: { ...builtInValues, 'gain/name': { value: 0.75 } } });
 
     const patch = makeDraftPatch(before, next);
 
     expect(patch).toEqual([{ type: 'update', path: '/currentValues/@gain%2Fname/value', value: 0.75 }]);
     expect(applyDraftPatch(before, patch)).toEqual(next);
-    expect(before.currentValues).toEqual({ 'gain/name': { value: 0.5 } });
+    expect(before.currentValues).toEqual({ ...builtInValues, 'gain/name': { value: 0.5 } });
     expect(before.currentValues).not.toHaveProperty('@gain%2Fname');
 
     const backend = createBackend(createPinia(), () => undefined);
@@ -170,11 +171,11 @@ describe('bridge protocol schemas', () => {
     const hostAfter = backend.snapshot();
     const hostPatch = makeHostPatch(hostBefore, hostAfter);
     expect(applyHostPatch(hostBefore, hostPatch)).toEqual(hostAfter);
-    expect(hostBefore.state.currentValues).toEqual({ 'gain/name': { value: 0.5 } });
+    expect(hostBefore.state.currentValues).toEqual({ ...builtInValues, 'gain/name': { value: 0.5 } });
     expect(hostBefore.state.currentValues).not.toHaveProperty('@gain%2Fname');
-    expect(hostAfter.state.currentValues).toEqual({ 'gain/name': { value: 0.75 } });
+    expect(hostAfter.state.currentValues).toEqual({ ...builtInValues, 'gain/name': { value: 0.75 } });
     expect(hostAfter.state.currentValues).not.toHaveProperty('@gain%2Fname');
-    expect(backend.store.currentValues).toEqual({ 'gain/name': { value: 0.75 } });
+    expect(backend.store.currentValues).toEqual({ ...builtInValues, 'gain/name': { value: 0.75 } });
     expect(backend.store.currentValues).not.toHaveProperty('@gain%2Fname');
     backend.dispose();
   });

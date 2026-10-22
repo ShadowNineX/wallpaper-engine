@@ -4,6 +4,7 @@
 // window.wallpaperRegisterAudioListener, etc.
 import './types/window';
 
+export type { DefaultWEProps } from './types/default-properties';
 export type { WallpaperPropertyListenerOf } from './types/inference';
 export type {
   CueDeviceInfo,

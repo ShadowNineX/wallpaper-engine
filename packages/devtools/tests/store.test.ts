@@ -1,6 +1,7 @@
 import type { WallpaperPropertyDefinition } from '../../wallpaper-engine/src/types/project';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { builtInValues } from './fixtures/properties';
 
 const {
   releaseDevDirectoryMock,
@@ -101,6 +102,14 @@ describe('devtools property state', () => {
 
     expect(store.currentValues).not.toHaveProperty('appearance');
     expect(store.currentValues).toEqual({
+      audioprocessing: { value: true },
+      schemecolor: { value: '0 0 0' },
+      alignmentfliph: { value: false },
+      wec_e: { value: false },
+      wec_brs: { value: 50 },
+      wec_con: { value: 50 },
+      wec_sa: { value: 50 },
+      wec_hue: { value: 50 },
       color: { value: '0.1 0.2 0.3' },
       speed: { value: 2 },
       enabled: { value: true },
@@ -134,12 +143,51 @@ describe('devtools property state', () => {
     );
     expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty('gallery');
     expect(applyUserProperties.mock.calls[0]?.[0]).toMatchObject({
+      audioprocessing: { value: true },
+      schemecolor: { value: '0 0 0' },
+      alignmentfliph: { value: false },
+      wec_e: { value: false },
+      wec_brs: { value: 50 },
+      wec_con: { value: 50 },
+      wec_sa: { value: 50 },
+      wec_hue: { value: 50 },
       color: { value: '0.1 0.2 0.3' },
       random: { value: 'C:/random' },
     });
     expect(applyGeneralProperties).toHaveBeenCalledWith({ fps: 30 });
     expect(setPaused).toHaveBeenCalledWith(true);
     expect(messages).toContain('Startup state replayed.');
+  });
+
+  it('delivers and resets built-in changes through the normal property flow', async () => {
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+    store.currentValues.audioprocessing = { value: false };
+    store.deliverProperty('audioprocessing');
+    expect(applyUserProperties).toHaveBeenLastCalledWith({ audioprocessing: { value: false } });
+    store.currentValues.wec_brs = { value: 75 };
+    store.deliverProperty('wec_brs');
+    expect(applyUserProperties).toHaveBeenLastCalledWith({ wec_brs: { value: 75 } });
+    store.resetPropertiesToDefaults();
+    expect(applyUserProperties).toHaveBeenLastCalledWith(expect.objectContaining({
+      audioprocessing: { value: true },
+      wec_brs: { value: 50 },
+    }));
+  });
+
+  it('does not deliver audio recording when audio support is disabled', async () => {
+    window.__WE_DEVTOOLS_CONFIG__!.supportsAudioProcessing = false;
+    const { listenerFns, useDevtoolsStore } = await loadStore();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+    store.deliverAllProperties(false);
+    store.deliverProperty('audioprocessing');
+    expect(applyUserProperties).toHaveBeenCalledOnce();
+    expect(applyUserProperties.mock.calls[0]?.[0]).not.toHaveProperty('audioprocessing');
+    expect(applyUserProperties.mock.calls[0]?.[0]).toHaveProperty('schemecolor', { value: '0 0 0' });
   });
 
   it('replays fetch-all directory files through their dedicated callback', async () => {
@@ -288,6 +336,14 @@ describe('devtools property state', () => {
     store.resetPropertiesToDefaults();
 
     expect(store.currentValues).toEqual({
+      audioprocessing: { value: true },
+      schemecolor: { value: '0 0 0' },
+      alignmentfliph: { value: false },
+      wec_e: { value: false },
+      wec_brs: { value: 50 },
+      wec_con: { value: 50 },
+      wec_sa: { value: 50 },
+      wec_hue: { value: 50 },
       color: { value: '0.1 0.2 0.3' },
       speed: { value: 2 },
       enabled: { value: true },
@@ -306,6 +362,7 @@ describe('devtools property state', () => {
     expect(store.directorySelections).toEqual({});
     expect(applyUserProperties).toHaveBeenCalledOnce();
     expect(applyUserProperties.mock.calls[0]?.[0]).toEqual({
+      ...builtInValues,
       color: { value: '0.1 0.2 0.3' },
       speed: { value: 2 },
       enabled: { value: true },

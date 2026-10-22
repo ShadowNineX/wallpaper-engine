@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { nextTick } from 'vue';
+import { builtInValues } from '../fixtures/properties';
 
 beforeEach(() => {
   vi.resetModules();
@@ -36,6 +37,10 @@ describe('propertiesTab', () => {
     const wrapper = mount(PropertiesTab);
 
     expect(wrapper.findAll('article').map(card => card.text())).toEqual([
+      expect.stringContaining('Audio recording'),
+      expect.stringContaining('Scheme color'),
+      expect.stringContaining('Flip'),
+      expect.stringContaining('Show color options'),
       expect.stringContaining('First'),
       expect.stringContaining('Second'),
     ]);
@@ -45,6 +50,7 @@ describe('propertiesTab', () => {
       ?.trigger('click');
 
     expect(applyUserProperties).toHaveBeenCalledWith({
+      ...builtInValues,
       first: { value: true },
       second: { value: 'b' },
     });
@@ -73,11 +79,13 @@ describe('propertiesTab', () => {
       ?.trigger('click');
 
     expect(store.currentValues).toEqual({
+      ...builtInValues,
       first: { value: true },
       second: { value: 'b' },
     });
     expect(applyUserProperties).toHaveBeenCalledOnce();
     expect(applyUserProperties).toHaveBeenCalledWith({
+      ...builtInValues,
       first: { value: true },
       second: { value: 'b' },
     });
@@ -123,7 +131,13 @@ describe('propertiesTab', () => {
         .get('[data-ungrouped-properties]')
         .findAll('article')
         .map(row => row.text()),
-    ).toEqual([expect.stringContaining('Loose')]);
+    ).toEqual([
+      expect.stringContaining('Audio recording'),
+      expect.stringContaining('Scheme color'),
+      expect.stringContaining('Flip'),
+      expect.stringContaining('Show color options'),
+      expect.stringContaining('Loose'),
+    ]);
 
     const appearance = wrapper.get('[data-property-group="appearance"]');
     const advanced = wrapper.get('[data-property-group="advanced"]');
@@ -158,15 +172,24 @@ describe('propertiesTab', () => {
     expect(appearanceContent.attributes()).toHaveProperty('inert');
   });
 
-  it('shows an explicit empty state without configured properties', async () => {
+  it('renders and delivers built-in controls without custom properties', async () => {
     window.__WE_DEVTOOLS_CONFIG__ = { properties: {}, localization: {} };
-    const { default: PropertiesTab } = await import(
-      '../../src/tabs/PropertiesTab.vue',
-    );
-
-    expect(mount(PropertiesTab).text()).toContain(
-      'No user properties are configured',
-    );
+    const [{ default: PropertiesTab }, { listenerFns }] = await Promise.all([
+      import('../../src/tabs/PropertiesTab.vue'),
+      import('../../src/store'),
+    ]);
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const wrapper = mount(PropertiesTab);
+    expect(wrapper.text()).toContain('Audio recording');
+    expect(wrapper.text()).not.toContain('Brightness');
+    const colorOptions = wrapper.findAll('article').find(row => row.text().includes('Show color options'))!;
+    await colorOptions.get('button[role="switch"]').trigger('click');
+    expect(wrapper.text()).toContain('Brightness');
+    expect(wrapper.text()).toContain('Contrast');
+    expect(wrapper.text()).toContain('Saturation');
+    expect(wrapper.text()).toContain('Hue shift');
+    expect(applyUserProperties).toHaveBeenLastCalledWith({ wec_e: { value: true } });
   });
 
   it('reactively hides conditional properties and keeps them in callback delivery', async () => {
@@ -222,6 +245,7 @@ describe('propertiesTab', () => {
       .find(button => button.text().includes('Replay all'))
       ?.trigger('click');
     expect(applyUserProperties).toHaveBeenCalledWith({
+      ...builtInValues,
       enabled: { value: false },
       mode: { value: 'advanced', text: 'Advanced' },
       advanced: { value: 'kept' },

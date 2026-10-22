@@ -58,6 +58,10 @@ Each tab keeps its icon and live status visible and exposes that state to assist
 
 The Properties tab renders controls from the same property definitions passed to the plugin:
 
+- Built-in controls include scheme color, flip, color options, and audio recording.
+  Color sliders appear when **Show color options** is enabled. The configured
+  `schemeColor` overrides the black fallback. Development's automatic audio mode
+  includes audio recording; `supportsAudioProcessing: false` omits that property.
 - Changing a scalar, file, or `ondemand` directory control sends a partial `applyUserProperties` payload containing only that property. A `fetchall` directory control instead sends add/change/remove callbacks.
 - **Replay all** sends every current non-group, non-`fetchall` user property, replays selected `fetchall` files through `userDirectoryFilesAddedOrChanged`, and sends the current FPS and pause state.
 - **Reset defaults** restores every user property to its configured default, clears selected local files and directories, sends one complete non-`fetchall` default payload, and removes previously delivered `fetchall` files. Runtime FPS and pause state are left unchanged.

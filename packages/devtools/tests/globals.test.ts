@@ -33,6 +33,17 @@ async function installFreshGlobals() {
   return storeModule;
 }
 
+const defaultProperties = {
+  audioprocessing: { value: true },
+  schemecolor: { value: '0 0 0' },
+  alignmentfliph: { value: false },
+  wec_e: { value: false },
+  wec_brs: { value: 50 },
+  wec_con: { value: 50 },
+  wec_sa: { value: 50 },
+  wec_hue: { value: 50 },
+};
+
 describe('wallpaper Engine host globals', () => {
   it('captures a property listener and replays documented initial state', async () => {
     const { useDevtoolsStore } = await installFreshGlobals();
@@ -49,7 +60,7 @@ describe('wallpaper Engine host globals', () => {
 
     const store = useDevtoolsStore();
     expect(store.listenerCounts.property).toBe(true);
-    expect(applyUserProperties).toHaveBeenCalledWith({ speed: { value: 2 } });
+    expect(applyUserProperties).toHaveBeenCalledWith({ ...defaultProperties, speed: { value: 2 } });
     expect(applyGeneralProperties).toHaveBeenCalledWith({ fps: 60 });
     expect(setPaused).toHaveBeenCalledWith(false);
   });
@@ -124,7 +135,7 @@ describe('wallpaper Engine host globals', () => {
     await Promise.resolve();
 
     expect(first.applyUserProperties).not.toHaveBeenCalled();
-    expect(latest.applyUserProperties).toHaveBeenCalledExactlyOnceWith({ speed: { value: 2 } });
+    expect(latest.applyUserProperties).toHaveBeenCalledExactlyOnceWith({ ...defaultProperties, speed: { value: 2 } });
     expect(latest.applyGeneralProperties).toHaveBeenCalledExactlyOnceWith({ fps: 60 });
     expect(latest.setPaused).toHaveBeenCalledExactlyOnceWith(false);
   });
@@ -166,7 +177,7 @@ describe('wallpaper Engine host globals', () => {
     await Promise.resolve();
 
     expect(simulator.listenerCounts).toMatchObject({ property: true, audio: 1 });
-    expect(applyUserProperties).toHaveBeenCalledExactlyOnceWith({ speed: { value: 4 } });
+    expect(applyUserProperties).toHaveBeenCalledExactlyOnceWith({ ...defaultProperties, speed: { value: 4 } });
     expect(useDevtoolsStore(wallpaperPinia).listenerCounts).toMatchObject({ property: false, audio: 0 });
   });
 
@@ -181,7 +192,7 @@ describe('wallpaper Engine host globals', () => {
     await Promise.resolve();
 
     expect(first.applyUserProperties).not.toHaveBeenCalled();
-    expect(latest.applyUserProperties).toHaveBeenCalledExactlyOnceWith({ speed: { value: 2 } });
+    expect(latest.applyUserProperties).toHaveBeenCalledExactlyOnceWith({ ...defaultProperties, speed: { value: 2 } });
   });
 
   it('restores original globals after multiple installations are cleaned up', async () => {
@@ -193,7 +204,7 @@ describe('wallpaper Engine host globals', () => {
     const listener = vi.fn();
     window.wallpaperPropertyListener = { applyUserProperties: listener };
     await Promise.resolve();
-    expect(listener).toHaveBeenCalledExactlyOnceWith({ speed: { value: 2 } });
+    expect(listener).toHaveBeenCalledExactlyOnceWith({ ...defaultProperties, speed: { value: 2 } });
 
     removeLatest();
     removeFirst();

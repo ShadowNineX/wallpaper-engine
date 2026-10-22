@@ -73,6 +73,13 @@ The [Vue demo](https://github.com/ShadowNineX/wallpaper-engine/tree/main/demo) c
 
 Vite is an optional peer dependency used only by the plugin entry point. Register host listeners immediately during module evaluation, and test the finished wallpaper in Wallpaper Engine; the simulator covers development workflows rather than every native host behavior.
 
+`WallpaperPropertyListenerOf<typeof properties>` includes built-in properties such as
+`schemecolor`, `audioprocessing`, and the `wec_*` color controls. Import
+`DefaultWEProps` from `wallpaper-engine/helpers` for their fallback definitions and
+default values; the matching definition type is exported from `wallpaper-engine`.
+Every callback key remains optional. Devtools includes the built-ins and omits
+`audioprocessing` when `supportsAudioProcessing: false` is configured.
+
 ## Development
 
 Run workspace commands from the repository root with [Bun](https://bun.sh/):

@@ -1,3 +1,4 @@
+import type { DefaultWEProps } from './default-properties';
 import type {
   WallpaperBoolValue,
   WallpaperColorValue,
@@ -39,7 +40,8 @@ export type WallpaperUserPropertiesOf<
 
 /**
  * A property listener whose `applyUserProperties` values are inferred from a
- * wallpaper's property record.
+ * wallpaper's property record, including Wallpaper Engine's built-in properties.
+ * Every update key is optional, and explicitly defined keys take precedence.
  *
  * @example
  * import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
@@ -54,5 +56,7 @@ export type WallpaperUserPropertiesOf<
 export type WallpaperPropertyListenerOf<
   T extends Record<string, WallpaperPropertyDefinition>,
 > = Omit<WallpaperPropertyListener, 'applyUserProperties'> & {
-  applyUserProperties?: (values: Partial<WallpaperUserPropertiesOf<T>>) => void;
+  applyUserProperties?: (values: Partial<WallpaperUserPropertiesOf<
+    Omit<Required<DefaultWEProps>, keyof T> & T
+  >>) => void;
 };

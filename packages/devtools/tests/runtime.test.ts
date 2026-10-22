@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { builtInValues } from './fixtures/properties';
 
 interface FakePort {
   closed: boolean;
@@ -209,6 +210,7 @@ describe('devtools runtime bridge', () => {
     expect(new URL(frameUrl(frame)).search).toBe('');
     expect(sessionToken(frame)).toHaveLength(36);
     expect(listener.applyUserProperties).toHaveBeenCalledExactlyOnceWith({
+      ...builtInValues,
       speed: { value: 2 },
     });
   });

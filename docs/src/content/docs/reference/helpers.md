@@ -9,6 +9,31 @@ Every value export is side-effect-free and tree-shakeable.
 import { toFileUrl, wallpaperColorToHex } from 'wallpaper-engine/helpers';
 ```
 
+## Built-in property defaults
+
+`DefaultWEProps` is a `Required<DefaultWEProps>` definition record; import the
+type from `wallpaper-engine` and the value from `wallpaper-engine/helpers`.
+Each entry contains a property definition with a `.value` default, so defaults
+can also be collected with `Object.entries()`:
+
+```ts
+import { DefaultWEProps } from 'wallpaper-engine/helpers';
+
+const defaults = Object.fromEntries(
+  Object.entries(DefaultWEProps).map(([key, property]) => [key, property.value]),
+);
+```
+
+It includes `schemecolor` (`'0 0 0'`), `audioprocessing` (`true`),
+`alignmentfliph` and `wec_e` (`false`), and `wec_brs`, `wec_con`, `wec_sa`,
+and `wec_hue` (`50`, range 0–100). Audio recording applies only to wallpapers
+that support audio processing. Treat this record as fallback definitions;
+initialize your own state and let host callbacks override it rather than
+mutating the shared defaults.
+
+See [Type Inference](../../guides/type-inference/#built-in-properties-and-defaults)
+for typed callback usage.
+
 ## Color functions
 
 ### `colorToWallpaperColor()`

@@ -11,6 +11,12 @@ migration); tags are used where they exist.
 
 ### Added
 
+- Added built-in Wallpaper Engine properties to `WallpaperPropertyListenerOf<T>`
+  and exported their `DefaultWEProps` definition type from the root entry and
+  fallback definitions from `wallpaper-engine/helpers` (issue #23).
+- Added built-in property controls and callback delivery to devtools, including
+  audio recording unless `supportsAudioProcessing` is explicitly disabled, and
+  the configured scheme color.
 - Added direction-aware devtools tab transitions, with an immediate switch when
   reduced motion is enabled.
 - Added an isolated devtools frontend with right/bottom docking, separate-window

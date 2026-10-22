@@ -1,4 +1,5 @@
 import type {
+  DefaultWEProps,
   WallpaperProjectMetadata as RootWallpaperProjectMetadata,
   WallpaperPropertyListener,
   WallpaperPropertyListenerOf,
@@ -10,6 +11,7 @@ import type {
 } from '../src/plugin/index';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { runInNewContext } from 'node:vm';
 import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
   boolProperty,
@@ -227,7 +229,7 @@ describe('groupProperty', () => {
       WallpaperPropertyListenerOf<typeof _definitions>['applyUserProperties']
     >>[0];
 
-    expectTypeOf<keyof Update>().toEqualTypeOf<'enabled'>();
+    expectTypeOf<keyof Update>().toEqualTypeOf<'enabled' | keyof DefaultWEProps>();
   });
 });
 
@@ -1026,6 +1028,37 @@ describe('wallpaperEnginePlugin devtools hooks', () => {
     expect(
       plugin.resolveId.call({} as never, 'other', undefined, {} as never),
     ).toBeNull();
+  });
+
+  it.each([
+    { name: 'automatic audio', supportsAudioProcessing: undefined, expected: true },
+    { name: 'enabled audio', supportsAudioProcessing: true, expected: true },
+    { name: 'disabled audio', supportsAudioProcessing: false, expected: false },
+  ])('injects built-in settings into both devtools roles for $name', async ({ supportsAudioProcessing, expected }) => {
+    const plugin = wallpaperEnginePlugin({
+      title: 'Built-ins',
+      schemeColor: '#ff0000',
+      supportsAudioProcessing,
+    });
+    if (typeof plugin.load !== 'function' || typeof plugin.configResolved !== 'function')
+      throw new TypeError('Expected callable devtools hooks');
+    plugin.configResolved.call({} as never, { command: 'serve' } as never);
+    for (const id of ['\0virtual:wallpaper-engine/devtools', '\0virtual:wallpaper-engine/devtools-frontend']) {
+      const code = await plugin.load.call({} as never, id, {} as never);
+      if (typeof code !== 'string')
+        throw new TypeError('Expected devtools JavaScript');
+      const window = { __WE_DEVTOOLS_CONFIG__: { properties: {}, supportsAudioProcessing: false } };
+      runInNewContext(code, { window });
+      expect(window.__WE_DEVTOOLS_CONFIG__.supportsAudioProcessing).toBe(expected);
+      expect(window.__WE_DEVTOOLS_CONFIG__.properties).toEqual({
+        schemecolor: {
+          type: 'color',
+          text: 'ui_browse_properties_scheme_color',
+          value: '1 0 0',
+          order: 0,
+        },
+      });
+    }
   });
 
   it('loads injected config and caches the bundled devtools client', async () => {

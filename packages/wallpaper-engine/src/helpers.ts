@@ -17,6 +17,7 @@ export type {
 } from './audio';
 
 export { colorToWallpaperColor } from './color';
+export { DefaultWEProps } from './default-properties';
 export { createAverageColorExtractor, getAverageColor } from './image-color';
 export type {
   AverageColorExtractor,

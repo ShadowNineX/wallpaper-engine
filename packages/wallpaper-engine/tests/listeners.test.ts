@@ -1,4 +1,5 @@
 import type {
+  DefaultWEProps,
   WallpaperBoolValue,
   WallpaperColorValue,
   WallpaperComboValue,
@@ -53,7 +54,7 @@ it('keeps arbitrary callback keys optional in the broad listener type', () => {
 
 it('contextually types the recommended schema-aware listener assignment', () => {
   expectTypeOf<keyof Update>().toEqualTypeOf<
-    'enabled' | 'speed' | 'accent' | 'mode' | 'greeting' | 'artwork' | 'gallery'
+    'enabled' | 'speed' | 'accent' | 'mode' | 'greeting' | 'artwork' | 'gallery' | keyof DefaultWEProps
   >();
   expectTypeOf<Update['enabled']>().toEqualTypeOf<WallpaperBoolValue | undefined>();
   expectTypeOf<Update['speed']>().toEqualTypeOf<WallpaperSliderValue | undefined>();
@@ -82,6 +83,18 @@ it('contextually types the recommended schema-aware listener assignment', () => 
         expectTypeOf(values.artwork.value).toEqualTypeOf<string>();
       if (values.gallery)
         expectTypeOf(values.gallery.value).toEqualTypeOf<string>();
+      if (values.audioprocessing)
+        expectTypeOf(values.audioprocessing.value).toEqualTypeOf<boolean>();
+      if (values.schemecolor)
+        expectTypeOf(values.schemecolor.value).toEqualTypeOf<string>();
+      if (values.alignmentfliph)
+        expectTypeOf(values.alignmentfliph.value).toEqualTypeOf<boolean>();
+      if (values.wec_e)
+        expectTypeOf(values.wec_e.value).toEqualTypeOf<boolean>();
+      for (const key of ['wec_brs', 'wec_con', 'wec_sa', 'wec_hue'] as const) {
+        if (values[key])
+          expectTypeOf(values[key].value).toEqualTypeOf<number>();
+      }
       // @ts-expect-error Group markers and unknown keys are never delivered.
       void values.appearance;
       // @ts-expect-error Unknown properties are never delivered.
@@ -120,4 +133,30 @@ it('contextually types the recommended schema-aware listener assignment', () => 
   const invalidKey: Update = { unknown: { value: true } };
   void invalidValue;
   void invalidKey;
+});
+
+it('infers optional built-in updates without custom properties', () => {
+  type BuiltInUpdate = Parameters<NonNullable<
+    WallpaperPropertyListenerOf<Record<never, never>>['applyUserProperties']
+  >>[0];
+  expectTypeOf<keyof BuiltInUpdate>().toEqualTypeOf<keyof DefaultWEProps>();
+  expectTypeOf<BuiltInUpdate['audioprocessing']>().toEqualTypeOf<WallpaperBoolValue | undefined>();
+  expectTypeOf<BuiltInUpdate['schemecolor']>().toEqualTypeOf<WallpaperColorValue | undefined>();
+  expectTypeOf<BuiltInUpdate['wec_brs']>().toEqualTypeOf<WallpaperSliderValue | undefined>();
+  expectTypeOf<Record<never, never>>().toExtend<BuiltInUpdate>();
+  // @ts-expect-error Built-in sliders require numeric values.
+  const invalid: BuiltInUpdate = { wec_con: { value: false } };
+  void invalid;
+});
+
+it('lets explicit definitions override built-in key inference', () => {
+  const _definitions = {
+    wec_brs: boolProperty({ text: 'Custom brightness', value: true }),
+    wec_con: groupProperty({ text: 'Custom group' }),
+  };
+  type CustomUpdate = Parameters<NonNullable<
+    WallpaperPropertyListenerOf<typeof _definitions>['applyUserProperties']
+  >>[0];
+  expectTypeOf<CustomUpdate['wec_brs']>().toEqualTypeOf<WallpaperBoolValue | undefined>();
+  expectTypeOf<'wec_con'>().not.toExtend<keyof CustomUpdate>();
 });

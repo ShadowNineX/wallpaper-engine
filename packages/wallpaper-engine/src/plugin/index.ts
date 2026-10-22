@@ -491,9 +491,12 @@ export function wallpaperEnginePlugin(
       const properties = options.properties
         ? assignIndices(options.properties)
         : {};
+      if (options.schemeColor !== undefined)
+        properties.schemecolor = createSchemeColorProperty(options.schemeColor);
       const cfg = {
         title: options.title,
         properties,
+        supportsAudioProcessing: options.supportsAudioProcessing ?? true,
         localization: options.localization ?? {},
       };
       const config = safeJsonForScript(cfg);

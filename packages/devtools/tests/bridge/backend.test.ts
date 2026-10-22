@@ -1,5 +1,6 @@
 import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { builtInValues } from '../fixtures/properties';
 
 beforeEach(() => {
   setActivePinia(createPinia());
@@ -26,7 +27,7 @@ describe('bridge backend', () => {
     ]);
     const store = useDevtoolsStore();
     const draft = DraftValidator.Parse({
-      currentValues: { gain: { value: 0.8 } },
+      currentValues: { ...builtInValues, gain: { value: 0.8 } },
       general: { fps: 90, paused: true },
       mediaActive: true,
       lastPlaybackState: 1,
@@ -52,7 +53,7 @@ describe('bridge backend', () => {
     const store = useDevtoolsStore();
     store.mediaProps.subTitle = 'Old subtitle';
     const draft = DraftValidator.Parse({
-      currentValues: { gain: { value: 0.5 } },
+      currentValues: { ...builtInValues, gain: { value: 0.5 } },
       general: { fps: 60, paused: false },
       mediaActive: false,
       lastPlaybackState: 0,

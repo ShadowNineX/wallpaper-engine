@@ -52,6 +52,52 @@ key means unchanged; do not reset it to a default or dereference it without a gu
 Register the listener immediately at module scope, before framework lifecycle
 hooks. See [Host Listeners](../host-listeners/) for startup timing.
 
+## Built-in properties and defaults
+
+`WallpaperPropertyListenerOf<T>` includes Wallpaper Engine's built-in keys even
+when they are absent from your property record:
+
+| Keys | Value type | Fallback default |
+| --- | --- | --- |
+| `schemecolor` | `string` | `'0 0 0'` |
+| `audioprocessing` | `boolean` | `true` for audio-capable wallpapers |
+| `alignmentfliph`, `wec_e` | `boolean` | `false` |
+| `wec_brs`, `wec_con`, `wec_sa`, `wec_hue` | `number` | `50` |
+
+All callback keys remain optional. `audioprocessing` is absent when the wallpaper
+does not support audio processing. Explicit definitions in your record take
+precedence over the built-in types for matching keys.
+
+The root exports the `DefaultWEProps` definition type. The helpers entry exports
+the matching default definitions, including the audio-capable fallback:
+
+```ts
+import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
+import type { properties } from './properties';
+import { DefaultWEProps } from 'wallpaper-engine/helpers';
+
+let brightness = DefaultWEProps.wec_brs.value;
+let audioRecording = DefaultWEProps.audioprocessing.value;
+
+window.wallpaperPropertyListener = {
+  applyUserProperties(values) {
+    if (values.wec_brs)
+      brightness = values.wec_brs.value;
+    if (values.audioprocessing)
+      audioRecording = values.audioprocessing.value;
+  },
+} satisfies WallpaperPropertyListenerOf<typeof properties>;
+```
+
+Use these values to initialize local state, then apply host updates. Saved user
+settings and the plugin's `schemeColor` option can override the defaults. These
+exports do not add built-in definitions to the generated `project.json`.
+
+Devtools provides the built-in controls alongside custom properties. Audio
+recording is enabled in development's automatic mode; set
+`supportsAudioProcessing: false` to omit it. Production audio support continues
+to use the configured override or built-output detection.
+
 ## Inferred runtime values
 
 Definitions include editor metadata; callbacks contain host-shaped wrappers:
