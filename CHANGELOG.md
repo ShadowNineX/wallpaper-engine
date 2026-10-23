@@ -9,6 +9,8 @@ migration); tags are used where they exist.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-23
+
 ### Changed
 
 - **Breaking:** replaced the root `DefaultWEProps` definition type with
@@ -404,7 +406,8 @@ migration); tags are used where they exist.
   canvas encoding, and FPS-limited animation loops.
 - Added an example wallpaper, automated tests, build configuration, and CI.
 
-[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.5.0...v1.6.0
 [1.5.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.1...v1.3.2
