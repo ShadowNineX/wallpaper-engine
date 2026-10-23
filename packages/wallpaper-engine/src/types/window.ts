@@ -43,6 +43,7 @@ declare global {
      * - Indices 0–63: left channel (bass → treble)
      * - Indices 64–127: right channel (bass → treble)
      * Each value is 0.0–1.0 (may occasionally exceed 1.0 — clamp with `Math.min`).
+     * Registering again replaces the previous audio callback.
      *
      * @example
      * window.wallpaperRegisterAudioListener((audioArray) => { ... });
@@ -101,6 +102,7 @@ declare global {
     /**
      * Fired when the user enables/disables media integration in app settings.
      * Register at the bottom of `<body>`, not inside `window.onload`.
+     * Registering again replaces the previous status callback.
      */
     wallpaperRegisterMediaStatusListener(
       callback: (event: WallpaperMediaStatusEvent) => void,
@@ -108,6 +110,7 @@ declare global {
 
     /**
      * Fired when track title, artist, album, or content type changes.
+     * Registering again replaces the previous metadata callback.
      */
     wallpaperRegisterMediaPropertiesListener(
       callback: (event: WallpaperMediaPropertiesEvent) => void,
@@ -116,6 +119,7 @@ declare global {
     /**
      * Fired when the album art thumbnail changes.
      * `event.thumbnail` is a base64 PNG string usable as `img.src`.
+     * Registering again replaces the previous thumbnail callback.
      */
     wallpaperRegisterMediaThumbnailListener(
       callback: (event: WallpaperMediaThumbnailEvent) => void,
@@ -124,6 +128,7 @@ declare global {
     /**
      * Fired when playback starts, pauses, or stops.
      * Compare `event.state` against `window.wallpaperMediaIntegration` constants.
+     * Registering again replaces the previous playback callback.
      */
     wallpaperRegisterMediaPlaybackListener(
       callback: (event: WallpaperMediaPlaybackEvent) => void,
@@ -132,6 +137,7 @@ declare global {
     /**
      * Fired when the track position changes.
      * Not all media players support this — ensure your wallpaper works without it.
+     * Registering again replaces the previous timeline callback.
      */
     wallpaperRegisterMediaTimelineListener(
       callback: (event: WallpaperMediaTimelineEvent) => void,

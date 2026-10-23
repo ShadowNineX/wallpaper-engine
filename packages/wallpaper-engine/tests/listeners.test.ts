@@ -1,11 +1,13 @@
 import type {
-  DefaultWEProps,
+  DefaultWEPropertyDefinitions,
   WallpaperBoolValue,
   WallpaperColorValue,
   WallpaperComboValue,
+  WallpaperCuePlugin,
   WallpaperDirectoryValue,
   WallpaperFileValue,
   WallpaperGeneralProperties,
+  WallpaperMediaPropertiesEvent,
   WallpaperPropertyListener,
   WallpaperPropertyListenerOf,
   WallpaperPropertyRuntimeDescriptor,
@@ -55,9 +57,27 @@ it('keeps arbitrary callback keys optional in the broad listener type', () => {
   expectTypeOf<BroadUpdate>().toEqualTypeOf<Partial<WallpaperUserProperties>>();
 });
 
+it('requires an iCUE device index before an LED-position callback', () => {
+  expectTypeOf<WallpaperCuePlugin['getLedPositionsByDeviceIndex']>().toEqualTypeOf<
+    (deviceIndex: number, callback: (positions: import('../src/index').CueLedPosition[]) => void) => void
+  >();
+});
+
+it('models all seven native metadata strings and the unknown content type', () => {
+  expectTypeOf<WallpaperMediaPropertiesEvent>().toEqualTypeOf<{
+    title: string;
+    artist: string;
+    subTitle: string;
+    albumTitle: string;
+    albumArtist: string;
+    genres: string;
+    contentType: 'music' | 'video' | 'image' | '';
+  }>();
+});
+
 it('contextually types the recommended schema-aware listener assignment', () => {
   expectTypeOf<keyof Update>().toEqualTypeOf<
-    'enabled' | 'speed' | 'accent' | 'mode' | 'greeting' | 'artwork' | 'gallery' | keyof DefaultWEProps
+    'enabled' | 'speed' | 'accent' | 'mode' | 'greeting' | 'artwork' | 'gallery' | Exclude<keyof DefaultWEPropertyDefinitions, '_d0'>
   >();
   expectTypeOf<Update['enabled']>().toEqualTypeOf<WallpaperBoolValue | undefined>();
   expectTypeOf<Update['speed']>().toEqualTypeOf<WallpaperSliderValue | undefined>();
@@ -144,11 +164,14 @@ it('infers optional built-in updates without custom properties', () => {
   type BuiltInUpdate = Parameters<NonNullable<
     WallpaperPropertyListenerOf<Record<never, never>>['applyUserProperties']
   >>[0];
-  expectTypeOf<keyof BuiltInUpdate>().toEqualTypeOf<keyof DefaultWEProps>();
+  expectTypeOf<keyof BuiltInUpdate>().toEqualTypeOf<Exclude<keyof DefaultWEPropertyDefinitions, '_d0'>>();
   expectTypeOf<BuiltInUpdate['audioprocessing']>().toEqualTypeOf<WallpaperBoolValue | undefined>();
   expectTypeOf<BuiltInUpdate['schemecolor']>().toEqualTypeOf<WallpaperColorValue | undefined>();
   expectTypeOf<BuiltInUpdate['wec_brs']>().toEqualTypeOf<WallpaperSliderValue | undefined>();
   expectTypeOf<Record<never, never>>().toExtend<BuiltInUpdate>();
+  // @ts-expect-error The built-in divider is not an editable callback value.
+  const divider: BuiltInUpdate = { _d0: { type: 'divider', order: 0 } };
+  void divider;
   // @ts-expect-error Built-in sliders require numeric values.
   const invalid: BuiltInUpdate = { wec_con: { value: false } };
   void invalid;

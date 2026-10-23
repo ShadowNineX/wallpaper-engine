@@ -21,6 +21,35 @@ afterEach(() => {
 });
 
 describe('propertiesTab', () => {
+  it('renders the native default divider between built-in and custom controls without delivering a value', async () => {
+    const [{ default: PropertiesTab }, { listenerFns, useDevtoolsStore }] = await Promise.all([
+      import('../../src/tabs/PropertiesTab.vue'),
+      import('../../src/store'),
+    ]);
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const store = useDevtoolsStore();
+    const wrapper = mount(PropertiesTab);
+    try {
+      const divider = wrapper.get('[data-property-divider="_d0"]');
+      expect(divider.get('hr').element.tagName).toBe('HR');
+      expect(divider.element.previousElementSibling?.getAttribute('title')).toBe('wec_e · bool');
+      expect(divider.element.nextElementSibling?.getAttribute('title')).toBe('first · bool');
+      expect(store.currentValues).not.toHaveProperty('_d0');
+
+      store.deliverAllProperties(false);
+
+      expect(applyUserProperties).toHaveBeenCalledWith({
+        ...builtInValues,
+        first: { value: true },
+        second: { value: 'b' },
+      });
+    }
+    finally {
+      wrapper.unmount();
+    }
+  });
+
   it('sorts conditional dividers without breaking group boundaries', async () => {
     window.__WE_DEVTOOLS_CONFIG__ = {
       properties: {

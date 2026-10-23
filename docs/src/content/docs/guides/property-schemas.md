@@ -100,11 +100,18 @@ const opacity = sliderProperty({
 // Emits step: 0.001 because no explicit step was supplied.
 ```
 
-- `fraction: true` enables decimal values.
-- `precision` declares the decimal places Wallpaper Engine keeps.
+- `fraction: true` marks decimal values in Wallpaper Engine's property editor.
+- `precision` declares the decimal places used when rounding slider interactions.
 - With `precision` and no `step`, the builder derives `step` as $10^{-\text{precision}}$.
 - An explicit `step` is emitted unchanged and takes precedence over derivation.
-- Wallpaper Engine currently behaves as if omitted fractional precision were `1`, with step `0.1`. Supply matching precision when requesting a finer step.
+- The native runtime panel falls back to step `1` when `step` is absent or zero,
+  independently of `fraction`. It uses precision `1` when `precision` is absent
+  or zero. Devtools follows the same fallbacks and rounds values on interaction;
+  it preserves an initial value until the user moves the slider.
+- The installed property editor uses a separate authoring convention: fractional
+  precision is clamped to 1–4 and its generated step is `1` for precision `1`,
+  otherwise $10^{1-\text{precision}}$. Hand-authored explicit steps are still
+  accepted by the runtime panel. Supply enough precision for the requested step.
 
 ## Combo boxes
 

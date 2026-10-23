@@ -119,7 +119,7 @@ Active modes send at approximately 30 Hz. See [Audio](../../guides/audio/) for c
 The Media tab drives all five media callback streams with controls for:
 
 - Enable or disable media integration.
-- Enter title, artist, album title, and content type. The public event also supports `subTitle`, `albumArtist`, and `genres`, but the simulator does not expose controls for them.
+- Enter title, artist, album title, and content type, including Unknown. Metadata callbacks always include all seven fields; `subTitle`, `albumArtist`, and `genres` start empty and have no dedicated controls.
 - Select playing, paused, or stopped using simulator playback constants.
 - Adjust timeline position and duration.
 - Select local artwork and send the resulting thumbnail.

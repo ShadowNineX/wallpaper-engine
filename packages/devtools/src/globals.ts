@@ -5,6 +5,11 @@ import type {
 } from '../../wallpaper-engine/src/types/listeners';
 import { getActivePinia, setActivePinia } from 'pinia';
 import { withCallbackPinia } from './callbacks';
+import {
+  MEDIA_PLAYBACK_PAUSED,
+  MEDIA_PLAYBACK_PLAYING,
+  MEDIA_PLAYBACK_STOPPED,
+} from './media';
 import { createVirtualRgbPlugins, resetVirtualRgbState } from './rgb';
 import { listenerFns, useDevtoolsStore } from './store';
 // Bring in the `declare global` Window augmentation so this file (excluded
@@ -47,6 +52,10 @@ function deliverOnRegistration(action: () => void): void {
       console.error('[WE Dev] listener threw during registration', error);
     }
   });
+}
+
+function replaceListener<T>(listeners: T[], listener: T): void {
+  listeners.splice(0, listeners.length, listener);
 }
 
 /**
@@ -120,33 +129,48 @@ export function installGlobals(pinia?: Pinia): () => void {
     });
 
     globalThis.window.wallpaperRegisterAudioListener = (cb) => {
-      listenerFns.audio.push(cb);
-      store.listenerCounts.audio = listenerFns.audio.length;
+      replaceListener(listenerFns.audio, cb);
+      store.listenerCounts.audio = 1;
     };
     globalThis.window.wallpaperRegisterMediaStatusListener = (cb) => {
-      listenerFns.mediaStatus.push(cb);
-      store.listenerCounts.mediaStatus = listenerFns.mediaStatus.length;
-      onRegistration(() => cb({ enabled: store.mediaActive }));
+      replaceListener(listenerFns.mediaStatus, cb);
+      store.listenerCounts.mediaStatus = 1;
+      onRegistration(() => {
+        if (listenerFns.mediaStatus[0] === cb)
+          cb({ enabled: store.mediaActive });
+      });
     };
     globalThis.window.wallpaperRegisterMediaPropertiesListener = (cb) => {
-      listenerFns.mediaProps.push(cb);
-      store.listenerCounts.mediaProps = listenerFns.mediaProps.length;
-      whenMediaActive(() => cb({ ...store.mediaProps }));
+      replaceListener(listenerFns.mediaProps, cb);
+      store.listenerCounts.mediaProps = 1;
+      whenMediaActive(() => {
+        if (listenerFns.mediaProps[0] === cb)
+          cb({ ...store.mediaProps });
+      });
     };
     globalThis.window.wallpaperRegisterMediaThumbnailListener = (cb) => {
-      listenerFns.mediaThumb.push(cb);
-      store.listenerCounts.mediaThumb = listenerFns.mediaThumb.length;
-      whenMediaActive(() => cb({ ...store.mediaThumb }));
+      replaceListener(listenerFns.mediaThumb, cb);
+      store.listenerCounts.mediaThumb = 1;
+      whenMediaActive(() => {
+        if (listenerFns.mediaThumb[0] === cb)
+          cb({ ...store.mediaThumb });
+      });
     };
     globalThis.window.wallpaperRegisterMediaPlaybackListener = (cb) => {
-      listenerFns.mediaPlayback.push(cb);
-      store.listenerCounts.mediaPlayback = listenerFns.mediaPlayback.length;
-      whenMediaActive(() => cb({ state: store.lastPlaybackState }));
+      replaceListener(listenerFns.mediaPlayback, cb);
+      store.listenerCounts.mediaPlayback = 1;
+      whenMediaActive(() => {
+        if (listenerFns.mediaPlayback[0] === cb)
+          cb({ state: store.lastPlaybackState });
+      });
     };
     globalThis.window.wallpaperRegisterMediaTimelineListener = (cb) => {
-      listenerFns.mediaTimeline.push(cb);
-      store.listenerCounts.mediaTimeline = listenerFns.mediaTimeline.length;
-      whenMediaActive(() => cb({ ...store.mediaTimeline }));
+      replaceListener(listenerFns.mediaTimeline, cb);
+      store.listenerCounts.mediaTimeline = 1;
+      whenMediaActive(() => {
+        if (listenerFns.mediaTimeline[0] === cb)
+          cb({ ...store.mediaTimeline });
+      });
     };
 
     globalThis.window.wallpaperRequestRandomFileForProperty = (name, cb) => {
@@ -155,11 +179,8 @@ export function installGlobals(pinia?: Pinia): () => void {
         console.warn(
           `[WE Dev] wallpaperRequestRandomFileForProperty('${name}'): no files configured. Select a folder for this property in the Properties tab.`,
         );
-        return;
       }
-      const pick = list[Math.floor(Math.random() * list.length)];
-      if (pick === undefined)
-        return;
+      const pick = list.length === 0 ? '' : list[Math.floor(Math.random() * list.length)] ?? '';
       try {
         cb(name, pick);
       }
@@ -169,9 +190,9 @@ export function installGlobals(pinia?: Pinia): () => void {
     };
 
     globalThis.window.wallpaperMediaIntegration = {
-      PLAYBACK_PLAYING: 0,
-      PLAYBACK_PAUSED: 1,
-      PLAYBACK_STOPPED: 2,
+      PLAYBACK_PLAYING: MEDIA_PLAYBACK_PLAYING,
+      PLAYBACK_PAUSED: MEDIA_PLAYBACK_PAUSED,
+      PLAYBACK_STOPPED: MEDIA_PLAYBACK_STOPPED,
     };
 
     const rgb = createVirtualRgbPlugins();
@@ -187,16 +208,36 @@ export function installGlobals(pinia?: Pinia): () => void {
     store.listenerCounts.mediaThumb = listenerFns.mediaThumb.length;
     store.listenerCounts.mediaPlayback = listenerFns.mediaPlayback.length;
     store.listenerCounts.mediaTimeline = listenerFns.mediaTimeline.length;
-    for (const cb of listenerFns.mediaStatus)
-      onRegistration(() => cb({ enabled: store.mediaActive }));
-    for (const cb of listenerFns.mediaProps)
-      whenMediaActive(() => cb({ ...store.mediaProps }));
-    for (const cb of listenerFns.mediaThumb)
-      whenMediaActive(() => cb({ ...store.mediaThumb }));
-    for (const cb of listenerFns.mediaPlayback)
-      whenMediaActive(() => cb({ state: store.lastPlaybackState }));
-    for (const cb of listenerFns.mediaTimeline)
-      whenMediaActive(() => cb({ ...store.mediaTimeline }));
+    for (const cb of listenerFns.mediaStatus) {
+      onRegistration(() => {
+        if (listenerFns.mediaStatus[0] === cb)
+          cb({ enabled: store.mediaActive });
+      });
+    }
+    for (const cb of listenerFns.mediaProps) {
+      whenMediaActive(() => {
+        if (listenerFns.mediaProps[0] === cb)
+          cb({ ...store.mediaProps });
+      });
+    }
+    for (const cb of listenerFns.mediaThumb) {
+      whenMediaActive(() => {
+        if (listenerFns.mediaThumb[0] === cb)
+          cb({ ...store.mediaThumb });
+      });
+    }
+    for (const cb of listenerFns.mediaPlayback) {
+      whenMediaActive(() => {
+        if (listenerFns.mediaPlayback[0] === cb)
+          cb({ state: store.lastPlaybackState });
+      });
+    }
+    for (const cb of listenerFns.mediaTimeline) {
+      whenMediaActive(() => {
+        if (listenerFns.mediaTimeline[0] === cb)
+          cb({ ...store.mediaTimeline });
+      });
+    }
     if (listenerFns.property !== undefined) {
       const registration = propertyRegistration;
       onRegistration(() => {

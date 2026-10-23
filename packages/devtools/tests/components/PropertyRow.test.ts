@@ -169,6 +169,76 @@ describe('propertyRow', () => {
     });
   });
 
+  it.each([
+    { name: 'an integer slider', options: {} },
+    { name: 'a fractional slider without precision', options: { fraction: true } },
+    { name: 'a fractional slider with precision', options: { fraction: true, precision: 2 } },
+    { name: 'a raw zero-step slider', options: { fraction: true, precision: 2, step: 0 } },
+  ])('uses the native missing-step fallback for $name', async ({ options }) => {
+    const { PropertyRow, listenerFns } = await loadPropertyRow();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const def = {
+      type: 'slider',
+      text: 'Speed',
+      value: 2,
+      min: 0,
+      max: 10,
+      ...options,
+    } satisfies WallpaperPropertyDefinition;
+    const wrapper = mount(PropertyRow, { props: { propKey: 'speed', def } });
+    try {
+      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'ArrowRight', code: 'ArrowRight' });
+
+      expect(wrapper.get('[role="slider"]').attributes('aria-valuenow')).toBe('3');
+      expect(applyUserProperties).toHaveBeenCalledExactlyOnceWith({ speed: { value: 3 } });
+    }
+    finally {
+      wrapper.unmount();
+    }
+  });
+
+  it.each([
+    { name: 'omitted precision', precision: undefined, min: 0, value: 2, expected: 2.1 },
+    { name: 'zero precision', precision: 0, min: 0, value: 2, expected: 2.1 },
+    { name: 'two decimal places', precision: 2, min: 0, value: 2, expected: 2.13 },
+    { name: 'three decimal places', precision: 3, min: 0, value: 2, expected: 2.125 },
+    { name: 'a nonzero minimum', precision: 2, min: 2.1, value: 2.1, expected: 2.23 },
+    { name: 'an initially unrounded value', precision: 2, min: 0, value: 2.125, expected: 2.25 },
+  ])('matches native slider rounding with $name', async ({ precision, min, value, expected }) => {
+    const def = {
+      type: 'slider',
+      text: 'Speed',
+      value,
+      min,
+      max: 10,
+      fraction: true,
+      precision,
+      step: 0.125,
+    } satisfies WallpaperPropertyDefinition;
+    window.__WE_DEVTOOLS_CONFIG__ = {
+      properties: { ...definitions, speed: def },
+      localization: {},
+    };
+    const { PropertyRow, listenerFns } = await loadPropertyRow();
+    const applyUserProperties = vi.fn();
+    listenerFns.property = { applyUserProperties };
+    const wrapper = mount(PropertyRow, { props: { propKey: 'speed', def } });
+    try {
+      await flushPromises();
+      expect(wrapper.get('[role="slider"]').attributes('aria-valuenow')).toBe(String(value));
+      expect(applyUserProperties).not.toHaveBeenCalled();
+
+      await wrapper.get('[role="slider"]').trigger('keydown', { key: 'ArrowRight', code: 'ArrowRight' });
+
+      expect(wrapper.get('[role="slider"]').attributes('aria-valuenow')).toBe(String(expected));
+      expect(applyUserProperties).toHaveBeenCalledExactlyOnceWith({ speed: { value: expected } });
+    }
+    finally {
+      wrapper.unmount();
+    }
+  });
+
   it('uses the Nuxt select and sends combo value plus display text', async () => {
     const [{ PropertyRow, listenerFns }, { default: USelect }] = await Promise.all([
       loadPropertyRow(),

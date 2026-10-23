@@ -77,7 +77,9 @@ Vite is an optional peer dependency used only by the plugin entry point. Registe
 `WallpaperPropertyListenerOf<typeof properties>` includes built-in properties such as
 `schemecolor`, `audioprocessing`, and the `wec_*` color controls. Import
 `DefaultWEProps` from `wallpaper-engine/helpers` for their fallback definitions and
-default values; the matching definition type is exported from `wallpaper-engine`.
+default values; import the matching `DefaultWEPropertyDefinitions` type from
+`wallpaper-engine`. The record preserves Font Awesome `icon` metadata and the
+value-free `_d0` divider; guard with `'value' in property` when collecting values.
 Every callback key remains optional. Devtools includes the built-ins and omits
 `audioprocessing` when `supportsAudioProcessing: false` is configured.
 

@@ -43,12 +43,12 @@ const audioMode = Type.Union([
 ]);
 const mediaProps = Type.Object({
   title: Type.String(),
+  subTitle: Type.String(),
+  albumTitle: Type.String(),
+  albumArtist: Type.String(),
   artist: Type.String(),
-  subTitle: Type.Optional(Type.String()),
-  albumTitle: Type.Optional(Type.String()),
-  albumArtist: Type.Optional(Type.String()),
-  genres: Type.Optional(Type.String()),
-  contentType: Type.Union([Type.Literal('music'), Type.Literal('video'), Type.Literal('image')]),
+  genres: Type.String(),
+  contentType: Type.Union([Type.Literal('music'), Type.Literal('video'), Type.Literal('image'), Type.Literal('')]),
 }, { additionalProperties: false });
 const mediaTimeline = Type.Object({ position: finite({ minimum: 0 }), duration: finite({ minimum: 0 }) }, { additionalProperties: false });
 const mediaThumb = Type.Object({

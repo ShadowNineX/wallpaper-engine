@@ -135,7 +135,7 @@ describe('published package consumers', () => {
     expect(files(archives.npm)).toEqual(files(archives.Bun));
   });
 
-  it.each(['Bun', 'npm'] as const)('runs ESM, CommonJS, and project generation from the %s archive without installed dependencies', async (packager) => {
+  it.each(['Bun', 'npm'] as const)('imports default definitions and values together from the %s archive without installed dependencies', async (packager) => {
     const directory = await mkdtemp(join(tmpdir(), 'wallpaper-engine-package-'));
     try {
       execFileSync('tar', ['-xzf', archives[packager], '-C', directory]);
@@ -143,9 +143,20 @@ describe('published package consumers', () => {
       const require = createRequire(import.meta.url);
       for (const extension of ['mts', 'cts']) {
         await writeFile(join(packageRoot, `consumer.${extension}`), `
-          import type { DefaultWEProps as Definitions, WallpaperPropertyListener, WallpaperPropertyListenerOf } from 'wallpaper-engine';
+          import type { DefaultWEPropertyDefinitions, WallpaperMediaPropertiesEvent, WallpaperPropertyListener, WallpaperPropertyListenerOf } from 'wallpaper-engine';
+          // @ts-expect-error The legacy root DefaultWEProps type was removed.
+          import type { DefaultWEProps as LegacyDefaultWEProps } from 'wallpaper-engine';
           import { DefaultWEProps, createAverageColorExtractor, parseWallpaperColor } from 'wallpaper-engine/helpers';
-          const defaults: Required<Definitions> = DefaultWEProps;
+          type RemovedDefinition = LegacyDefaultWEProps;
+          const defaults: Required<DefaultWEPropertyDefinitions> = DefaultWEProps;
+          const divider: DefaultWEPropertyDefinitions['_d0'] = defaults._d0;
+          const metadata: WallpaperMediaPropertiesEvent = { title: '', artist: '', subTitle: '', albumTitle: '', albumArtist: '', genres: '', contentType: '' };
+          function readMetadataText(event: WallpaperMediaPropertiesEvent) {
+            return [event.subTitle, event.albumTitle, event.albumArtist, event.genres].map(text => text.trim());
+          }
+          readMetadataText(metadata);
+          // @ts-expect-error Native divider definitions have no editable value.
+          void divider.value;
           const props = { speed: { type: 'slider' as const, text: 'Speed', value: 1, min: 0, max: 2 } };
           const listener = {
             applyUserProperties(update) {
@@ -168,6 +179,9 @@ describe('published package consumers', () => {
           function hardware(host: Window) {
             host.wpPlugins?.led?.setAllDevicesByImageData('', 0, 0);
             host.cue?.getDeviceCount(count => count.toFixed());
+            host.cue?.getLedPositionsByDeviceIndex(0, positions => positions[0]?.ledId.toFixed());
+            // @ts-expect-error Native iCUE queries require a device index.
+            host.cue?.getLedPositionsByDeviceIndex(() => {});
             // @ts-expect-error Hardware APIs require a presence guard.
             host.cue.getDeviceCount(() => {});
           }
@@ -188,7 +202,7 @@ describe('published package consumers', () => {
           'index.html': { type: 'asset', fileName: 'index.html', source: '<html></html>' },
         }, false);
         const project = JSON.parse(assets.find(asset => asset.fileName === 'project.json').source);
-        console.log(JSON.stringify({ color: colorToWallpaperColor('red'), cjsColor: helpers.colorToWallpaperColor('lime'), fileUrl: toFileUrl('C%3A/Images/native%20%23%20cover.jpg'), cjsFileUrl: helpers.toFileUrl('C:/Images/literal%20.jpg'), audioLabel: DefaultWEProps.audioprocessing.text, enabled: project.general.properties.enabled, title: project.title, root: require('wallpaper-engine') }));
+        console.log(JSON.stringify({ color: colorToWallpaperColor('red'), cjsColor: helpers.colorToWallpaperColor('lime'), fileUrl: toFileUrl('C%3A/Images/native%20%23%20cover.jpg'), cjsFileUrl: helpers.toFileUrl('C:/Images/literal%20.jpg'), audioLabel: DefaultWEProps.audioprocessing.text, divider: DefaultWEProps._d0, cjsDivider: helpers.DefaultWEProps._d0, enabled: project.general.properties.enabled, title: project.title, root: require('wallpaper-engine') }));
       `], { cwd: join(directory, 'package'), encoding: 'utf8' });
       expect(JSON.parse(result)).toEqual({
         color: '1 0 0',
@@ -196,6 +210,8 @@ describe('published package consumers', () => {
         fileUrl: 'file:///C:/Images/native%20%23%20cover.jpg',
         cjsFileUrl: 'file:///C:/Images/literal%2520.jpg',
         audioLabel: 'ui_browse_properties_audio_recording',
+        divider: { type: 'divider', order: 0 },
+        cjsDivider: { type: 'divider', order: 0 },
         enabled: { type: 'bool', text: 'Enabled', value: true, order: 0, index: 0 },
         title: 'Packed wallpaper',
         root: {},

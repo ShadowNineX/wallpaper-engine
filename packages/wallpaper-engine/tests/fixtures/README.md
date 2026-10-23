@@ -1,12 +1,22 @@
 # Native web-property fixture
 
 `native-web-properties.json` records the eight built-in value-bearing property
-definitions received by an isolated Wallpaper Engine **2.8.42** web preview on
+definitions and the `_d0` divider received by an isolated Wallpaper Engine
+**2.8.42** web preview on
 2026-10-22. The project enabled audio processing, supplied no scheme color, and
 registered `wallpaperPropertyListener` at module scope. The values came from the
 native CEF callback, rather than being generated from `DefaultWEProps` or the
-simulator. The host also supplied layout descriptors, which are covered separately
-by `runtime-properties.test.ts`.
+simulator. The `_d0` descriptor is `{ "order": 0, "type": "divider" }`, with no
+label or editable value. Font Awesome label classes are supplied through `icon`;
+the native callback has no separate font metadata fields. Other layout
+descriptors are covered separately by `runtime-properties.test.ts`.
+
+Read-only IDA verification on 2026-10-23 confirmed divider construction in
+`wallpaper64.exe` at `0x14010C650`. The loaded executable matched the installed
+file (SHA-256
+`40e2ce021e9352324fadb3b8f72b8ba2a7ee95b71cc571d5b9f84be75cd993b0`).
+The web callback, rather than the constructor's type-dependent order branch,
+is the evidence for this fixture's divider order `0`.
 
 To refresh the fixture, build a temporary web project with those options and
 capture its initial `applyUserProperties` payload. Use the official

@@ -15,17 +15,17 @@ const store = useDevtoolsStore();
 const runtimeValue = computed(
   () => store.currentValues[props.propKey] as WallpaperSliderValue | undefined,
 );
-const step = computed(
-  () =>
-    props.def.step
-    ?? (props.def.fraction ? 10 ** -(props.def.precision ?? 1) : 1),
-);
+const step = computed(() => props.def.step || 1);
 
 function onSlider(next: number | undefined): void {
   const current = runtimeValue.value;
   if (next === undefined || !current)
     return;
-  current.value = next;
+  // Match the native rzslider's step grid and precision on interaction; the
+  // native panel leaves the initial value untouched (enforceStep: false).
+  const increments = Number(((next - props.def.min) / step.value).toPrecision(12));
+  const snapped = props.def.min + Math.round(increments) * step.value;
+  current.value = Number(snapped.toFixed(props.def.precision || 1));
   store.deliverProperty(props.propKey);
 }
 </script>

@@ -25,7 +25,7 @@ describe('virtual RGB keyboard', () => {
 
     cue.getDeviceCount(count);
     cue.getDeviceInfo(0, info);
-    cue.getLedPositionsByDeviceIndex(positions);
+    cue.getLedPositionsByDeviceIndex(0, positions);
     cue.setLedsColorsAsync([{ ledId: 1, r: -5, g: 25.5, b: 999 }]);
 
     expect(count).toHaveBeenCalledWith(1);
@@ -45,6 +45,7 @@ describe('virtual RGB keyboard', () => {
       Array.from({ length: 12 }, () => ({ r: 3, g: 4, b: 5 })),
     );
     expect(() => cue.getDeviceInfo(1, vi.fn())).toThrow(RangeError);
+    expect(() => cue.getLedPositionsByDeviceIndex(1, vi.fn())).toThrow(RangeError);
     expect(() => cue.setLedsColorsAsync([{ ledId: 99, r: 0, g: 0, b: 0 }])).toThrow(RangeError);
   });
 
@@ -60,9 +61,44 @@ describe('virtual RGB keyboard', () => {
 
     cue.setLedColorsByImageData(0, encoded, 4, 3);
     expect(virtualRgbState.colors[6]).toEqual({ r: 15, g: 16, b: 17 });
+    const smallest = rgbImage(2, 2);
+    cue.setLedColorsByImageData(0, smallest, 2, 2);
+    expect(virtualRgbState.frame).toEqual({ encodedImageData: smallest, width: 2, height: 2 });
+    expect(virtualRgbState.colors[1]).toEqual({ r: 0, g: 1, b: 2 });
+    expect(virtualRgbState.colors[12]).toEqual({ r: 9, g: 10, b: 11 });
     expect(() => led.setAllDevicesByImageData('bad', 2, 2)).toThrow(RangeError);
     expect(() => cue.setLedColorsByImageData([1], encoded, 4, 3)).toThrow(RangeError);
-    expect(() => led.setAllDevicesByImageData(String.fromCharCode(256, 0, 0), 1, 1)).toThrow(RangeError);
+    expect(() => led.setAllDevicesByImageData(String.fromCharCode(256) + '\0'.repeat(11), 2, 2)).toThrow(RangeError);
+  });
+
+  it.each([[1, 1], [1, 2], [2, 1]])('rejects RGB frames smaller than the native minimum: %i by %i', async (width, height) => {
+    const { createVirtualRgbPlugins, virtualRgbState } = await rgb();
+    const { cue, led } = createVirtualRgbPlugins();
+    const encoded = rgbImage(width, height);
+
+    expect(() => led.setAllDevicesByImageData(encoded, width, height)).toThrow(RangeError);
+    expect(() => cue.setLedColorsByImageData(0, encoded, width, height)).toThrow(RangeError);
+    expect(virtualRgbState.frame).toBeUndefined();
+    expect(Object.values(virtualRgbState.colors)).toEqual(
+      Array.from({ length: 12 }, () => ({ r: 0, g: 0, b: 0 })),
+    );
+  });
+
+  it('returns cloned LED positions for the requested virtual device', async () => {
+    const { createVirtualRgbPlugins } = await rgb();
+    const { cue } = createVirtualRgbPlugins();
+    const first = vi.fn((leds) => {
+      leds[0]!.left = 999;
+    });
+    const second = vi.fn();
+
+    cue.getLedPositionsByDeviceIndex(0, first);
+    cue.getLedPositionsByDeviceIndex(0, second);
+
+    expect(first).toHaveBeenCalledOnce();
+    expect(second).toHaveBeenCalledWith(expect.arrayContaining([
+      expect.objectContaining({ ledId: 1, left: 0 }),
+    ]));
   });
 
   it('contains callback failures and resets simulator state', async () => {
@@ -74,11 +110,16 @@ describe('virtual RGB keyboard', () => {
       throw new Error('wallpaper callback');
     };
     expect(() => cue.getDeviceCount(throwingCallback)).not.toThrow();
+    expect(() => cue.getLedPositionsByDeviceIndex(0, throwingCallback)).not.toThrow();
     cue.setLedsColorsAsync([{ ledId: 1, r: 1, g: 2, b: 3 }]);
     resetVirtualRgbState();
 
     expect(error).toHaveBeenCalledWith(
       '[WE Dev] iCUE device count callback threw',
+      expect.any(Error),
+    );
+    expect(error).toHaveBeenCalledWith(
+      '[WE Dev] iCUE LED positions callback threw',
       expect.any(Error),
     );
     expect(virtualRgbState.frame).toBeUndefined();

@@ -12,7 +12,7 @@ const props = defineProps<{
   album: string;
   albumArtist: string;
   genres: string;
-  contentType: "music" | "video" | "image";
+  contentType: "music" | "video" | "image" | "";
   thumbnail: string;
   playbackState: number | undefined;
   timelinePosition: number;

@@ -118,8 +118,8 @@ function led(ledId: number): CueLedPosition {
 }
 
 function imageBytes(encodedImageData: string, width: number, height: number): Uint8Array {
-  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1)
-    throw new RangeError('RGB image dimensions must be positive integers.');
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 2 || height < 2)
+    throw new RangeError('RGB images must be at least 2 pixels wide and tall.');
   if (typeof encodedImageData !== 'string')
     throw new TypeError('RGB image data must be a string of RGB bytes.');
   const expected = width * height * 3;
@@ -192,7 +192,8 @@ export function createVirtualRgbPlugins(): {
         validDeviceIndex(deviceIndex);
         invokeCallback('iCUE device info', callback, { ...device });
       },
-      getLedPositionsByDeviceIndex(callback) {
+      getLedPositionsByDeviceIndex(deviceIndex, callback) {
+        validDeviceIndex(deviceIndex);
         invokeCallback('iCUE LED positions', callback, positions.map(position => ({ ...position })));
       },
       setLedsColorsAsync(colors) {

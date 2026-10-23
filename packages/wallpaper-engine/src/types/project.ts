@@ -54,8 +54,8 @@ export interface WallpaperColorProperty extends WallpaperPropertyBase {
 
 /**
  * Slider property. Lets users pick a number in a defined range.
- * Enable `fraction` for decimal values; `precision` constrains both the
- * displayed value and the effective `step`.
+ * Enable `fraction` when authoring decimal values; `precision` controls
+ * rounding after slider interaction in the native properties panel.
  */
 export interface WallpaperSliderProperty extends WallpaperPropertyBase {
   type: 'slider';
@@ -66,14 +66,14 @@ export interface WallpaperSliderProperty extends WallpaperPropertyBase {
   /** Allow fractional (decimal) values. */
   fraction?: boolean;
   /**
-   * Number of decimal places Wallpaper Engine keeps for fractional values.
-   * When omitted, Wallpaper Engine currently behaves as though this were `1`.
+   * Number of decimal places used when rounding slider interactions.
+   * The native panel uses `1` when this is omitted or zero.
    */
   precision?: number;
   /**
-   * Requested numeric increment. Wallpaper Engine normalizes it to
-   * `precision`; when omitted, {@link sliderProperty} derives it from an
-   * explicitly provided `precision`.
+   * Requested numeric increment. The native panel falls back to `1` when this
+   * is omitted or zero. {@link sliderProperty} derives an explicit step from
+   * `precision` when a step is not supplied.
    */
   step?: number;
 }

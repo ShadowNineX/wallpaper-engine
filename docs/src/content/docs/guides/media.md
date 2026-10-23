@@ -5,6 +5,10 @@ description: Consume media status, metadata, artwork, playback, and timeline eve
 
 Wallpaper Engine exposes five independent media streams. Register every stream your wallpaper needs at module scope so startup state is not missed.
 
+Each registration function holds one callback. Registering another callback for
+the same stream replaces the previous one. Fan out from that callback in your
+own code when several consumers need the events.
+
 For a complete page and Vite configuration, see the
 [now-playing card example](../../examples/now-playing/).
 
@@ -13,7 +17,7 @@ For a complete page and Vite configuration, see the
 | Registration function | Event fields | Meaning |
 | --- | --- | --- |
 | `wallpaperRegisterMediaStatusListener` | `enabled: boolean` | Whether media integration is enabled in Wallpaper Engine settings |
-| `wallpaperRegisterMediaPropertiesListener` | `title`, `artist`, optional `subTitle`, `albumTitle`, `albumArtist`, `genres`, and `contentType` | Current media metadata; `contentType` is `music`, `video`, or `image` |
+| `wallpaperRegisterMediaPropertiesListener` | `title`, `artist`, `subTitle`, `albumTitle`, `albumArtist`, `genres`, and `contentType` | All seven string fields are present; unavailable text is empty. `contentType` is `music`, `video`, `image`, or `''` for unknown media |
 | `wallpaperRegisterMediaThumbnailListener` | `thumbnail`, `primaryColor`, `secondaryColor`, `tertiaryColor`, `textColor`, `highContrastColor` | Base64 PNG artwork and host-supplied palette strings |
 | `wallpaperRegisterMediaPlaybackListener` | `state` | Host-defined numeric playback state |
 | `wallpaperRegisterMediaTimelineListener` | `position`, `duration` | Current position and total duration in seconds |
@@ -129,7 +133,7 @@ Validate or provide application fallbacks before using any external color in cus
 
 | Concern | Wallpaper Engine contract | Development simulator |
 | --- | --- | --- |
-| Status and metadata | Supplied by the active system media session | Controls cover title, artist, album title, and content type; `subTitle`, `albumArtist`, and `genres` are not currently simulated |
+| Status and metadata | Supplied by the active system media session | Controls cover title, artist, album title, and content type, including unknown; `subTitle`, `albumArtist`, and `genres` start as empty strings and have no dedicated controls |
 | Playback constants | Supplied on `wallpaperMediaIntegration` | Compatible simulator constants |
 | Artwork | Base64 PNG from media integration | A locally selected image is decoded and converted to PNG |
 | Palette | Host-selected thumbnail colors | Colors are derived from selected artwork and exposed for editing/testing |

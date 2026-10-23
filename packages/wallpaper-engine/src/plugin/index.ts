@@ -76,11 +76,11 @@ export function colorProperty(
 /**
  * Define a numeric slider property.
  *
- * Wallpaper Engine normalizes `step` to the configured `precision`. When
- * `precision` is omitted, it currently behaves as `precision: 1` and
- * `step: 0.1`, so finer custom steps must include a matching precision. When
- * only `precision` is supplied, this builder derives `step` as
- * `10 ** -precision`; an explicit `step` is emitted unchanged.
+ * When only `precision` is supplied, this builder derives an explicit `step`
+ * as `10 ** -precision`; a supplied `step` is emitted unchanged. The native
+ * property panel falls back to step `1` when it is absent or zero, and rounds
+ * slider interactions to `precision` decimal places (default `1`). Supply
+ * enough precision for the requested fractional step.
  *
  * @throws {TypeError} If a numeric option is not finite.
  * @throws {RangeError} If `step` is not positive, `precision` is not a

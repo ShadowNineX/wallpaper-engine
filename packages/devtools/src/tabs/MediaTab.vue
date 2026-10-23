@@ -9,10 +9,15 @@ import UInputNumber from '@nuxt/ui/components/InputNumber.vue';
 import USelect from '@nuxt/ui/components/Select.vue';
 import USwitch from '@nuxt/ui/components/Switch.vue';
 import { storeToRefs } from 'pinia';
-import { onUnmounted, ref, shallowRef } from 'vue';
+import { computed, onUnmounted, ref, shallowRef } from 'vue';
 import Upload from '~icons/ph/upload-simple';
 import { createAverageColorExtractor } from '../../../wallpaper-engine/src/helpers';
 import CallbackStatus from '../components/CallbackStatus.vue';
+import {
+  MEDIA_PLAYBACK_PAUSED,
+  MEDIA_PLAYBACK_PLAYING,
+  MEDIA_PLAYBACK_STOPPED,
+} from '../media';
 import { notify as toast } from '../notifications';
 import { useDevtoolsStore } from '../store';
 
@@ -39,15 +44,16 @@ const playbackStates: Array<{
   state: WallpaperMediaPlaybackState;
   label: string;
 }> = [
-  { state: 0, label: 'Playing' },
-  { state: 1, label: 'Paused' },
-  { state: 2, label: 'Stopped' },
+  { state: MEDIA_PLAYBACK_PLAYING, label: 'Playing' },
+  { state: MEDIA_PLAYBACK_PAUSED, label: 'Paused' },
+  { state: MEDIA_PLAYBACK_STOPPED, label: 'Stopped' },
 ];
 
 const contentTypes = [
   { label: 'Music', value: 'music' },
   { label: 'Video', value: 'video' },
   { label: 'Image', value: 'image' },
+  { label: 'Unknown', value: 'unknown' },
 ];
 
 const paletteFields: Array<{
@@ -62,10 +68,13 @@ const paletteFields: Array<{
 ];
 
 function setContentType(value: unknown): void {
-  if (value === 'music' || value === 'video' || value === 'image') {
+  if (value === 'unknown')
+    mediaProps.value.contentType = '';
+  else if (value === 'music' || value === 'video' || value === 'image')
     mediaProps.value.contentType = value;
-  }
 }
+
+const selectedContentType = computed(() => mediaProps.value.contentType || 'unknown');
 
 function setPosition(value: number): void {
   if (!Number.isFinite(value))
@@ -250,7 +259,7 @@ async function onThumbnailFile(event: Event): Promise<void> {
           <USelect
             id="media-content-type"
             :items="contentTypes"
-            :model-value="mediaProps.contentType"
+            :model-value="selectedContentType"
             size="sm"
             @update:model-value="setContentType"
           />

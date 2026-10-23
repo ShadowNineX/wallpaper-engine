@@ -18,6 +18,7 @@ import { reactive, ref } from 'vue';
 import { invokeHostCallback } from './callbacks';
 import { propDefs, tr } from './config';
 import { releaseDevDirectory, releaseDevFile } from './dev-files';
+import { MEDIA_PLAYBACK_STOPPED } from './media';
 import { notify } from './notifications';
 
 type RuntimePropertyDefinition = Exclude<
@@ -213,12 +214,15 @@ export const useDevtoolsStore = defineStore('devtools', () => {
 
   // --- media state ---
   const mediaActive = ref(false);
-  const lastPlaybackState = ref<WallpaperMediaPlaybackState>(0);
+  const lastPlaybackState = ref<WallpaperMediaPlaybackState>(MEDIA_PLAYBACK_STOPPED);
 
   const mediaProps = reactive<WallpaperMediaPropertiesEvent>({
     title: 'Test Track',
-    artist: 'Test Artist',
+    subTitle: '',
     albumTitle: 'Test Album',
+    albumArtist: '',
+    artist: 'Test Artist',
+    genres: '',
     contentType: 'music',
   });
 

@@ -2,6 +2,16 @@ import { createPinia, getActivePinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { builtInValues } from '../fixtures/properties';
 
+const completeMediaProps = {
+  title: 'Test',
+  subTitle: '',
+  albumTitle: '',
+  albumArtist: '',
+  artist: 'Artist',
+  genres: '',
+  contentType: 'music',
+} as const;
+
 beforeEach(() => {
   setActivePinia(createPinia());
   window.__WE_DEVTOOLS_CONFIG__ = {
@@ -57,7 +67,7 @@ describe('bridge backend', () => {
       general: { fps: 90, paused: true },
       mediaActive: true,
       lastPlaybackState: 1,
-      mediaProps: { title: 'Test', artist: 'Artist', contentType: 'music' },
+      mediaProps: completeMediaProps,
       mediaTimeline: { position: 10, duration: 30 },
       mediaThumb: { thumbnail: 'data:image/png;base64,a', primaryColor: '#111', secondaryColor: '#222', tertiaryColor: '#333', textColor: '#fff', highContrastColor: '#fff' },
     });
@@ -70,7 +80,7 @@ describe('bridge backend', () => {
     expect(store.lastPlaybackState).toBe(1);
   });
 
-  it('removes optional media properties deleted by an incremental draft patch', async () => {
+  it('keeps empty native media fields through an incremental draft patch', async () => {
     const [{ applyDraft }, { DraftValidator }, { useDevtoolsStore }] = await Promise.all([
       import('../../src/bridge/backend'),
       import('../../src/bridge/protocol'),
@@ -83,14 +93,14 @@ describe('bridge backend', () => {
       general: { fps: 60, paused: false },
       mediaActive: false,
       lastPlaybackState: 0,
-      mediaProps: { title: 'Test', artist: 'Artist', contentType: 'music' },
+      mediaProps: completeMediaProps,
       mediaTimeline: { position: 0, duration: 0 },
       mediaThumb: { thumbnail: '', primaryColor: '', secondaryColor: '', tertiaryColor: '', textColor: '', highContrastColor: '' },
     });
 
     applyDraft(store, draft);
 
-    expect(store.mediaProps).not.toHaveProperty('subTitle');
+    expect(store.mediaProps).toMatchObject(completeMediaProps);
   });
 
   it('runs schema-validated audio and checkpoint commands without a host callback', async () => {

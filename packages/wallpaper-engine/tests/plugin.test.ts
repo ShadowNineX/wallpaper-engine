@@ -1,5 +1,5 @@
 import type {
-  DefaultWEProps,
+  DefaultWEPropertyDefinitions,
   WallpaperDividerProperty as RootWallpaperDividerProperty,
   WallpaperProjectMetadata as RootWallpaperProjectMetadata,
   WallpaperPropertyDefinition,
@@ -288,7 +288,7 @@ describe('groupProperty', () => {
       WallpaperPropertyListenerOf<typeof _definitions>['applyUserProperties']
     >>[0];
 
-    expectTypeOf<keyof Update>().toEqualTypeOf<'enabled' | keyof DefaultWEProps>();
+    expectTypeOf<keyof Update>().toEqualTypeOf<'enabled' | Exclude<keyof DefaultWEPropertyDefinitions, '_d0'>>();
   });
 });
 

@@ -214,16 +214,16 @@ export interface WallpaperMediaPropertiesEvent {
   title: string;
   /** Artist of the currently playing media. */
   artist: string;
-  /** Optional sub-title (e.g. episode name for podcasts). */
-  subTitle?: string;
-  /** Optional album title. */
-  albumTitle?: string;
-  /** Optional album artist (may differ from `artist`). */
-  albumArtist?: string;
-  /** Optional comma-separated list of genres. */
-  genres?: string;
-  /** Media type: `"music"`, `"video"`, or `"image"`. */
-  contentType: 'music' | 'video' | 'image';
+  /** Sub-title (e.g. episode name for podcasts), or an empty string. */
+  subTitle: string;
+  /** Album title, or an empty string. */
+  albumTitle: string;
+  /** Album artist (may differ from `artist`), or an empty string. */
+  albumArtist: string;
+  /** Comma-separated list of genres, or an empty string. */
+  genres: string;
+  /** Media type, or an empty string when the native type is unknown. */
+  contentType: 'music' | 'video' | 'image' | '';
 }
 
 /**
@@ -370,6 +370,7 @@ export interface WallpaperCuePlugin {
   ) => void;
   /** Returns all LED positions for a specific device */
   getLedPositionsByDeviceIndex: (
+    deviceIndex: number,
     callback: (arrayOfLEDs: CueLedPosition[]) => void,
   ) => void;
   /** Update specific LEDs by supplying an array of `CueLedColor` objects */
@@ -382,6 +383,7 @@ export interface WallpaperCuePlugin {
   /**
    * Update device LEDs from an RGB bitmap string (same format as
    * `wpPlugins.led.setAllDevicesByImageData`, but targets specific devices).
+   * Both dimensions must be at least 2 pixels.
    */
   setLedColorsByImageData: (
     deviceIndexOrArray: number | number[],
@@ -400,6 +402,7 @@ export interface WallpaperLedPlugin {
    * Push concatenated RGB bytes (as a string) to all connected LED devices.
    * Use a small canvas (e.g. 100×20) and convert it with `getImageData` for
    * best performance.
+   * Both dimensions must be at least 2 pixels.
    */
   setAllDevicesByImageData: (
     encodedImageData: string,

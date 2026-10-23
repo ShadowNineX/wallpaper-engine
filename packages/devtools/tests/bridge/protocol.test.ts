@@ -2,6 +2,16 @@ import { createPinia, setActivePinia } from 'pinia';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { builtInValues } from '../fixtures/properties';
 
+const completeMediaProps = {
+  title: 'Track',
+  subTitle: '',
+  albumTitle: '',
+  albumArtist: '',
+  artist: 'Artist',
+  genres: '',
+  contentType: 'music',
+} as const;
+
 beforeEach(() => {
   setActivePinia(createPinia());
   window.__WE_DEVTOOLS_CONFIG__ = {
@@ -58,6 +68,37 @@ describe('bridge protocol schemas', () => {
     expect(CommandValidator.Check({ type: 'checkpoint' })).toBe(true);
   });
 
+  it('requires the complete native metadata shape and accepts the unknown content type', async () => {
+    const { DraftValidator } = await import('../../src/bridge/protocol');
+    const nativeMediaProps = {
+      title: '',
+      subTitle: '',
+      albumTitle: '',
+      albumArtist: '',
+      artist: '',
+      genres: '',
+      contentType: '',
+    };
+    const draft = {
+      currentValues: { ...builtInValues, gain: { value: 0.5 } },
+      general: { fps: 60, paused: false },
+      mediaActive: true,
+      lastPlaybackState: 0,
+      mediaProps: nativeMediaProps,
+      mediaTimeline: { position: 0, duration: 0 },
+      mediaThumb: { thumbnail: '', primaryColor: '', secondaryColor: '', tertiaryColor: '', textColor: '', highContrastColor: '' },
+    };
+
+    expect(DraftValidator.Check(draft)).toBe(true);
+    expect(DraftValidator.Check({ ...draft, mediaProps: { ...nativeMediaProps, contentType: 'unknown' } })).toBe(false);
+    for (const key of Object.keys(nativeMediaProps)) {
+      const incomplete = { ...nativeMediaProps };
+      Reflect.deleteProperty(incomplete, key);
+      expect(DraftValidator.Check({ ...draft, mediaProps: incomplete }), `Missing ${key}`).toBe(false);
+      expect(DraftValidator.Check({ ...draft, mediaProps: { ...nativeMediaProps, [key]: 1 } }), `Non-string ${key}`).toBe(false);
+    }
+  });
+
   it('creates a cleaned editable draft without host-owned listener or file URL state', async () => {
     const [{ makeDraft }, { useDevtoolsStore }] = await Promise.all([
       import('../../src/bridge/protocol'),
@@ -110,7 +151,7 @@ describe('bridge protocol schemas', () => {
       general: { fps: 60, paused: false },
       mediaActive: false,
       lastPlaybackState: 0,
-      mediaProps: { title: 'Track', artist: 'Artist', contentType: 'music' },
+      mediaProps: completeMediaProps,
       mediaTimeline: { position: 0, duration: 0 },
       mediaThumb: { thumbnail: '', primaryColor: '', secondaryColor: '', tertiaryColor: '', textColor: '', highContrastColor: '' },
     };
@@ -134,7 +175,7 @@ describe('bridge protocol schemas', () => {
       general: { fps: 60, paused: false },
       mediaActive: false,
       lastPlaybackState: 0,
-      mediaProps: { title: 'Track', artist: 'Artist', contentType: 'music' },
+      mediaProps: completeMediaProps,
       mediaTimeline: { position: 0, duration: 0 },
       mediaThumb: { thumbnail: artwork, primaryColor: '', secondaryColor: '', tertiaryColor: '', textColor: '', highContrastColor: '' },
     });
@@ -186,7 +227,7 @@ describe('bridge protocol schemas', () => {
       general: { fps: 60, paused: false },
       mediaActive: false,
       lastPlaybackState: 0,
-      mediaProps: { title: 'Track', artist: 'Artist', contentType: 'music' },
+      mediaProps: completeMediaProps,
       mediaTimeline: { position: 0, duration: 0 },
       mediaThumb: { thumbnail: '', primaryColor: '', secondaryColor: '', tertiaryColor: '', textColor: '', highContrastColor: '' },
     });

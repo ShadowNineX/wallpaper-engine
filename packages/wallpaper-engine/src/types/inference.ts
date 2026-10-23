@@ -1,4 +1,4 @@
-import type { DefaultWEProps } from './default-properties';
+import type { DefaultWEPropertyDefinitions } from './default-properties';
 import type {
   WallpaperBoolValue,
   WallpaperColorValue,
@@ -60,6 +60,6 @@ export type WallpaperPropertyListenerOf<
   T extends Record<string, WallpaperPropertyDefinition>,
 > = Omit<WallpaperPropertyListener, 'applyUserProperties'> & {
   applyUserProperties?: (values: Partial<WallpaperUserPropertiesOf<
-    Omit<Required<DefaultWEProps>, keyof T> & T
+    Omit<Required<DefaultWEPropertyDefinitions>, keyof T> & T
   >>) => void;
 };

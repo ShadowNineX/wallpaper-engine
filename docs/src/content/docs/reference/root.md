@@ -58,7 +58,7 @@ Source: [`src/types/project.ts`](https://github.com/ShadowNineX/wallpaper-engine
 | `WallpaperGeneralProperties` | `{ fps?: number }`; `0` means unlimited |
 | `WallpaperPropertyListener` | Optional user/general/pause/directory callback object |
 | `WallpaperPropertyListenerOf<T>` | Listener inferred from custom and built-in properties; updates are partial and group/divider keys are omitted |
-| `DefaultWEProps` | Built-in property definitions; `audioprocessing` is optional because audio support is conditional. Runtime defaults are exported from `/helpers`. |
+| `DefaultWEPropertyDefinitions` | Built-in definitions, including the value-free `_d0` divider and Font Awesome `icon` metadata. `audioprocessing` is optional because audio support is conditional. The runtime `DefaultWEProps` record is exported from `/helpers`. |
 | `WallpaperPluginListener` | Optional `onPluginLoaded(name, version)` callback object |
 
 The base host contract is open-ended; its exact callback signatures are defined
@@ -89,13 +89,13 @@ for migration and reusable callback types.
 | Type | Fields |
 | --- | --- |
 | `WallpaperMediaStatusEvent` | `enabled: boolean` |
-| `WallpaperMediaPropertiesEvent` | Required `title`, `artist`, `contentType`; optional `subTitle`, `albumTitle`, `albumArtist`, `genres` |
+| `WallpaperMediaPropertiesEvent` | Required strings: `title`, `artist`, `subTitle`, `albumTitle`, `albumArtist`, `genres`, `contentType`; unavailable metadata is `''` |
 | `WallpaperMediaThumbnailEvent` | `thumbnail`, `primaryColor`, `secondaryColor`, `tertiaryColor`, `textColor`, `highContrastColor` strings |
 | `WallpaperMediaPlaybackState` | `number`; compare through host-supplied constants |
 | `WallpaperMediaPlaybackEvent` | `state: WallpaperMediaPlaybackState` |
 | `WallpaperMediaTimelineEvent` | `position: number`, `duration: number`, both seconds |
 
-`contentType` is `'music' | 'video' | 'image'`. Timeline delivery is optional at the player boundary. Thumbnail is a base64 PNG suitable for `img.src`; the host owns palette selection.
+`contentType` is `'music' | 'video' | 'image' | ''`, with `''` representing unknown media. Timeline delivery is optional at the player boundary. Thumbnail is a base64 PNG suitable for `img.src`; the host owns palette selection.
 
 See [Media](../../guides/media/) for registration and state flow.
 
@@ -130,6 +130,7 @@ interface WallpaperCuePlugin {
     callback: (deviceInfo: CueDeviceInfo) => void,
   ) => void;
   getLedPositionsByDeviceIndex: (
+    deviceIndex: number,
     callback: (positions: CueLedPosition[]) => void,
   ) => void;
   setLedsColorsAsync: (colors: CueLedColor[]) => void;

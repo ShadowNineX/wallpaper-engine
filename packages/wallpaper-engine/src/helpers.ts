@@ -204,6 +204,7 @@ export function getMediaPlaybackStatus(
  *
  * The alpha channel is discarded. Use a small canvas (e.g. 100×20 px) for
  * best performance — the plugins sample it to their device layout anyway.
+ * Native LED image calls require both dimensions to be at least 2 pixels.
  *
  * @example
  * const canvas = document.getElementById('RGBCanvas') as HTMLCanvasElement;

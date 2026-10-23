@@ -563,12 +563,21 @@ describe('devtools media state', () => {
     store.mediaActive = true;
     store.lastPlaybackState = 1;
     store.mediaProps.title = 'Changed';
+    store.mediaProps.contentType = '';
     store.mediaTimeline.position = 45;
 
     expect(store.deliverAllMedia()).toBe(true);
 
     expect(status).toHaveBeenCalledWith({ enabled: true });
-    expect(props).toHaveBeenCalledWith(expect.objectContaining({ title: 'Changed' }));
+    expect(props).toHaveBeenCalledWith({
+      title: 'Changed',
+      subTitle: '',
+      albumTitle: 'Test Album',
+      albumArtist: '',
+      artist: 'Test Artist',
+      genres: '',
+      contentType: '',
+    });
     expect(thumbnail).toHaveBeenCalledWith(
       expect.objectContaining({ primaryColor: '#202020' }),
     );

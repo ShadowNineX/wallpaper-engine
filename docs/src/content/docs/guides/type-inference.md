@@ -73,16 +73,18 @@ All callback keys remain optional. `audioprocessing` is absent when the wallpape
 does not support audio processing. Explicit definitions in your record take
 precedence over the built-in types for matching keys.
 
-The root exports the `DefaultWEProps` definition type. The helpers entry exports
-the matching default definitions, including the audio-capable fallback:
+The root exports the `DefaultWEPropertyDefinitions` type. The helpers entry
+exports the matching `DefaultWEProps` record, including the audio-capable fallback.
+These names can be imported together without aliases:
 
 ```ts
-import type { WallpaperPropertyListenerOf } from 'wallpaper-engine';
+import type { DefaultWEPropertyDefinitions, WallpaperPropertyListenerOf } from 'wallpaper-engine';
 import type { properties } from './properties';
 import { DefaultWEProps } from 'wallpaper-engine/helpers';
 
-let brightness = DefaultWEProps.wec_brs.value;
-let audioRecording = DefaultWEProps.audioprocessing.value;
+const defaults: Required<DefaultWEPropertyDefinitions> = DefaultWEProps;
+let brightness = defaults.wec_brs.value;
+let audioRecording = defaults.audioprocessing.value;
 
 window.wallpaperPropertyListener = {
   applyUserProperties(values) {
@@ -97,6 +99,12 @@ window.wallpaperPropertyListener = {
 Use these values to initialize local state, then apply host updates. Saved user
 settings and the plugin's `schemeColor` option can override the defaults. These
 exports do not add built-in definitions to the generated `project.json`.
+
+The definitions also preserve Font Awesome `icon` metadata and the native `_d0`
+divider (`{ type: 'divider', order: 0 }`). `_d0` has no editable value and is
+excluded from `WallpaperPropertyListenerOf<T>` updates, like custom dividers.
+When collecting defaults with `Object.entries()`, keep only definitions for which
+`'value' in property` is true.
 
 Devtools provides the built-in controls alongside custom properties. Audio
 recording is enabled in development's automatic mode; set

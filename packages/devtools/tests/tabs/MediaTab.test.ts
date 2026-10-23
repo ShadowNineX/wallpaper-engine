@@ -174,7 +174,10 @@ describe('mediaTab', () => {
     wrapper.unmount();
   });
 
-  it('edits content type through the Nuxt select and sends metadata', async () => {
+  it.each([
+    { name: 'video', selection: 'video', contentType: 'video', label: 'Video' },
+    { name: 'unknown', selection: 'unknown', contentType: '', label: 'Unknown' },
+  ])('edits the $name content type through the Nuxt select and sends metadata', async ({ selection, contentType, label }) => {
     const [{ default: MediaTab }, { listenerFns }, { default: USelect }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
       import('../../src/store'),
@@ -192,14 +195,17 @@ describe('mediaTab', () => {
     await enabled.trigger('click');
     expect(enabled.attributes('data-state')).toBe('checked');
     mediaPropertiesListener.mockClear();
-    wrapper.findComponent(USelect).vm.$emit('update:modelValue', 'video');
+    expect((wrapper.findComponent(USelect).props() as { items: unknown }).items).toContainEqual({ label: 'Unknown', value: 'unknown' });
+    wrapper.findComponent(USelect).vm.$emit('update:modelValue', selection);
     await flushPromises();
+    expect(wrapper.findComponent(USelect).props()).toMatchObject({ modelValue: selection });
+    expect(wrapper.get('button#media-content-type').text()).toContain(label);
     await buttons
       .find(button => button.text().includes('Send metadata'))
       ?.trigger('click');
 
     expect(mediaPropertiesListener).toHaveBeenCalledWith(
-      expect.objectContaining({ contentType: 'video' }),
+      expect.objectContaining({ contentType }),
     );
     expect(wrapper.get('button#media-content-type').attributes('role')).toBe('combobox');
   });
@@ -459,6 +465,44 @@ describe('mediaTab', () => {
     wrapper.unmount();
   });
 
+  it('uses native playback values for the stopped default and each playback button', async () => {
+    const [{ default: MediaTab }, { listenerFns, useDevtoolsStore }] = await Promise.all([
+      import('../../src/tabs/MediaTab.vue'),
+      import('../../src/store'),
+    ]);
+    const playback = vi.fn();
+    listenerFns.mediaPlayback.push(playback);
+    const wrapper = mount(MediaTab);
+    const button = (label: string) => {
+      const found = wrapper.findAll('button').find(candidate => candidate.text().trim() === label);
+      if (!found)
+        throw new Error(`Expected ${label} playback button.`);
+      return found;
+    };
+
+    expect(button('Stopped').attributes('aria-pressed')).toBe('true');
+    expect(button('Playing').attributes('aria-pressed')).toBe('false');
+    expect(button('Paused').attributes('aria-pressed')).toBe('false');
+
+    await wrapper.get('[data-media-enabled]').trigger('click');
+    expect(playback).toHaveBeenLastCalledWith({ state: 0 });
+    expect(useDevtoolsStore().lastPlaybackState).toBe(0);
+
+    for (const [label, state] of [
+      ['Playing', 1],
+      ['Paused', 2],
+      ['Stopped', 0],
+    ] as const) {
+      playback.mockClear();
+      await button(label).trigger('click');
+      expect(playback).toHaveBeenCalledExactlyOnceWith({ state });
+      expect(useDevtoolsStore().lastPlaybackState).toBe(state);
+      expect(button(label).attributes('aria-pressed')).toBe('true');
+    }
+
+    wrapper.unmount();
+  });
+
   it('delivers status, playback, timeline, artwork, and disabled transitions', async () => {
     const [{ default: MediaTab }, { listenerFns }, { default: UInputNumber }] = await Promise.all([
       import('../../src/tabs/MediaTab.vue'),
@@ -490,7 +534,7 @@ describe('mediaTab', () => {
     timeline.mockClear();
     thumbnail.mockClear();
     await button('Paused')?.trigger('click');
-    expect(playback).toHaveBeenCalledWith({ state: 1 });
+    expect(playback).toHaveBeenCalledWith({ state: 2 });
 
     const fields = wrapper.findAllComponents(UInputNumber);
     fields[0]?.vm.$emit('update:modelValue', 31);

@@ -8,6 +8,9 @@ For a complete page and Vite configuration, start with the
 
 Register the audio callback while the runtime module evaluates:
 
+Only one audio callback is registered at a time. A later registration replaces
+the earlier one; distribute frames to multiple consumers from your own callback.
+
 ```ts
 import { clampAudio, leftChannel, rightChannel } from 'wallpaper-engine/helpers';
 

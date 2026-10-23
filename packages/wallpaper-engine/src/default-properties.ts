@@ -1,10 +1,12 @@
-import type { DefaultWEProps as DefaultWEPropertyDefinitions } from './types/default-properties';
+import type { DefaultWEPropertyDefinitions } from './types/default-properties';
 
 /**
  * Default definitions for Wallpaper Engine's built-in properties, usable in
  * browser code without importing the Vite plugin. These are fallback values;
  * saved host settings and the configured scheme color can override them.
  * `audioprocessing` defaults to enabled for audio-capable wallpapers.
+ * Font Awesome label metadata is preserved in `icon`. The `_d0` separator has
+ * no `value`; guard with `'value' in property` when collecting defaults.
  *
  * @example
  * import { DefaultWEProps } from 'wallpaper-engine/helpers';
@@ -77,5 +79,9 @@ export const DefaultWEProps: Required<DefaultWEPropertyDefinitions> = {
     order: -4,
     text: 'ui_browse_properties_hue_shift',
     value: 50,
+  },
+  _d0: {
+    type: 'divider',
+    order: 0,
   },
 };

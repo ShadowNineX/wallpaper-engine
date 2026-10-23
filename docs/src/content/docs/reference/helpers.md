@@ -11,25 +11,35 @@ import { toFileUrl, wallpaperColorToHex } from 'wallpaper-engine/helpers';
 
 ## Built-in property defaults
 
-`DefaultWEProps` is a `Required<DefaultWEProps>` definition record; import the
-type from `wallpaper-engine` and the value from `wallpaper-engine/helpers`.
-Each entry contains a property definition with a `.value` default, so defaults
-can also be collected with `Object.entries()`:
+`DefaultWEProps` is a `Required<DefaultWEPropertyDefinitions>` definition record.
+Import `DefaultWEPropertyDefinitions` from `wallpaper-engine` and the value from
+`wallpaper-engine/helpers`; the distinct names can be imported together without
+aliases.
+
+The record includes the native `_d0` divider (`{ type: 'divider', order: 0 }`),
+which has no `.value`. Skip layout definitions when collecting initial values:
 
 ```ts
+import type { DefaultWEPropertyDefinitions } from 'wallpaper-engine';
 import { DefaultWEProps } from 'wallpaper-engine/helpers';
 
+const definitions: Required<DefaultWEPropertyDefinitions> = DefaultWEProps;
 const defaults = Object.fromEntries(
-  Object.entries(DefaultWEProps).map(([key, property]) => [key, property.value]),
+  Object.entries(definitions).flatMap(([key, property]) =>
+    'value' in property ? [[key, property.value]] : [],
+  ),
 );
 ```
 
-It includes `schemecolor` (`'0 0 0'`), `audioprocessing` (`true`),
+Value-bearing definitions include `schemecolor` (`'0.5 0.5 0.5'`), `audioprocessing` (`true`),
 `alignmentfliph` and `wec_e` (`false`), and `wec_brs`, `wec_con`, `wec_sa`,
 and `wec_hue` (`50`, range 0–100). Audio recording applies only to wallpapers
 that support audio processing. Treat this record as fallback definitions;
 initialize your own state and let host callbacks override it rather than
-mutating the shared defaults.
+mutating the shared defaults. Native Font Awesome label metadata is preserved in
+each applicable definition's `icon` field; there are no separate native font
+fields. `_d0` separates these controls from custom properties in devtools and
+remains excluded from inferred editable callback values.
 
 See [Type Inference](../../guides/type-inference/#built-in-properties-and-defaults)
 for typed callback usage.
@@ -374,7 +384,7 @@ function createFpsLimiter(draw: (dt: number) => void): {
 };
 ```
 
-Allocates one controller and closure state. `start()` cancels an existing RAF, resets timestamps/threshold, and schedules a new RAF. `stop()` cancels the current RAF. `setLimit()` resets threshold only when the numeric value changes. Limits greater than zero cap drawing; non-positive values are uncapped.
+Allocates one controller and closure state. `start()` cancels an existing RAF, resets timestamps/threshold, and schedules a new RAF. `stop()` cancels the current RAF. `setLimit()` resets threshold only when the numeric value changes. Positive limits cap drawing and `0` is unlimited. Negative limits throw `RangeError`; non-finite limits throw `TypeError`. Invalid limits leave the active cap unchanged.
 
 The callback receives elapsed seconds since the last draw, clamped to 0–1. Under a cap, tick time accumulates and retains remainder. No per-frame result arrays are allocated by the limiter. The browser must supply `requestAnimationFrame`, `cancelAnimationFrame`, `performance.now`, and animation timestamps. Errors thrown by `draw` propagate from the RAF callback; the next RAF is scheduled before drawing.
 

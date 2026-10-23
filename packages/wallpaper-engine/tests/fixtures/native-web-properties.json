@@ -1,6 +1,6 @@
 {
   "hostVersion": "2.8.42",
-  "scenario": "Fresh web project with audio support and no configured scheme color, captured through native CEF callbacks in an isolated preview window.",
+  "scenario": "Fresh web project with audio support and no configured scheme color, captured through native CEF callbacks in an isolated preview window; includes the built-in divider descriptor.",
   "properties": {
     "audioprocessing": {
       "icon": "fa-microphone",
@@ -68,6 +68,10 @@
       "text": "ui_browse_properties_hue_shift",
       "type": "slider",
       "value": 50
+    },
+    "_d0": {
+      "order": 0,
+      "type": "divider"
     }
   }
 }

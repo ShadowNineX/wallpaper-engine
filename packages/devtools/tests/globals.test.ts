@@ -121,6 +121,64 @@ describe('wallpaper Engine host globals', () => {
     expect(timeline).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ['audio', 'audio', (callback: () => void) => window.wallpaperRegisterAudioListener(callback)],
+    ['media status', 'mediaStatus', (callback: () => void) => window.wallpaperRegisterMediaStatusListener(callback)],
+    ['media properties', 'mediaProps', (callback: () => void) => window.wallpaperRegisterMediaPropertiesListener(callback)],
+    ['media thumbnail', 'mediaThumb', (callback: () => void) => window.wallpaperRegisterMediaThumbnailListener(callback)],
+    ['media playback', 'mediaPlayback', (callback: () => void) => window.wallpaperRegisterMediaPlaybackListener(callback)],
+    ['media timeline', 'mediaTimeline', (callback: () => void) => window.wallpaperRegisterMediaTimelineListener(callback)],
+  ] as const)('replaces a prior %s registration before initial and later delivery', async (_name, countKey, register) => {
+    const { listenerFns, useDevtoolsStore } = await installFreshGlobals();
+    const store = useDevtoolsStore();
+    store.mediaActive = true;
+    const first = vi.fn();
+    const latest = vi.fn();
+
+    register(first);
+    register(latest);
+    await Promise.resolve();
+
+    expect(first).not.toHaveBeenCalled();
+    expect(store.listenerCounts[countKey]).toBe(1);
+    if (countKey === 'audio') {
+      expect(latest).not.toHaveBeenCalled();
+      listenerFns.audio[0]?.([0]);
+    }
+    else {
+      expect(latest).toHaveBeenCalledOnce();
+      latest.mockClear();
+      store.deliverAllMedia();
+    }
+
+    expect(first).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['media status', (callback: () => void) => window.wallpaperRegisterMediaStatusListener(callback)],
+    ['media properties', (callback: () => void) => window.wallpaperRegisterMediaPropertiesListener(callback)],
+    ['media thumbnail', (callback: () => void) => window.wallpaperRegisterMediaThumbnailListener(callback)],
+    ['media playback', (callback: () => void) => window.wallpaperRegisterMediaPlaybackListener(callback)],
+    ['media timeline', (callback: () => void) => window.wallpaperRegisterMediaTimelineListener(callback)],
+  ] as const)('replaces retained %s callbacks during immediate reinstallation', async (_name, register) => {
+    const { useDevtoolsStore } = await installFreshGlobals();
+    useDevtoolsStore().mediaActive = true;
+    const retained = vi.fn();
+    const latest = vi.fn();
+
+    register(retained);
+    await Promise.resolve();
+    retained.mockClear();
+    const { installGlobals } = await import('../src/globals');
+    installGlobals();
+    register(latest);
+    await Promise.resolve();
+
+    expect(retained).not.toHaveBeenCalled();
+    expect(latest).toHaveBeenCalledOnce();
+  });
+
   it('replays startup state once to the latest synchronous registration', async () => {
     await installFreshGlobals();
     const first = { applyUserProperties: vi.fn() };
@@ -378,15 +436,34 @@ describe('wallpaper Engine host globals', () => {
     expect(callback).toHaveBeenCalledWith('random', 'C:/two.jpg');
   });
 
-  it('warns instead of calling back when an on-demand directory is empty', async () => {
-    await installFreshGlobals();
+  it.each([
+    ['unknown property', 'missing', false],
+    ['explicitly empty configured directory', 'empty', true],
+  ] as const)('returns a blank random-file response for an %s', async (_label, name, hasConfiguredEmptyDirectory) => {
+    const { useDevtoolsStore } = await installFreshGlobals();
+    if (hasConfiguredEmptyDirectory)
+      useDevtoolsStore().directoryFiles[name] = [];
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const callback = vi.fn();
 
-    window.wallpaperRequestRandomFileForProperty('empty', callback);
+    window.wallpaperRequestRandomFileForProperty(name, callback);
 
-    expect(callback).not.toHaveBeenCalled();
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(name, '');
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('no files configured'));
+  });
+
+  it('contains random-file callback errors after selecting a configured file', async () => {
+    const { useDevtoolsStore } = await installFreshGlobals();
+    useDevtoolsStore().directoryFiles.random = ['C:/one.jpg'];
+    const error = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const callback = () => {
+      throw new Error('wallpaper callback');
+    };
+
+    expect(() => window.wallpaperRequestRandomFileForProperty('random', callback)).not.toThrow();
+
+    expect(error).toHaveBeenCalledWith('[WE Dev] random file callback threw', expect.any(Error));
   });
 
   it('exposes documented media constants and a functional virtual RGB keyboard', async () => {
@@ -398,20 +475,20 @@ describe('wallpaper Engine host globals', () => {
     const positions = vi.fn();
 
     expect(window.wallpaperMediaIntegration).toEqual({
-      PLAYBACK_PLAYING: 0,
-      PLAYBACK_PAUSED: 1,
-      PLAYBACK_STOPPED: 2,
+      PLAYBACK_PLAYING: 1,
+      PLAYBACK_PAUSED: 2,
+      PLAYBACK_STOPPED: 0,
     });
-    const image = String.fromCharCode(7, 8, 9);
+    const image = String.fromCharCode(7, 8, 9).repeat(4);
     const led = window.wpPlugins?.led;
     const cue = window.cue;
     if (!led || !cue)
       throw new Error('Expected the virtual RGB plugins to be installed.');
-    led.setAllDevicesByImageData(image, 1, 1);
+    led.setAllDevicesByImageData(image, 2, 2);
     cue.getProtocolDetails(protocol);
     cue.getDeviceCount(count);
     cue.getDeviceInfo(0, info);
-    cue.getLedPositionsByDeviceIndex(positions);
+    cue.getLedPositionsByDeviceIndex(0, positions);
     cue.setLedsColorsAsync([{ ledId: 1, r: 255, g: 128, b: 0 }]);
 
     expect(protocol).toHaveBeenCalledWith(

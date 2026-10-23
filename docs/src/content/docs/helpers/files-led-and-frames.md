@@ -53,6 +53,9 @@ encoded string:    R G B   | R G B   | …
 
 Alpha is discarded. The result length is `canvas.width * canvas.height * 3`. The helper allocates the browser's `ImageData` and builds a new string, so use a small canvas such as 100×20 rather than the full wallpaper frame.
 
+Both dimensions must be at least 2 pixels when sending the result to the native
+LED APIs. The simulator rejects smaller frames with `RangeError`.
+
 If `canvas.getContext('2d')` returns `null`, the helper throws `Error('Could not get 2D context from canvas')`. Errors from `getImageData()`, including a tainted canvas, propagate.
 
 ### Wait for hardware readiness
@@ -113,7 +116,9 @@ loop.start();
 | `stop()` | Cancels the scheduled frame and becomes a no-op when already stopped |
 | `setLimit(fps)` | Updates the cap for the next frame; changing the value resets accumulated threshold time |
 
-A limit greater than `0` caps drawing. `0` and all negative/non-positive values are uncapped, matching the host's `0 = unlimited` convention without rejecting defensive values.
+A limit greater than `0` caps drawing; `0` is unlimited. Negative limits throw
+`RangeError`, and non-finite limits throw `TypeError` without changing the active
+cap.
 
 ### Elapsed time and stalls
 

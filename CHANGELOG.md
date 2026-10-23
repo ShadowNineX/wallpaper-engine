@@ -7,6 +7,39 @@ Release boundaries follow the `version` field of the published package's
 `package.json` (`packages/wallpaper-engine/package.json` after the monorepo
 migration); tags are used where they exist.
 
+## [Unreleased]
+
+### Changed
+
+- **Breaking:** replaced the root `DefaultWEProps` definition type with
+  `DefaultWEPropertyDefinitions`; the helpers entry retains the runtime
+  `DefaultWEProps` value. Update type imports to the new name.
+- **Breaking:** `cue.getLedPositionsByDeviceIndex` requires
+  `(deviceIndex, callback)`, as enforced by the installed renderer and LED plugin.
+  Pass the target device index before the callback.
+- **Breaking:** media metadata now requires all seven string fields; use `''`
+  for unavailable text. `contentType` also includes `''` for unknown media.
+  Update constructed events and exhaustive content-type handling accordingly.
+
+### Fixed
+
+- Matched native single-callback audio/media registration, replacing earlier
+  listeners and suppressing superseded simulator startup deliveries.
+- Matched native LED image minimum dimensions (2×2) in simulator validation.
+- Completed empty random-file requests with the property name and an empty path.
+- Matched complete seven-field native media metadata, including empty strings
+  for unavailable text and the unknown media content type.
+- Matched simulator playback constants and buttons to native stopped `0`, playing
+  `1`, and paused `2`, with a shared definition for globals and frontend controls.
+- Matched native slider missing-step and precision fallbacks, step-grid rounding,
+  and initial-value preservation; distinguished runtime behavior from the native
+  editor's separate authoring convention in the property documentation.
+- Completed built-in property definitions with the native value-free `_d0`
+  divider while preserving Font Awesome `icon` metadata, and rendered the
+  divider between built-in and custom controls in devtools (issue #23).
+- Updated fallback initialization examples to skip layout definitions and match
+  the native scheme-color default.
+
 ## [1.5.0] - 2026-10-22
 
 ### Added
@@ -371,6 +404,7 @@ migration); tags are used where they exist.
   canvas encoding, and FPS-limited animation loops.
 - Added an example wallpaper, automated tests, build configuration, and CI.
 
+[Unreleased]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.5.0...HEAD
 [1.5.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.2...v1.4.0
 [1.3.2]: https://github.com/ShadowNineX/wallpaper-engine/compare/v1.3.1...v1.3.2
